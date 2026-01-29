@@ -74,16 +74,18 @@ import { SidePanelUI } from './panel-ui.js';
 };
 
 (SidePanelUI.prototype as any).refreshConfigDropdown = function refreshConfigDropdown() {
-  this.elements.activeConfig.innerHTML = '';
-  Object.keys(this.configs).forEach((name) => {
-    const option = document.createElement('option');
-    option.value = name;
-    option.textContent = name;
-    if (name === this.currentConfig) {
-      option.selected = true;
-    }
-    this.elements.activeConfig.appendChild(option);
-  });
+  if (this.elements.activeConfig) {
+    this.elements.activeConfig.innerHTML = '';
+    Object.keys(this.configs).forEach((name) => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      if (name === this.currentConfig) {
+        option.selected = true;
+      }
+      this.elements.activeConfig.appendChild(option);
+    });
+  }
   this.refreshProfileSelectors();
   this.updateModelDisplay();
   this.renderProfileGrid();
@@ -210,22 +212,27 @@ import { SidePanelUI } from './panel-ui.js';
   if (!name || !this.configs[name]) return;
   this.profileEditorTarget = name;
   const config = this.configs[name];
-  this.elements.profileEditorTitle && (this.elements.profileEditorTitle.textContent = `Editing: ${name}`);
-  this.elements.profileEditorName && (this.elements.profileEditorName.value = name);
-  this.elements.profileEditorProvider.value = config.provider || 'openai';
-  this.elements.profileEditorApiKey.value = config.apiKey || '';
-  this.elements.profileEditorModel.value = config.model || '';
-  this.elements.profileEditorEndpoint.value = config.customEndpoint || '';
-  this.elements.profileEditorTemperature.value = config.temperature ?? 0.7;
-  if (this.elements.profileEditorTemperatureValue) {
-    this.elements.profileEditorTemperatureValue.textContent = this.elements.profileEditorTemperature.value;
+
+  // Only update profile editor elements if they exist
+  if (this.elements.profileEditorTitle) this.elements.profileEditorTitle.textContent = `Editing: ${name}`;
+  if (this.elements.profileEditorName) this.elements.profileEditorName.value = name;
+  if (this.elements.profileEditorProvider) this.elements.profileEditorProvider.value = config.provider || 'openai';
+  if (this.elements.profileEditorApiKey) this.elements.profileEditorApiKey.value = config.apiKey || '';
+  if (this.elements.profileEditorModel) this.elements.profileEditorModel.value = config.model || '';
+  if (this.elements.profileEditorEndpoint) this.elements.profileEditorEndpoint.value = config.customEndpoint || '';
+  if (this.elements.profileEditorTemperature) {
+    this.elements.profileEditorTemperature.value = config.temperature ?? 0.7;
+    if (this.elements.profileEditorTemperatureValue) {
+      this.elements.profileEditorTemperatureValue.textContent = this.elements.profileEditorTemperature.value;
+    }
   }
-  this.elements.profileEditorMaxTokens.value = config.maxTokens || 2048;
-  this.elements.profileEditorTimeout.value = config.timeout || 30000;
-  this.elements.profileEditorEnableScreenshots.value = config.enableScreenshots ? 'true' : 'false';
-  this.elements.profileEditorSendScreenshots.value = config.sendScreenshotsAsImages ? 'true' : 'false';
-  this.elements.profileEditorScreenshotQuality.value = config.screenshotQuality || 'high';
-  this.elements.profileEditorPrompt.value = config.systemPrompt || this.getDefaultSystemPrompt();
+  if (this.elements.profileEditorMaxTokens) this.elements.profileEditorMaxTokens.value = config.maxTokens || 2048;
+  if (this.elements.profileEditorTimeout) this.elements.profileEditorTimeout.value = config.timeout || 30000;
+  if (this.elements.profileEditorEnableScreenshots) this.elements.profileEditorEnableScreenshots.value = config.enableScreenshots ? 'true' : 'false';
+  if (this.elements.profileEditorSendScreenshots) this.elements.profileEditorSendScreenshots.value = config.sendScreenshotsAsImages ? 'true' : 'false';
+  if (this.elements.profileEditorScreenshotQuality) this.elements.profileEditorScreenshotQuality.value = config.screenshotQuality || 'high';
+  if (this.elements.profileEditorPrompt) this.elements.profileEditorPrompt.value = config.systemPrompt || this.getDefaultSystemPrompt();
+
   this.toggleProfileEditorEndpoint();
   this.renderProfileGrid();
   if (!silent) {

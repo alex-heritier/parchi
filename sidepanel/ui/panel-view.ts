@@ -7,16 +7,10 @@ import { SidePanelUI } from './panel-ui.js';
     return;
   }
   this.currentView = view;
-  if (!this.elements.chatInterface || !this.elements.historyPanel) return;
-  if (view === 'history') {
-    this.recordScrollPosition();
-    this.elements.chatInterface.classList.add('hidden');
-    this.elements.historyPanel.classList.remove('hidden');
-  } else {
-    this.elements.chatInterface.classList.remove('hidden');
-    this.elements.historyPanel.classList.add('hidden');
-    this.restoreScrollPosition();
-  }
+  // History is a right-side panel now (see templates/panels/history.html), not a main view.
+  // Keep chat visible and let showRightPanel() control sidebar content.
+  if (!this.elements.chatInterface) return;
+  this.elements.chatInterface.classList.remove('hidden');
 };
 
 (SidePanelUI.prototype as any).openSidebar = function openSidebar() {

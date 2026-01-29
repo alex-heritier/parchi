@@ -222,16 +222,28 @@ import { SidePanelUI } from './panel-ui.js';
   return clean.slice(0, 19) + '…';
 };
 
-(SidePanelUI.prototype as any).handleModelSelectChange = function handleModelSelectChange() {
+(SidePanelUI.prototype as any).handleModelSelectChange = async function handleModelSelectChange() {
   const select = this.elements.modelSelect;
   if (!select) return;
 
   const selectedProfile = select.value;
   if (!selectedProfile || !this.configs[selectedProfile]) return;
+  if (selectedProfile === this.currentConfig) return;
 
   // Switch to the selected profile
-  this.setActiveConfig(selectedProfile);
-  this.updateStatus(`Switched to ${this.configs[selectedProfile].provider}/${this.configs[selectedProfile].model}`, 'success');
+  try {
+    // setActiveConfig updates in-memory UI state; persistAllSettings ensures the background
+    // script (which reads from chrome.storage) uses the same active profile.
+    this.setActiveConfig(selectedProfile, true);
+    await this.persistAllSettings({ silent: true });
+    this.updateStatus(
+      `Switched to ${this.configs[selectedProfile].provider}/${this.configs[selectedProfile].model}`,
+      'success',
+    );
+  } catch (error) {
+    console.error('[Parchi] Failed to persist selected profile:', error);
+    this.updateStatus('Failed to switch profile', 'error');
+  }
 };
 
 (SidePanelUI.prototype as any).getProviderIcon = function getProviderIcon(provider: string): string {

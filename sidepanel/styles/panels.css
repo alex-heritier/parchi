@@ -36,7 +36,9 @@
 .settings-content {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+  min-height: 0;
+  overflow-x: hidden;
 }
 
 .settings-tabs {
@@ -116,6 +118,12 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   margin-bottom: 6px;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+  overflow: hidden;
+}
+
+.settings-section:hover {
+  border-color: hsla(270, 50%, 55%, 0.3);
 }
 
 .settings-section > summary {
@@ -127,10 +135,24 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  position: relative;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+}
+
+.settings-section > summary::before {
+  content: '▸';
+  font-size: 10px;
+  color: var(--muted-dim);
+  transition: transform var(--duration-fast) var(--ease-out-back);
+}
+
+.settings-section[open] > summary::before {
+  transform: rotate(90deg);
 }
 
 .settings-section > summary:hover {
   background: var(--card-hover);
+  padding-left: 16px;
 }
 
 .settings-section > summary::-webkit-details-marker {
@@ -139,6 +161,11 @@
 
 .settings-section[open] > summary {
   border-bottom: 1px solid var(--border);
+  background: linear-gradient(90deg, hsla(270, 50%, 55%, 0.05), transparent);
+}
+
+.settings-section[open] .settings-body {
+  animation: fadeInUp 0.3s var(--ease-out-expo);
 }
 
 .settings-body {
@@ -153,12 +180,16 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0; /* Prevent flex overflow */
+  max-width: 100%;
 }
 
 .form-group label {
   font-size: 11px;
   font-weight: 500;
   color: var(--muted);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .form-group input,
@@ -170,6 +201,8 @@
   border-radius: var(--radius-sm);
   color: var(--foreground);
   font-size: 12px;
+  max-width: 100%;
+  width: 100%;
 }
 
 .form-group input:focus,
@@ -186,6 +219,9 @@
 .form-group small {
   font-size: 10px;
   color: var(--muted-dim);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 
 .form-group input[type="range"] {
@@ -307,12 +343,21 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+  animation: fadeInUp 0.3s var(--ease-out-expo) backwards;
 }
+
+.history-item:nth-child(1) { animation-delay: 0ms; }
+.history-item:nth-child(2) { animation-delay: 50ms; }
+.history-item:nth-child(3) { animation-delay: 100ms; }
+.history-item:nth-child(4) { animation-delay: 150ms; }
+.history-item:nth-child(5) { animation-delay: 200ms; }
 
 .history-item:hover {
   background: var(--card-hover);
   border-color: var(--muted-dim);
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .history-item-main {
@@ -354,17 +399,20 @@
   border-radius: var(--radius-sm);
   color: var(--muted-dim);
   opacity: 0;
-  transition: all 0.15s;
+  transform: scale(0.8);
+  transition: all var(--duration-fast) var(--ease-out-expo);
   cursor: pointer;
 }
 
 .history-item:hover .history-delete {
   opacity: 1;
+  transform: scale(1);
 }
 
 .history-delete:hover {
   background: hsl(0, 40%, 20%);
   color: var(--error);
+  animation: shake 0.4s ease-in-out;
 }
 
 /* Access / Account */

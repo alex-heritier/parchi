@@ -8,6 +8,19 @@
   width: min(860px, calc(100% - 32px));
   overflow: hidden;
   box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.2);
+  animation: slideUpFade 0.3s var(--ease-out-expo);
+  transform-origin: bottom center;
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .plan-drawer.hidden {
@@ -36,10 +49,11 @@
   cursor: pointer;
   color: var(--foreground);
   text-align: left;
+  transition: background var(--duration-fast) ease;
 }
 
 .plan-drawer-header:hover {
-  background: var(--card-hover);
+  background: linear-gradient(90deg, var(--card-hover), transparent);
 }
 
 .plan-drawer-title {
@@ -51,7 +65,7 @@
 }
 
 .plan-drawer-chevron {
-  transition: transform 0.2s ease;
+  transition: transform var(--duration-fast) var(--ease-out-back);
   color: var(--muted);
 }
 
@@ -83,11 +97,17 @@
   border-radius: 4px;
   color: var(--muted);
   cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out-expo);
 }
 
 .plan-drawer-btn:hover {
   background: var(--border);
   color: var(--foreground);
+  transform: scale(1.1);
+}
+
+.plan-drawer-btn:active {
+  transform: scale(0.95);
 }
 
 .plan-drawer-content {
@@ -119,11 +139,19 @@
   font-size: 12px;
   color: var(--foreground);
   background: transparent;
-  transition: background 0.15s ease;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+  animation: slideInRight 0.3s var(--ease-out-expo) backwards;
 }
+
+.plan-checklist-item:nth-child(1) { animation-delay: 0ms; }
+.plan-checklist-item:nth-child(2) { animation-delay: 50ms; }
+.plan-checklist-item:nth-child(3) { animation-delay: 100ms; }
+.plan-checklist-item:nth-child(4) { animation-delay: 150ms; }
+.plan-checklist-item:nth-child(5) { animation-delay: 200ms; }
 
 .plan-checklist-item:hover {
   background: var(--card-hover);
+  transform: translateX(2px);
 }
 
 .plan-checklist-item.completed {
@@ -157,11 +185,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: all var(--duration-fast) var(--ease-out-back);
 }
 
 .plan-checklist-checkbox:hover:not(:disabled) {
   border-color: var(--accent);
+  transform: scale(1.1);
 }
 
 .plan-checklist-checkbox:disabled {
@@ -172,6 +201,7 @@
 .plan-checklist-checkbox.checked {
   background: var(--accent);
   border-color: var(--accent);
+  animation: pop 0.3s var(--ease-out-back);
 }
 
 .plan-checklist-checkbox.checked svg {
@@ -271,12 +301,14 @@
   background: var(--background);
   border: 1px solid var(--border);
   border-radius: 999px;
-  transition: all 0.2s ease;
+  transition: all var(--duration-fast) var(--ease-out-expo);
 }
 
 .tool-pill:hover {
   background: var(--card-hover);
   border-color: var(--muted-dim);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .tool-pill.pending {
@@ -482,16 +514,25 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 12px;
-  animation: tool-fade-in 0.2s ease-out;
+  animation: tool-fade-in 0.3s var(--ease-out-expo) backwards;
+  transition: all var(--duration-fast) var(--ease-out-expo);
 }
 
+.tool-tree-item:nth-child(1) { animation-delay: 0ms; }
+.tool-tree-item:nth-child(2) { animation-delay: 50ms; }
+.tool-tree-item:nth-child(3) { animation-delay: 100ms; }
+.tool-tree-item:nth-child(4) { animation-delay: 150ms; }
+.tool-tree-item:nth-child(5) { animation-delay: 200ms; }
+
 @keyframes tool-fade-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .tool-tree-item:hover {
   border-color: var(--muted-dim);
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .tool-tree-icon-wrap {

@@ -6,25 +6,30 @@ import { SidePanelUI } from './panel-ui.js';
 
 (SidePanelUI.prototype as any).init = async function init() {
   console.log('[Parchi] init() starting...');
-  this.setupEventListeners();
-  this.setupPlanDrawer();
-  this.setupResizeObserver();
-  // Start with sidebar closed by default
-  this.elements.sidebar?.classList.add('closed');
-  console.log('[Parchi] Calling loadSettings...');
-  await this.loadSettings();
-  console.log('[Parchi] loadSettings done, configs:', Object.keys(this.configs), 'current:', this.currentConfig);
-  console.log('[Parchi] Config details:', JSON.stringify(this.configs[this.currentConfig] || {}).slice(0, 200));
-  await this.loadHistoryList();
-  await this.loadAccessState();
-  if (this.isAccessReady()) {
-    this.updateStatus('Ready', 'success');
+  try {
+    this.setupEventListeners();
+    this.setupPlanDrawer();
+    this.setupResizeObserver();
+    // Start with sidebar closed by default
+    this.elements.sidebar?.classList.add('closed');
+    console.log('[Parchi] Calling loadSettings...');
+    await this.loadSettings();
+    console.log('[Parchi] loadSettings done, configs:', Object.keys(this.configs), 'current:', this.currentConfig);
+    console.log('[Parchi] Config details:', JSON.stringify(this.configs[this.currentConfig] || {}).slice(0, 200));
+    await this.loadHistoryList();
+    await this.loadAccessState();
+    if (this.isAccessReady()) {
+      this.updateStatus('Ready', 'success');
+    }
+    this.updateModelDisplay();
+    console.log('[Parchi] Calling fetchAvailableModels...');
+    this.fetchAvailableModels();
+    this.updateChatEmptyState?.();
+    console.log('[Parchi] init() complete');
+  } catch (error) {
+    console.error('[Parchi] init() failed:', error);
+    this.updateStatus('Initialization failed - check console', 'error');
   }
-  this.updateModelDisplay();
-  console.log('[Parchi] Calling fetchAvailableModels...');
-  this.fetchAvailableModels();
-  this.updateChatEmptyState?.();
-  console.log('[Parchi] init() complete');
 };
 
 (SidePanelUI.prototype as any).setupEventListeners = function setupEventListeners() {
@@ -167,7 +172,9 @@ import { SidePanelUI } from './panel-ui.js';
   });
 
   // Model selector (now shows profiles)
-  this.elements.modelSelect?.addEventListener('change', () => this.handleModelSelectChange());
+  this.elements.modelSelect?.addEventListener('change', () => {
+    void this.handleModelSelectChange();
+  });
 
   // File upload
   this.elements.fileBtn?.addEventListener('click', () => {
@@ -224,6 +231,12 @@ import { SidePanelUI } from './panel-ui.js';
       const delta = message.content || '';
       this.streamingReasoning = `${this.streamingReasoning}${delta}`;
       this.updateThinkingPanel(this.streamingReasoning, true);
+      // When streaming is disabled, the background still emits reasoning deltas,
+      // but we won't get assistant_stream_start. Create a container so reasoning
+      // and tool events can render inline in chat.
+      if (!this.streamingState) {
+        this.startStreamingMessage();
+      }
       this.updateStreamReasoning(delta);
       return;
     }
@@ -250,6 +263,10 @@ import { SidePanelUI } from './panel-ui.js';
     this.clearErrorBanner();
     this.updateActivityState();
     this.activeToolName = message.tool || null;
+    // Ensure there's a visible container for tool pills even when streaming is off.
+    if (!this.streamingState) {
+      this.startStreamingMessage();
+    }
     this.displayToolExecution(message.tool, message.args, null, message.id);
     return;
   }
@@ -257,6 +274,9 @@ import { SidePanelUI } from './panel-ui.js';
     this.pendingToolCount = Math.max(0, this.pendingToolCount - 1);
     this.updateActivityState();
     this.activeToolName = null;
+    if (!this.streamingState) {
+      this.startStreamingMessage();
+    }
     this.displayToolExecution(message.tool, message.args, message.result, message.id);
     return;
   }

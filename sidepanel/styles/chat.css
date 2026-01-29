@@ -5,6 +5,7 @@
   flex-direction: column;
   min-height: 0;
   position: relative;
+  scroll-behavior: smooth;
 }
 
 .chat-empty-state {
@@ -28,7 +29,16 @@
   box-shadow:
     0 0 40px rgba(168, 99, 255, 0.18),
     inset 0 0 30px rgba(255, 255, 255, 0.06);
-  animation: orbPulse 6s ease-in-out infinite;
+  animation: orbPulse 4s ease-in-out infinite, orbFloat 6s ease-in-out infinite;
+}
+
+@keyframes orbFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
 }
 
 .chat-empty-title {
@@ -62,6 +72,14 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  scroll-behavior: smooth;
+}
+
+/* Scroll anchor for auto-scroll */
+.chat-messages::after {
+  content: '';
+  display: block;
+  height: 1px;
 }
 
 /* Ensure all SVGs inside chat are properly sized */
@@ -91,6 +109,8 @@
   padding: 12px 0 16px;
   margin-bottom: 8px;
   border-bottom: 1px solid var(--border);
+  max-width: 100%;
+  animation: slideInRight 0.4s var(--ease-out-expo);
 }
 
 .message.user .message-content {
@@ -98,6 +118,10 @@
   font-size: 15px;
   line-height: 1.6;
   font-weight: 400;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
 }
 
 /* Assistant Message - Rich, organized */
@@ -106,6 +130,7 @@
   flex-direction: column;
   gap: 12px;
   padding: 8px 0 20px;
+  animation: fadeInUp 0.4s var(--ease-out-expo);
 }
 
 .message.assistant .message-content {
@@ -393,6 +418,7 @@
   margin: 0 0 12px 0;
   border-left: 2px solid var(--border);
   padding-left: 12px;
+  animation: fadeInUp 0.4s var(--ease-out-expo);
 }
 
 .thinking-header {

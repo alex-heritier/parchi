@@ -12,10 +12,25 @@
   color: var(--foreground);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   z-index: 10;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+  animation: slideInUp 0.3s var(--ease-out-back);
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .jump-to-latest:hover {
   background: var(--card-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
 /* Error/Warning Banners - Toast style in corner */
@@ -35,17 +50,17 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   z-index: 100;
   max-width: 320px;
-  animation: slideIn 0.2s ease-out;
+  animation: slideInToast 0.4s var(--ease-out-back);
 }
 
-@keyframes slideIn {
+@keyframes slideInToast {
   from {
     opacity: 0;
-    transform: translateX(20px);
+    transform: translateX(30px) scale(0.95);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateX(0) scale(1);
   }
 }
 
@@ -77,11 +92,17 @@
   border-radius: var(--radius-sm);
   color: var(--muted);
   cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out-expo);
 }
 
 .error-banner .error-dismiss:hover {
   background: var(--card-hover);
   color: var(--foreground);
+  transform: scale(1.05);
+}
+
+.error-banner .error-dismiss:active {
+  transform: scale(0.95);
 }
 
 /* Text utilities */
@@ -91,8 +112,12 @@
 }
 
 /* Tab panels */
+.tab-panel {
+  animation: fadeInUp 0.3s var(--ease-out-expo);
+}
+
 .tab-panel.hidden {
-  display: none;
+  display: none !important;
 }
 
 /* Hidden */
@@ -105,15 +130,28 @@
   0%,
   100% {
     opacity: 1;
+    transform: scale(1);
   }
   50% {
-    opacity: 0.5;
+    opacity: 0.6;
+    transform: scale(1.1);
   }
 }
 
 .streaming .status-dot {
   animation: pulse 1.5s ease-in-out infinite;
   background: var(--accent);
+  position: relative;
+}
+
+.streaming .status-dot::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.3;
+  animation: pulse-ring 1.5s ease-out infinite;
 }
 
 /* Focus */

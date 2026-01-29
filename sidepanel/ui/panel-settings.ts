@@ -1,25 +1,30 @@
 import { SidePanelUI } from './panel-ui.js';
 
 (SidePanelUI.prototype as any).toggleSettings = async function toggleSettings(saveOnClose = true) {
-  const isOpen = this.elements.settingsPanel ? !this.elements.settingsPanel.classList.contains('hidden') : false;
-  if (isOpen) {
-    if (saveOnClose) {
-      this.configs[this.currentConfig] = this.collectCurrentFormProfile();
-      await this.persistAllSettings({ silent: true });
+  try {
+    const isOpen = this.elements.settingsPanel ? !this.elements.settingsPanel.classList.contains('hidden') : false;
+    if (isOpen) {
+      if (saveOnClose) {
+        this.configs[this.currentConfig] = this.collectCurrentFormProfile();
+        await this.persistAllSettings({ silent: true });
+      }
+      this.settingsOpen = false;
+      this.showRightPanel(null);
+      this.setNavActive('chat');
+      this.updateAccessUI();
+      return;
     }
-    this.settingsOpen = false;
-    this.showRightPanel(null);
-    this.setNavActive('chat');
+    this.settingsOpen = true;
+    this.accessPanelVisible = false;
+    this.openSidebar();
+    this.showRightPanel('settings');
+    this.switchSettingsTab(this.currentSettingsTab || 'general');
+    this.setNavActive('settings');
     this.updateAccessUI();
-    return;
+  } catch (error) {
+    console.error('[Parchi] toggleSettings error:', error);
+    this.updateStatus('Settings panel error', 'error');
   }
-  this.settingsOpen = true;
-  this.accessPanelVisible = false;
-  this.openSidebar();
-  this.showRightPanel('settings');
-  this.switchSettingsTab(this.currentSettingsTab || 'general');
-  this.setNavActive('settings');
-  this.updateAccessUI();
 };
 
 (SidePanelUI.prototype as any).cancelSettings = async function cancelSettings() {
@@ -129,25 +134,32 @@ import { SidePanelUI } from './panel-ui.js';
 
 (SidePanelUI.prototype as any).loadSettings = async function loadSettings() {
   console.log('[Parchi] loadSettings called');
-  const settings = await chrome.storage.local.get([
-    'visionBridge',
-    'visionProfile',
-    'useOrchestrator',
-    'orchestratorProfile',
-    'showThinking',
-    'streamResponses',
-    'autoScroll',
-    'confirmActions',
-    'saveHistory',
-    'toolPermissions',
-    'allowedDomains',
-    'activeConfig',
-    'configs',
-    'auxAgentProfiles',
-    'accountApiBase',
-  ]);
+  let settings: Record<string, any> = {};
+  try {
+    settings = await chrome.storage.local.get([
+      'visionBridge',
+      'visionProfile',
+      'useOrchestrator',
+      'orchestratorProfile',
+      'showThinking',
+      'streamResponses',
+      'autoScroll',
+      'confirmActions',
+      'saveHistory',
+      'toolPermissions',
+      'allowedDomains',
+      'activeConfig',
+      'configs',
+      'auxAgentProfiles',
+      'accountApiBase',
+    ]);
+  } catch (error) {
+    console.error('[Parchi] Failed to load settings from storage:', error);
+    this.updateStatus('Failed to load settings', 'error');
+  }
 
   const storedConfigs = settings.configs || {};
+  console.log('[Parchi] Loaded configs from storage:', storedConfigs);
   const baseConfig = {
     provider: 'openai',
     apiKey: '',
@@ -173,6 +185,7 @@ import { SidePanelUI } from './panel-ui.js';
     ...storedConfigs,
   };
   this.currentConfig = this.configs[settings.activeConfig] ? settings.activeConfig : 'default';
+  console.log('[Parchi] Active config:', this.currentConfig, 'Provider:', this.configs[this.currentConfig]?.provider);
   this.auxAgentProfiles = settings.auxAgentProfiles || [];
 
   if (this.elements.visionBridge)
@@ -222,13 +235,20 @@ import { SidePanelUI } from './panel-ui.js';
   if (!settings.accountApiBase && accountApiBase) {
     await chrome.storage.local.set({ accountApiBase });
   }
+  console.log('[Parchi] loadSettings: calling updateAccessConfigPrompt');
   this.updateAccessConfigPrompt();
 
+  console.log('[Parchi] loadSettings: calling refreshConfigDropdown');
   this.refreshConfigDropdown();
+  console.log('[Parchi] loadSettings: calling setActiveConfig');
   this.setActiveConfig(this.currentConfig, true);
+  console.log('[Parchi] loadSettings: calling toggleCustomEndpoint');
   this.toggleCustomEndpoint();
+  console.log('[Parchi] loadSettings: calling updateScreenshotToggleState');
   this.updateScreenshotToggleState();
+  console.log('[Parchi] loadSettings: calling editProfile');
   this.editProfile(this.currentConfig, true);
+  console.log('[Parchi] loadSettings: complete');
 };
 
 (SidePanelUI.prototype as any).saveSettings = async function saveSettings() {
@@ -236,12 +256,15 @@ import { SidePanelUI } from './panel-ui.js';
     this.updateStatus('Invalid custom endpoint URL', 'error');
     return;
   }
-  this.configs[this.currentConfig] = this.collectCurrentFormProfile();
+  const profile = this.collectCurrentFormProfile();
+  console.log('[Parchi] Saving settings for profile:', this.currentConfig, profile);
+  this.configs[this.currentConfig] = profile;
   await this.persistAllSettings();
-  
+  console.log('[Parchi] Settings saved to storage');
+
   // Refresh models after saving settings
   this.fetchAvailableModels();
-  
+
   this.updateStatus('Settings saved successfully', 'success');
 };
 
@@ -365,42 +388,50 @@ import { SidePanelUI } from './panel-ui.js';
 };
 
 (SidePanelUI.prototype as any).persistAllSettings = async function persistAllSettings({ silent = false } = {}) {
-  const activeProfile = this.configs[this.currentConfig] || {};
-  const payload = {
-    provider: activeProfile.provider || 'openai',
-    apiKey: activeProfile.apiKey || '',
-    model: activeProfile.model || 'gpt-4o',
-    customEndpoint: activeProfile.customEndpoint || '',
-    systemPrompt: activeProfile.systemPrompt || this.getDefaultSystemPrompt(),
-    temperature: activeProfile.temperature ?? 0.7,
-    maxTokens: activeProfile.maxTokens || 4096,
-    contextLimit: activeProfile.contextLimit || 200000,
-    timeout: activeProfile.timeout || 30000,
-    enableScreenshots: activeProfile.enableScreenshots ?? false,
-    sendScreenshotsAsImages: activeProfile.sendScreenshotsAsImages ?? false,
-    screenshotQuality: activeProfile.screenshotQuality || 'high',
-    showThinking: activeProfile.showThinking !== false,
-    streamResponses: activeProfile.streamResponses !== false,
-    autoScroll: activeProfile.autoScroll !== false,
-    confirmActions: activeProfile.confirmActions !== false,
-    saveHistory: activeProfile.saveHistory !== false,
-    visionBridge: this.elements.visionBridge?.value === 'true',
-    visionProfile: this.elements.visionProfile?.value || '',
-    useOrchestrator: this.elements.orchestratorToggle?.value === 'true',
-    orchestratorProfile: this.elements.orchestratorProfile?.value || '',
-    toolPermissions: this.collectToolPermissions(),
-    allowedDomains: this.elements.allowedDomains?.value || '',
-    accountApiBase: this.elements.accountApiBase?.value?.trim() || '',
-    auxAgentProfiles: this.auxAgentProfiles,
-    activeConfig: this.currentConfig,
-    configs: this.configs,
-  };
-  await chrome.storage.local.set(payload);
-  this.accountClient.setBaseUrl(payload.accountApiBase);
-  this.updateAccessConfigPrompt();
-  this.updateContextUsage();
-  if (!silent) {
-    this.updateStatus('Settings saved successfully', 'success');
+  try {
+    const activeProfile = this.configs[this.currentConfig] || {};
+    const payload = {
+      provider: activeProfile.provider || 'openai',
+      apiKey: activeProfile.apiKey || '',
+      model: activeProfile.model || 'gpt-4o',
+      customEndpoint: activeProfile.customEndpoint || '',
+      systemPrompt: activeProfile.systemPrompt || this.getDefaultSystemPrompt(),
+      temperature: activeProfile.temperature ?? 0.7,
+      maxTokens: activeProfile.maxTokens || 4096,
+      contextLimit: activeProfile.contextLimit || 200000,
+      timeout: activeProfile.timeout || 30000,
+      enableScreenshots: activeProfile.enableScreenshots ?? false,
+      sendScreenshotsAsImages: activeProfile.sendScreenshotsAsImages ?? false,
+      screenshotQuality: activeProfile.screenshotQuality || 'high',
+      showThinking: activeProfile.showThinking !== false,
+      streamResponses: activeProfile.streamResponses !== false,
+      autoScroll: activeProfile.autoScroll !== false,
+      confirmActions: activeProfile.confirmActions !== false,
+      saveHistory: activeProfile.saveHistory !== false,
+      visionBridge: this.elements.visionBridge?.value === 'true',
+      visionProfile: this.elements.visionProfile?.value || '',
+      useOrchestrator: this.elements.orchestratorToggle?.value === 'true',
+      orchestratorProfile: this.elements.orchestratorProfile?.value || '',
+      toolPermissions: this.collectToolPermissions(),
+      allowedDomains: this.elements.allowedDomains?.value || '',
+      accountApiBase: this.elements.accountApiBase?.value?.trim() || '',
+      auxAgentProfiles: this.auxAgentProfiles,
+      activeConfig: this.currentConfig,
+      configs: this.configs,
+    };
+    await chrome.storage.local.set(payload);
+    this.accountClient.setBaseUrl(payload.accountApiBase);
+    this.updateAccessConfigPrompt();
+    this.updateContextUsage();
+    if (!silent) {
+      this.updateStatus('Settings saved successfully', 'success');
+    }
+  } catch (error) {
+    console.error('[Parchi] persistAllSettings error:', error);
+    if (!silent) {
+      this.updateStatus('Failed to save settings', 'error');
+    }
+    throw error;
   }
 };
 

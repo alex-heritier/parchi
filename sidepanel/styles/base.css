@@ -12,6 +12,8 @@
   --warning: hsl(38, 85%, 55%);
   --error: hsl(0, 60%, 55%);
   --accent: hsl(270, 50%, 55%);
+  --accent-light: hsl(270, 60%, 65%);
+  --accent-dark: hsl(270, 45%, 45%);
 
   --sidebar-width: 280px;
   --topbar-height: 44px;
@@ -24,6 +26,17 @@
   --mascot-fill: var(--card);
   --mascot-stroke: var(--muted);
   --mascot-detail: var(--accent);
+
+  /* Animation timing functions */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --ease-in-out-sine: cubic-bezier(0.37, 0, 0.63, 1);
+
+  /* Animation durations */
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
 }
 
 *,

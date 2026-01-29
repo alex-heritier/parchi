@@ -77,6 +77,7 @@
   resize: none;
   border: none;
   border-radius: 0;
+  transition: color var(--duration-fast) ease;
 }
 
 .composer textarea:focus {
@@ -211,16 +212,33 @@
   font-family: var(--font-sans);
   color: var(--foreground);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-out-expo);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
   max-width: 200px;
   flex-shrink: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.model-selector::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.6s ease;
 }
 
 .model-selector:hover {
-  border-color: rgba(168, 99, 255, 0.35);
-  background: rgba(168, 99, 255, 0.12);
+  border-color: rgba(168, 99, 255, 0.4);
+  background: rgba(168, 99, 255, 0.15);
   color: var(--foreground);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(168, 99, 255, 0.15), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.model-selector:hover::before {
+  transform: translateX(100%);
 }
 
 .model-selector select {
@@ -355,21 +373,45 @@
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--foreground);
-  transition: all 0.15s;
+  position: relative;
+  overflow: hidden;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+}
+
+.btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.1), transparent);
+  opacity: 0;
+  transition: opacity var(--duration-fast);
 }
 
 .btn:hover {
   background: var(--card-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.btn:hover::after {
+  opacity: 1;
+}
+
+.btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: linear-gradient(180deg, hsl(270, 55%, 60%), hsl(270, 55%, 50%));
+  border-color: transparent;
   color: #fff;
+  box-shadow: 0 4px 12px hsla(270, 50%, 55%, 0.25);
 }
 
 .btn-primary:hover {
-  background: hsl(270, 55%, 50%);
+  background: linear-gradient(180deg, hsl(270, 60%, 65%), hsl(270, 60%, 55%));
+  box-shadow: 0 6px 16px hsla(270, 50%, 55%, 0.35);
 }
 
 .btn-secondary {
@@ -387,12 +429,34 @@
   border: none;
   border-radius: var(--radius-sm);
   color: var(--muted);
-  transition: all 0.15s;
+  position: relative;
+  overflow: hidden;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+}
+
+.icon-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.15), transparent 70%);
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all var(--duration-fast);
 }
 
 .icon-btn:hover {
   background: var(--card-hover);
   color: var(--foreground);
+  transform: scale(1.05);
+}
+
+.icon-btn:hover::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.icon-btn:active {
+  transform: scale(0.95);
 }
 
 .send-btn {
@@ -405,13 +469,34 @@
   border: none;
   border-radius: 12px;
   color: #fff;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35);
-  transition: all 0.15s;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255,255,255,0.1) inset;
+  position: relative;
+  overflow: hidden;
+  transition: all var(--duration-fast) var(--ease-spring);
+}
+
+.send-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.2), transparent);
+  opacity: 0;
+  transition: opacity var(--duration-fast);
 }
 
 .send-btn:hover {
-  background: linear-gradient(180deg, hsl(270, 55%, 65%), hsl(270, 55%, 55%));
-  transform: translateY(-1px);
+  background: linear-gradient(180deg, hsl(270, 60%, 65%), hsl(270, 60%, 55%));
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.4), 0 0 20px hsla(270, 55%, 60%, 0.3), 0 0 0 1px rgba(255,255,255,0.1) inset;
+}
+
+.send-btn:hover::before {
+  opacity: 1;
+}
+
+.send-btn:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255,255,255,0.1) inset;
 }
 
 .send-btn:disabled {

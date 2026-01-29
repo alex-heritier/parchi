@@ -60,7 +60,12 @@ const formatElapsed = (elapsedMs: number) => {
       </div>
     `;
 
-  this.elements.chatMessages.appendChild(container);
+  // Prefer grouping assistant output under the last user "turn" when available.
+  if (this.lastChatTurn) {
+    this.lastChatTurn.appendChild(container);
+  } else {
+    this.elements.chatMessages.appendChild(container);
+  }
   this.streamingState = {
     container,
     eventsEl: container.querySelector('.stream-events') as HTMLElement | null,

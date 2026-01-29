@@ -15,12 +15,15 @@
   flex-direction: column;
   flex-shrink: 0;
   transform: translateX(0);
-  transition: transform 0.2s ease;
+  transition: transform var(--duration-normal) var(--ease-out-expo),
+              opacity var(--duration-normal) var(--ease-out-expo),
+              box-shadow var(--duration-slow) ease;
   order: 2; /* Push to right */
 }
 
 .sidebar.closed {
   transform: translateX(100%);
+  opacity: 0.95;
   position: absolute;
   right: 0;
   z-index: 50;
@@ -51,6 +54,11 @@
   flex-direction: column;
   gap: 12px;
   min-height: 0; /* Critical for scrolling */
+  max-width: 100%; /* Prevent overflow */
+}
+
+.right-panel-panels > * {
+  max-width: 100%; /* Ensure children don't overflow */
 }
 
 .right-panel-content {
@@ -124,12 +132,28 @@
   color: var(--muted);
   font-size: 13px;
   font-weight: 500;
-  transition: all 0.15s;
+  position: relative;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+  overflow: hidden;
+}
+
+.nav-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%) scaleY(0);
+  width: 3px;
+  height: 20px;
+  background: linear-gradient(180deg, var(--accent-light), var(--accent));
+  border-radius: 0 2px 2px 0;
+  transition: transform var(--duration-fast) var(--ease-out-back);
 }
 
 .nav-item:hover {
   background: var(--card-hover);
   color: var(--foreground);
+  transform: translateX(2px);
 }
 
 .nav-item.active {
@@ -137,8 +161,60 @@
   color: var(--foreground);
 }
 
+.nav-item.active::before {
+  transform: translateY(-50%) scaleY(1);
+}
+
 .nav-item svg {
   flex-shrink: 0;
+  transition: transform var(--duration-fast) var(--ease-out-back);
+}
+
+.nav-item:hover svg {
+  transform: scale(1.1);
+}
+
+/* Sidebar Header */
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mascot {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: all var(--duration-fast) var(--ease-out-expo);
+}
+
+.mascot:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px hsla(270, 50%, 55%, 0.3);
+  transform: scale(1.05);
+}
+
+.brand-name {
+  font-size: 15px;
+  font-weight: 600;
+  background: linear-gradient(90deg, var(--foreground), var(--muted));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .panel-header {
