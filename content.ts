@@ -18,7 +18,7 @@ class ContentScriptHandler {
   init() {
     // Listen for messages from background script
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      this.handleMessage(message, sender, sendResponse);
+      void this.handleMessage(message, sender, sendResponse);
       return true; // Keep channel open for async response
     });
 
@@ -26,7 +26,7 @@ class ContentScriptHandler {
     this.notifyReady();
   }
 
-  async handleMessage(message, sender, sendResponse) {
+  async handleMessage(message, _sender, sendResponse) {
     try {
       switch (message.action) {
         case 'highlight_element':
@@ -283,4 +283,4 @@ class ContentScriptHandler {
 }
 
 // Initialize content script
-const contentScriptHandler = new ContentScriptHandler();
+new ContentScriptHandler();

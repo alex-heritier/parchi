@@ -48,3 +48,5 @@ Last verified: 2026-01-21
 - `npm install`
 - `npm run build`
 - Load the unpacked extension from `dist/` in Chrome
+- For Firefox: `npm run build:firefox`, then load `dist/` via `about:debugging#/runtime/this-firefox`
+- For a Firefox XPI: `npm run build:firefox:xpi` (outputs `dist/parchi-<version>.xpi`; requires Developer Edition/Nightly or add-on signing for release)

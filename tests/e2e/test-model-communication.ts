@@ -104,7 +104,7 @@ async function setupTestSettings(worker: import('playwright').Worker, endpoint: 
   );
 }
 
-test('Custom endpoint configuration is saved and retrieved', async ({ panel, worker }) => {
+test('Custom endpoint configuration is saved and retrieved', async ({ worker }) => {
   const testEndpoint = 'https://api.homelabai.org/v1';
   const testApiKey = 'test-key-123';
   const testModel = 'gpt-4o';
@@ -125,7 +125,7 @@ test('Custom endpoint configuration is saved and retrieved', async ({ panel, wor
   log('✓ Settings saved correctly', 'success');
 });
 
-test('Background script handles user_message', async ({ panel, worker }) => {
+test('Background script handles user_message', async ({ worker }) => {
   const testEndpoint = 'https://api.homelabai.org/v1';
   const testApiKey = process.env.TEST_API_KEY || 'test-key';
   const testModel = process.env.TEST_MODEL || 'gpt-4o';
@@ -150,29 +150,8 @@ test('Background script handles user_message', async ({ panel, worker }) => {
     sessionId,
   };
 
-  // Send message and wait for response
-  const responsePromise = new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('Timeout waiting for response')), 15000);
-
-    worker.on('console', (msg) => {
-      const text = msg.text();
-      if (text.includes('run_error') || text.includes('Error processing user message')) {
-        clearTimeout(timeout);
-        reject(new Error(text));
-      }
-    });
-
-    // Listen for runtime messages
-    chrome.runtime.onMessage.addListener((message) => {
-      if (message.sessionId === sessionId) {
-        clearTimeout(timeout);
-        resolve(message);
-      }
-    });
-  });
-
   // Send the message via chrome.runtime.sendMessage
-  await worker.evaluate((payload) => {
+  const response = await worker.evaluate((payload) => {
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(payload, (response) => {
         if (chrome.runtime.lastError) {
@@ -183,9 +162,14 @@ test('Background script handles user_message', async ({ panel, worker }) => {
       });
     });
   }, messagePayload);
+  assert((response as any)?.success === true, 'Expected a success acknowledgement from the background script');
 
   // Wait a bit to see if any errors occur
   await new Promise((resolve) => setTimeout(resolve, 3000));
+  assert(
+    !consoleMessages.some((text) => text.includes('run_error') || text.includes('Error processing user message')),
+    'Background reported an error while handling user_message',
+  );
 
   log('✓ Message sent without immediate errors', 'success');
 });
@@ -206,7 +190,7 @@ test('AI SDK v6 can be imported and used', async ({ worker }) => {
   log('✓ AI SDK v6 imports verified', 'success');
 });
 
-test('Model resolution with custom endpoint', async ({ panel, worker }) => {
+test('Model resolution with custom endpoint', async ({ worker }) => {
   const testEndpoint = 'https://api.homelabai.org/v1';
   const testApiKey = 'test-key-123';
   const testModel = 'gpt-4o';
@@ -228,7 +212,7 @@ test('Model resolution with custom endpoint', async ({ panel, worker }) => {
   log('✓ Custom endpoint is properly formatted', 'success');
 });
 
-test('Verify storage contains required settings', async ({ panel, worker }) => {
+test('Verify storage contains required settings', async ({ worker }) => {
   const testEndpoint = 'https://api.homelabai.org/v1';
   const testApiKey = 'test-key-123';
   const testModel = 'gpt-4o';

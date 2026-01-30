@@ -4,6 +4,10 @@ declare namespace chrome {
     function setPanelBehavior(options: chrome.sidePanel.PanelBehavior): Promise<void>;
   }
 
+  namespace sidebarAction {
+    function open(options?: { windowId?: number }): Promise<void>;
+  }
+
   namespace runtime {
     function sendMessage(message: any): Promise<any>;
   }

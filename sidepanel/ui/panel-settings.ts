@@ -1,5 +1,17 @@
 import { SidePanelUI } from './panel-ui.js';
 
+const parseHeadersJson = (raw: string): Record<string, string> => {
+  const trimmed = raw.trim();
+  if (!trimmed) return {};
+  const parsed = JSON.parse(trimmed);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Headers must be a JSON object');
+  }
+  return Object.fromEntries(
+    Object.entries(parsed).map(([key, value]) => [key, value == null ? '' : String(value)]),
+  );
+};
+
 (SidePanelUI.prototype as any).toggleSettings = async function toggleSettings(saveOnClose = true) {
   try {
     const isOpen = this.elements.settingsPanel ? !this.elements.settingsPanel.classList.contains('hidden') : false;
@@ -35,17 +47,20 @@ import { SidePanelUI } from './panel-ui.js';
 (SidePanelUI.prototype as any).toggleCustomEndpoint = function toggleCustomEndpoint() {
   const provider = this.elements.provider?.value;
   const isCustom = provider === 'custom' || provider === 'kimi';
-  
+
   // Always show the endpoint field, but highlight when required
   if (this.elements.customEndpointGroup) {
     // Add visual emphasis when custom provider selected
     this.elements.customEndpointGroup.classList.toggle('required', isCustom);
   }
-  
+
   // Update placeholder based on provider
   if (this.elements.customEndpoint) {
     if (provider === 'kimi') {
-      if (!this.elements.customEndpoint.value || this.elements.customEndpoint.value === 'https://openrouter.ai/api/v1') {
+      if (
+        !this.elements.customEndpoint.value ||
+        this.elements.customEndpoint.value === 'https://openrouter.ai/api/v1'
+      ) {
         this.elements.customEndpoint.value = 'https://api.kimi.com/coding';
       }
       this.elements.customEndpoint.placeholder = 'https://api.kimi.com/coding';
@@ -55,7 +70,7 @@ import { SidePanelUI } from './panel-ui.js';
       this.elements.customEndpoint.placeholder = 'Leave empty for default API URL';
     }
   }
-  
+
   // Update model hint based on provider
   const modelHint = document.getElementById('modelHint');
   if (modelHint) {
@@ -95,10 +110,45 @@ import { SidePanelUI } from './panel-ui.js';
   }
 };
 
+(SidePanelUI.prototype as any).validateCustomHeaders = function validateCustomHeaders() {
+  if (!this.elements.customHeaders) return true;
+  const raw = this.elements.customHeaders.value || '';
+  if (!raw.trim()) {
+    this.elements.customHeaders.style.borderColor = '';
+    return true;
+  }
+  try {
+    parseHeadersJson(raw);
+    this.elements.customHeaders.style.borderColor = '';
+    return true;
+  } catch {
+    this.elements.customHeaders.style.borderColor = 'var(--status-error)';
+    return false;
+  }
+};
+
+(SidePanelUI.prototype as any).validateProfileEditorHeaders = function validateProfileEditorHeaders() {
+  if (!this.elements.profileEditorHeaders) return true;
+  const raw = this.elements.profileEditorHeaders.value || '';
+  if (!raw.trim()) {
+    this.elements.profileEditorHeaders.style.borderColor = '';
+    return true;
+  }
+  try {
+    parseHeadersJson(raw);
+    this.elements.profileEditorHeaders.style.borderColor = '';
+    return true;
+  } catch {
+    this.elements.profileEditorHeaders.style.borderColor = 'var(--status-error)';
+    return false;
+  }
+};
+
 (SidePanelUI.prototype as any).toggleProfileEditorEndpoint = function toggleProfileEditorEndpoint() {
   if (!this.elements.profileEditorEndpointGroup) return;
   const provider = this.elements.profileEditorProvider?.value;
-  this.elements.profileEditorEndpointGroup.style.display = provider === 'custom' || provider === 'kimi' ? 'block' : 'none';
+  this.elements.profileEditorEndpointGroup.style.display =
+    provider === 'custom' || provider === 'kimi' ? 'block' : 'none';
 };
 
 (SidePanelUI.prototype as any).switchSettingsTab = function switchSettingsTab(
@@ -165,6 +215,7 @@ import { SidePanelUI } from './panel-ui.js';
     apiKey: '',
     model: 'gpt-4o',
     customEndpoint: '',
+    extraHeaders: {},
     systemPrompt: this.getDefaultSystemPrompt(),
     temperature: 0.7,
     maxTokens: 4096,
@@ -252,8 +303,15 @@ import { SidePanelUI } from './panel-ui.js';
 };
 
 (SidePanelUI.prototype as any).saveSettings = async function saveSettings() {
-  if ((this.elements.provider?.value === 'custom' || this.elements.provider?.value === 'kimi') && !this.validateCustomEndpoint()) {
+  if (
+    (this.elements.provider?.value === 'custom' || this.elements.provider?.value === 'kimi') &&
+    !this.validateCustomEndpoint()
+  ) {
     this.updateStatus('Invalid custom endpoint URL', 'error');
+    return;
+  }
+  if (!this.validateCustomHeaders()) {
+    this.updateStatus('Invalid headers JSON', 'error');
     return;
   }
   const profile = this.collectCurrentFormProfile();
@@ -355,11 +413,25 @@ import { SidePanelUI } from './panel-ui.js';
 
 (SidePanelUI.prototype as any).collectCurrentFormProfile = function collectCurrentFormProfile() {
   const current = this.configs[this.currentConfig] || {};
+  let extraHeaders = current.extraHeaders || {};
+  if (this.elements.customHeaders) {
+    const raw = this.elements.customHeaders.value || '';
+    if (raw.trim().length > 0) {
+      try {
+        extraHeaders = parseHeadersJson(raw);
+      } catch {
+        extraHeaders = current.extraHeaders || {};
+      }
+    } else {
+      extraHeaders = {};
+    }
+  }
   return {
     provider: this.elements.provider?.value || current.provider || 'openai',
     apiKey: this.elements.apiKey?.value || current.apiKey || '',
     model: this.elements.model?.value || current.model || 'gpt-4o',
     customEndpoint: this.elements.customEndpoint?.value || current.customEndpoint || '',
+    extraHeaders,
     systemPrompt: this.elements.systemPrompt?.value || current.systemPrompt || '',
     temperature: Number.parseFloat(this.elements.temperature?.value) || current.temperature || 0.7,
     maxTokens: Number.parseInt(this.elements.maxTokens?.value) || current.maxTokens || 4096,
@@ -395,6 +467,7 @@ import { SidePanelUI } from './panel-ui.js';
       apiKey: activeProfile.apiKey || '',
       model: activeProfile.model || 'gpt-4o',
       customEndpoint: activeProfile.customEndpoint || '',
+      extraHeaders: activeProfile.extraHeaders || {},
       systemPrompt: activeProfile.systemPrompt || this.getDefaultSystemPrompt(),
       temperature: activeProfile.temperature ?? 0.7,
       maxTokens: activeProfile.maxTokens || 4096,

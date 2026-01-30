@@ -74,6 +74,7 @@ export const getSidePanelElements = (): SidePanelElements => ({
   profileEditorModel: byId<HTMLInputElement>('profileEditorModel'),
   profileEditorEndpoint: byId<HTMLInputElement>('profileEditorEndpoint'),
   profileEditorEndpointGroup: byId<HTMLElement>('profileEditorEndpointGroup'),
+  profileEditorHeaders: byId<HTMLTextAreaElement>('profileEditorHeaders'),
   profileEditorTemperature: byId<HTMLInputElement>('profileEditorTemperature'),
   profileEditorTemperatureValue: byId<HTMLElement>('profileEditorTemperatureValue'),
   profileEditorMaxTokens: byId<HTMLInputElement>('profileEditorMaxTokens'),
@@ -83,6 +84,10 @@ export const getSidePanelElements = (): SidePanelElements => ({
   profileEditorScreenshotQuality: byId<HTMLSelectElement>('profileEditorScreenshotQuality'),
   profileEditorPrompt: byId<HTMLTextAreaElement>('profileEditorPrompt'),
   saveProfileBtn: byId<HTMLButtonElement>('saveProfileBtn'),
+  profileJsonEditor: byId<HTMLTextAreaElement>('profileJsonEditor'),
+  refreshProfileJsonBtn: byId<HTMLButtonElement>('refreshProfileJsonBtn'),
+  copyProfileJsonBtn: byId<HTMLButtonElement>('copyProfileJsonBtn'),
+  applyProfileJsonBtn: byId<HTMLButtonElement>('applyProfileJsonBtn'),
   permissionRead: byId<HTMLInputElement>('permissionRead'),
   permissionInteract: byId<HTMLInputElement>('permissionInteract'),
   permissionNavigate: byId<HTMLInputElement>('permissionNavigate'),
@@ -103,6 +108,8 @@ export const getSidePanelElements = (): SidePanelElements => ({
   model: byId<HTMLInputElement>('model'),
   customEndpoint: byId<HTMLInputElement>('customEndpoint'),
   customEndpointGroup: byId<HTMLElement>('customEndpointGroup'),
+  customHeaders: byId<HTMLTextAreaElement>('customHeaders'),
+  customHeadersGroup: byId<HTMLElement>('customHeadersGroup'),
 
   // Form elements - Model parameters
   temperature: byId<HTMLInputElement>('temperature'),

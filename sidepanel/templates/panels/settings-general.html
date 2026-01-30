@@ -26,6 +26,11 @@
         <input type="text" id="customEndpoint" placeholder="https://openrouter.ai/api/v1" />
         <small>Override the default API endpoint. Required for OpenRouter/custom providers.</small>
     </div>
+    <div class="form-group" id="customHeadersGroup">
+        <label for="customHeaders">Extra Headers (JSON)</label>
+        <textarea id="customHeaders" rows="3" placeholder='{"HTTP-Referer":"https://your.app","X-Title":"Parchi"}'></textarea>
+        <small>Optional. JSON object merged into request headers.</small>
+    </div>
     <button id="saveSettingsBtn" class="btn btn-primary" style="width: 100%; margin-top: 8px;">
         Save Settings
     </button>
@@ -159,6 +164,21 @@
                 <option value="false">Disabled</option>
             </select>
             <small>Describe screenshots for non-vision models</small>
+        </div>
+    </div>
+</details>
+
+<details class="settings-section">
+    <summary>🧰 Export / Import</summary>
+    <div class="settings-body">
+        <div class="form-group">
+            <label>Settings JSON</label>
+            <div class="config-row">
+                <button id="exportSettingsBtn" class="btn btn-secondary">Export</button>
+                <button id="importSettingsBtn" class="btn btn-secondary">Import</button>
+                <input id="importSettingsInput" type="file" accept="application/json" style="display: none;" />
+            </div>
+            <small>Export all profiles to JSON. Import overwrites current settings.</small>
         </div>
     </div>
 </details>

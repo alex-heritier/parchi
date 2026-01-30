@@ -8,6 +8,7 @@ export type SDKModelSettings = {
   apiKey: string;
   model: string;
   customEndpoint?: string;
+  extraHeaders?: Record<string, string>;
 };
 
 export type ToolDefinition = {
@@ -24,9 +25,11 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
   const provider = settings.provider || 'openai';
   const modelId = settings.model || 'gpt-4o';
   const apiKey = settings.apiKey || '';
+  const extraHeaders =
+    settings.extraHeaders && typeof settings.extraHeaders === 'object' ? settings.extraHeaders : undefined;
 
   if (provider === 'anthropic') {
-    const providerInstance = createAnthropic({ apiKey });
+    const providerInstance = createAnthropic({ apiKey, headers: extraHeaders });
     return providerInstance(modelId);
   }
 
@@ -46,6 +49,7 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
     const kimiProvider = createAnthropic({
       apiKey,
       baseURL,
+      headers: extraHeaders,
     });
     return kimiProvider(modelId);
   }
@@ -63,7 +67,7 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
           .replace(/\/+$/, '')
       : '';
 
-    let baseURL = rawBase;
+    const baseURL = rawBase;
 
     if (!baseURL) {
       throw new Error('Custom provider requires a customEndpoint to be configured');
@@ -73,11 +77,12 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
       name: provider,
       apiKey,
       baseURL,
+      headers: extraHeaders,
     });
     return customProvider(modelId);
   }
 
-  const providerInstance = createOpenAI({ apiKey });
+  const providerInstance = createOpenAI({ apiKey, headers: extraHeaders });
   return providerInstance(modelId);
 }
 

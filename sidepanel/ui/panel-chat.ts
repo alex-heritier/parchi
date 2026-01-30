@@ -96,7 +96,8 @@ import { SidePanelUI } from './panel-ui.js';
 (SidePanelUI.prototype as any).updateChatEmptyState = function updateChatEmptyState() {
   const emptyState = this.elements.chatEmptyState;
   if (!emptyState) return;
-  const hasMessages = (this.displayHistory && this.displayHistory.length > 0) ||
+  const hasMessages =
+    (this.displayHistory && this.displayHistory.length > 0) ||
     (this.elements.chatMessages && this.elements.chatMessages.children.length > 0);
   emptyState.classList.toggle('hidden', hasMessages);
 };

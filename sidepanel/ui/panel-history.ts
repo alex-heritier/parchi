@@ -2,14 +2,37 @@ import { normalizeConversationHistory } from '../../ai/message-schema.js';
 import { dedupeThinking, extractThinking } from '../../ai/message-utils.js';
 import { SidePanelUI } from './panel-ui.js';
 
+const normalizeStoredSessions = (raw: any): any[] => {
+  if (Array.isArray(raw)) {
+    return raw.filter(Boolean);
+  }
+  if (raw && typeof raw === 'object') {
+    return Object.values(raw).filter(Boolean);
+  }
+  return [];
+};
+
+const normalizeTranscript = (value: any): any[] => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
 (SidePanelUI.prototype as any).persistHistory = async function persistHistory() {
   // Default to saving history unless explicitly disabled
   const saveEnabled = this.elements.saveHistory?.value !== 'false';
   if (!saveEnabled) return;
-  
+
   // Only persist if there's actual content
   if (!this.displayHistory || this.displayHistory.length === 0) return;
-  
+
   const entry = {
     id: this.sessionId,
     startedAt: this.sessionStartedAt,
@@ -18,11 +41,11 @@ import { SidePanelUI } from './panel-ui.js';
     messageCount: this.displayHistory.length,
     transcript: this.displayHistory.slice(-200),
   };
-  
+
   try {
     const existing = await chrome.storage.local.get(['chatSessions']);
-    const sessions = existing.chatSessions || [];
-    const filtered = sessions.filter((s: any) => s.id !== entry.id);
+    const sessions = normalizeStoredSessions(existing.chatSessions);
+    const filtered = sessions.filter((s: any) => s?.id !== entry.id);
     filtered.unshift(entry);
     const trimmed = filtered.slice(0, 50); // Keep more sessions
     await chrome.storage.local.set({ chatSessions: trimmed });
@@ -41,23 +64,25 @@ import { SidePanelUI } from './panel-ui.js';
       '<div class="history-empty">History is off. Enable “Save History” in Settings to see past chats.</div>';
     return;
   }
-  
+
   try {
-    const { chatSessions = [] } = await chrome.storage.local.get(['chatSessions']);
+    const { chatSessions } = await chrome.storage.local.get(['chatSessions']);
+    const sessions = normalizeStoredSessions(chatSessions);
     this.elements.historyItems.innerHTML = '';
-    
-    if (!chatSessions.length) {
+
+    if (!sessions.length) {
       this.elements.historyItems.innerHTML = '<div class="history-empty">No saved chats yet.</div>';
       return;
     }
-    
-    chatSessions.forEach((session: any) => {
+
+    sessions.forEach((session: any) => {
       const item = document.createElement('div');
       item.className = 'history-item';
       const date = new Date(session.updatedAt || session.startedAt || Date.now());
-      const msgCount = session.messageCount || session.transcript?.length || 0;
+      const transcript = normalizeTranscript(session.transcript);
+      const msgCount = session.messageCount || transcript.length || 0;
       const timeAgo = this.formatTimeAgo(date);
-      
+
       item.innerHTML = `
         <div class="history-item-main">
           <div class="history-title">${this.escapeHtml(session.title || 'Untitled Session')}</div>
@@ -74,18 +99,18 @@ import { SidePanelUI } from './panel-ui.js';
           </svg>
         </button>
       `;
-      
+
       // Click to load session
       item.querySelector('.history-item-main')?.addEventListener('click', () => {
         this.loadSession(session);
       });
-      
+
       // Delete button
       item.querySelector('.history-delete')?.addEventListener('click', (e: Event) => {
         e.stopPropagation();
         this.deleteSession(session.id);
       });
-      
+
       this.elements.historyItems.appendChild(item);
     });
   } catch (e) {
@@ -96,9 +121,10 @@ import { SidePanelUI } from './panel-ui.js';
 
 (SidePanelUI.prototype as any).loadSession = function loadSession(session: any) {
   this.switchView('chat');
-  if (Array.isArray(session.transcript)) {
+  const transcript = normalizeTranscript(session.transcript);
+  if (transcript.length > 0) {
     this.recordScrollPosition();
-    const normalized = normalizeConversationHistory(session.transcript || []);
+    const normalized = normalizeConversationHistory(transcript || []);
     this.displayHistory = normalized;
     this.contextHistory = normalized;
     this.sessionId = session.id || `session-${Date.now()}`;
@@ -110,8 +136,9 @@ import { SidePanelUI } from './panel-ui.js';
 
 (SidePanelUI.prototype as any).deleteSession = async function deleteSession(sessionId: string) {
   try {
-    const { chatSessions = [] } = await chrome.storage.local.get(['chatSessions']);
-    const filtered = chatSessions.filter((s: any) => s.id !== sessionId);
+    const { chatSessions } = await chrome.storage.local.get(['chatSessions']);
+    const sessions = normalizeStoredSessions(chatSessions);
+    const filtered = sessions.filter((s: any) => s?.id !== sessionId);
     await chrome.storage.local.set({ chatSessions: filtered });
     this.loadHistoryList();
   } catch (e) {
@@ -121,7 +148,7 @@ import { SidePanelUI } from './panel-ui.js';
 
 (SidePanelUI.prototype as any).clearAllHistory = async function clearAllHistory() {
   if (!confirm('Clear all chat history? This cannot be undone.')) return;
-  
+
   try {
     await chrome.storage.local.set({ chatSessions: [] });
     this.loadHistoryList();
@@ -136,7 +163,7 @@ import { SidePanelUI } from './panel-ui.js';
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
-  
+
   if (minutes < 1) return 'Just now';
   if (minutes < 60) return `${minutes}m ago`;
   if (hours < 24) return `${hours}h ago`;

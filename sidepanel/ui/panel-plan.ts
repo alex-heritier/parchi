@@ -66,9 +66,7 @@ import { SidePanelUI } from './panel-ui.js';
   // Update step count
   if (this.elements.planStepCount) {
     this.elements.planStepCount.textContent =
-      completedCount === totalCount
-        ? `${totalCount} steps · Done`
-        : `${completedCount}/${totalCount} steps`;
+      completedCount === totalCount ? `${totalCount} steps · Done` : `${completedCount}/${totalCount} steps`;
   }
 
   // Render checklist
@@ -76,7 +74,6 @@ import { SidePanelUI } from './panel-ui.js';
     this.elements.planChecklist.innerHTML = steps
       .map((step, index) => {
         const isDone = step.status === 'done';
-        const isRunning = step.status === 'running';
         const isBlocked = step.status === 'blocked';
 
         // Determine if this step can be checked (previous steps must be done)
@@ -125,7 +122,7 @@ import { SidePanelUI } from './panel-ui.js';
     this.elements.planChecklist.querySelectorAll('[data-action="toggle-step"]').forEach((btn: Element) => {
       btn.addEventListener('click', (e: Event) => {
         e.stopPropagation();
-        const index = parseInt((btn as HTMLElement).dataset.stepIndex || '0', 10);
+        const index = Number.parseInt((btn as HTMLElement).dataset.stepIndex || '0', 10);
         this.togglePlanStep(index);
       });
     });
@@ -141,7 +138,9 @@ import { SidePanelUI } from './panel-ui.js';
   if (!this.currentPlan || !this.currentPlan.steps[index]) return;
 
   const step = this.currentPlan.steps[index];
-  const previousStepsDone = this.currentPlan.steps.slice(0, index).every((s: { status: string }) => s.status === 'done');
+  const previousStepsDone = this.currentPlan.steps
+    .slice(0, index)
+    .every((s: { status: string }) => s.status === 'done');
 
   // Can only toggle if previous steps are done
   if (!previousStepsDone && step.status !== 'done') {
@@ -164,5 +163,3 @@ import { SidePanelUI } from './panel-ui.js';
   this.currentPlan.updatedAt = Date.now();
   this.renderPlanDrawer(this.currentPlan);
 };
-
-

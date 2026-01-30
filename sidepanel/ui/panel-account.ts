@@ -1,6 +1,29 @@
 import { normalizeConversationHistory } from '../../ai/message-schema.js';
 import { SidePanelUI } from './panel-ui.js';
 
+const normalizeStoredSessions = (raw: any): any[] => {
+  if (Array.isArray(raw)) {
+    return raw.filter(Boolean);
+  }
+  if (raw && typeof raw === 'object') {
+    return Object.values(raw).filter(Boolean);
+  }
+  return [];
+};
+
+const normalizeTranscript = (value: any): any[] => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
 (SidePanelUI.prototype as any).renderAccountPanel = function renderAccountPanel() {
   const email = this.authState?.email;
   if (this.elements.accountGreeting) {
@@ -110,14 +133,15 @@ import { SidePanelUI } from './panel-ui.js';
 
 (SidePanelUI.prototype as any).renderHistoryPreview = async function renderHistoryPreview() {
   if (!this.elements.accountHistory) return;
-  const { chatSessions = [] } = await chrome.storage.local.get(['chatSessions']);
+  const { chatSessions } = await chrome.storage.local.get(['chatSessions']);
+  const sessions = normalizeStoredSessions(chatSessions);
   this.elements.accountHistory.innerHTML = '';
-  if (!chatSessions.length) {
+  if (!sessions.length) {
     this.elements.accountHistory.innerHTML =
       '<div class="account-list-item"><span class="muted">No saved chats yet.</span></div>';
     return;
   }
-  chatSessions.slice(0, 4).forEach((session: any) => {
+  sessions.slice(0, 4).forEach((session: any) => {
     const item = document.createElement('div');
     item.className = 'account-list-item';
     const date = new Date(session.updatedAt || session.startedAt || Date.now());
@@ -127,9 +151,10 @@ import { SidePanelUI } from './panel-ui.js';
       `;
     item.addEventListener('click', () => {
       this.openHistoryFromAccount();
-      if (Array.isArray(session.transcript)) {
+      const transcript = normalizeTranscript(session.transcript);
+      if (transcript.length > 0) {
         this.recordScrollPosition();
-        const normalized = normalizeConversationHistory(session.transcript || []);
+        const normalized = normalizeConversationHistory(transcript || []);
         this.displayHistory = normalized;
         this.contextHistory = normalized;
         this.sessionId = session.id || `session-${Date.now()}`;

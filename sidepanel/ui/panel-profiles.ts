@@ -1,5 +1,25 @@
 import { SidePanelUI } from './panel-ui.js';
 
+const parseHeadersJson = (raw: string): Record<string, string> => {
+  const trimmed = raw.trim();
+  if (!trimmed) return {};
+  const parsed = JSON.parse(trimmed);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Headers must be a JSON object');
+  }
+  return Object.fromEntries(
+    Object.entries(parsed).map(([key, value]) => [key, value == null ? '' : String(value)]),
+  );
+};
+
+const formatHeadersJson = (headers: Record<string, any> | undefined) => {
+  if (!headers || typeof headers !== 'object' || Array.isArray(headers)) return '';
+  const entries = Object.entries(headers).filter(([_, value]) => value != null && String(value).length > 0);
+  if (!entries.length) return '';
+  const normalized = Object.fromEntries(entries.map(([key, value]) => [key, String(value)]));
+  return JSON.stringify(normalized, null, 2);
+};
+
 (SidePanelUI.prototype as any).createNewConfig = async function createNewConfig(name?: string) {
   // Read from whichever input has a value
   const inputA = this.elements.newProfileInput;
@@ -25,6 +45,7 @@ import { SidePanelUI } from './panel-ui.js';
     apiKey: current.apiKey || '',
     model: current.model || 'gpt-4o',
     customEndpoint: current.customEndpoint || '',
+    extraHeaders: current.extraHeaders || {},
     systemPrompt: current.systemPrompt || '',
     temperature: current.temperature ?? 0.7,
     maxTokens: current.maxTokens || 4096,
@@ -220,6 +241,8 @@ import { SidePanelUI } from './panel-ui.js';
   if (this.elements.profileEditorApiKey) this.elements.profileEditorApiKey.value = config.apiKey || '';
   if (this.elements.profileEditorModel) this.elements.profileEditorModel.value = config.model || '';
   if (this.elements.profileEditorEndpoint) this.elements.profileEditorEndpoint.value = config.customEndpoint || '';
+  if (this.elements.profileEditorHeaders)
+    this.elements.profileEditorHeaders.value = formatHeadersJson(config.extraHeaders) || '';
   if (this.elements.profileEditorTemperature) {
     this.elements.profileEditorTemperature.value = config.temperature ?? 0.7;
     if (this.elements.profileEditorTemperatureValue) {
@@ -228,12 +251,17 @@ import { SidePanelUI } from './panel-ui.js';
   }
   if (this.elements.profileEditorMaxTokens) this.elements.profileEditorMaxTokens.value = config.maxTokens || 2048;
   if (this.elements.profileEditorTimeout) this.elements.profileEditorTimeout.value = config.timeout || 30000;
-  if (this.elements.profileEditorEnableScreenshots) this.elements.profileEditorEnableScreenshots.value = config.enableScreenshots ? 'true' : 'false';
-  if (this.elements.profileEditorSendScreenshots) this.elements.profileEditorSendScreenshots.value = config.sendScreenshotsAsImages ? 'true' : 'false';
-  if (this.elements.profileEditorScreenshotQuality) this.elements.profileEditorScreenshotQuality.value = config.screenshotQuality || 'high';
-  if (this.elements.profileEditorPrompt) this.elements.profileEditorPrompt.value = config.systemPrompt || this.getDefaultSystemPrompt();
+  if (this.elements.profileEditorEnableScreenshots)
+    this.elements.profileEditorEnableScreenshots.value = config.enableScreenshots ? 'true' : 'false';
+  if (this.elements.profileEditorSendScreenshots)
+    this.elements.profileEditorSendScreenshots.value = config.sendScreenshotsAsImages ? 'true' : 'false';
+  if (this.elements.profileEditorScreenshotQuality)
+    this.elements.profileEditorScreenshotQuality.value = config.screenshotQuality || 'high';
+  if (this.elements.profileEditorPrompt)
+    this.elements.profileEditorPrompt.value = config.systemPrompt || this.getDefaultSystemPrompt();
 
   this.toggleProfileEditorEndpoint();
+  this.refreshProfileJsonEditor?.();
   this.renderProfileGrid();
   if (!silent) {
     this.switchSettingsTab('profiles');
@@ -246,6 +274,15 @@ import { SidePanelUI } from './panel-ui.js';
     apiKey: this.elements.profileEditorApiKey.value,
     model: this.elements.profileEditorModel.value,
     customEndpoint: this.elements.profileEditorEndpoint.value,
+    extraHeaders: (() => {
+      const raw = this.elements.profileEditorHeaders?.value || '';
+      if (!raw.trim()) return {};
+      try {
+        return parseHeadersJson(raw);
+      } catch {
+        return {};
+      }
+    })(),
     temperature: Number.parseFloat(this.elements.profileEditorTemperature.value) || 0.7,
     maxTokens: Number.parseInt(this.elements.profileEditorMaxTokens.value) || 2048,
     timeout: Number.parseInt(this.elements.profileEditorTimeout.value) || 30000,
@@ -260,6 +297,10 @@ import { SidePanelUI } from './panel-ui.js';
   const target = this.profileEditorTarget;
   if (!target || !this.configs[target]) {
     this.updateStatus('Select a profile to edit', 'warning');
+    return;
+  }
+  if (!this.validateProfileEditorHeaders?.()) {
+    this.updateStatus('Invalid headers JSON', 'error');
     return;
   }
   const existing = this.configs[target] || {};
@@ -281,7 +322,9 @@ import { SidePanelUI } from './panel-ui.js';
   if (this.elements.apiKey) this.elements.apiKey.value = config.apiKey || '';
   if (this.elements.model) this.elements.model.value = config.model || 'gpt-4o';
   if (this.elements.customEndpoint) this.elements.customEndpoint.value = config.customEndpoint || '';
-  if (this.elements.systemPrompt) this.elements.systemPrompt.value = config.systemPrompt || this.getDefaultSystemPrompt();
+  if (this.elements.customHeaders) this.elements.customHeaders.value = formatHeadersJson(config.extraHeaders) || '';
+  if (this.elements.systemPrompt)
+    this.elements.systemPrompt.value = config.systemPrompt || this.getDefaultSystemPrompt();
   if (this.elements.temperature) {
     this.elements.temperature.value = config.temperature !== undefined ? config.temperature : 0.7;
     if (this.elements.temperatureValue) {
@@ -291,13 +334,17 @@ import { SidePanelUI } from './panel-ui.js';
   if (this.elements.maxTokens) this.elements.maxTokens.value = config.maxTokens || 4096;
   if (this.elements.contextLimit) this.elements.contextLimit.value = config.contextLimit || 200000;
   if (this.elements.timeout) this.elements.timeout.value = config.timeout || 30000;
-  if (this.elements.enableScreenshots) this.elements.enableScreenshots.value = config.enableScreenshots ? 'true' : 'false';
-  if (this.elements.sendScreenshotsAsImages) this.elements.sendScreenshotsAsImages.value = config.sendScreenshotsAsImages ? 'true' : 'false';
+  if (this.elements.enableScreenshots)
+    this.elements.enableScreenshots.value = config.enableScreenshots ? 'true' : 'false';
+  if (this.elements.sendScreenshotsAsImages)
+    this.elements.sendScreenshotsAsImages.value = config.sendScreenshotsAsImages ? 'true' : 'false';
   if (this.elements.screenshotQuality) this.elements.screenshotQuality.value = config.screenshotQuality || 'high';
-  if (this.elements.streamResponses) this.elements.streamResponses.value = config.streamResponses !== false ? 'true' : 'true';
+  if (this.elements.streamResponses)
+    this.elements.streamResponses.value = config.streamResponses !== false ? 'true' : 'true';
   if (this.elements.showThinking) this.elements.showThinking.value = config.showThinking !== false ? 'true' : 'false';
   if (this.elements.autoScroll) this.elements.autoScroll.value = config.autoScroll !== false ? 'true' : 'false';
-  if (this.elements.confirmActions) this.elements.confirmActions.value = config.confirmActions !== false ? 'true' : 'false';
+  if (this.elements.confirmActions)
+    this.elements.confirmActions.value = config.confirmActions !== false ? 'true' : 'false';
   if (this.elements.saveHistory) this.elements.saveHistory.value = config.saveHistory !== false ? 'true' : 'false';
 };
 
@@ -314,4 +361,66 @@ import { SidePanelUI } from './panel-ui.js';
   if (!quiet) {
     this.updateStatus(`Switched to "${name}"`, 'success');
   }
+};
+
+(SidePanelUI.prototype as any).refreshProfileJsonEditor = function refreshProfileJsonEditor() {
+  if (!this.elements.profileJsonEditor) return;
+  const target = this.profileEditorTarget || this.currentConfig;
+  const config = this.configs[target] || {};
+  this.elements.profileJsonEditor.value = JSON.stringify(config, null, 2);
+};
+
+(SidePanelUI.prototype as any).copyProfileJsonEditor = async function copyProfileJsonEditor() {
+  if (!this.elements.profileJsonEditor) return;
+  const text = this.elements.profileJsonEditor.value || '';
+  if (!text.trim()) {
+    this.updateStatus('Profile JSON is empty', 'warning');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    this.updateStatus('Profile JSON copied', 'success');
+  } catch {
+    this.updateStatus('Unable to copy profile JSON', 'error');
+  }
+};
+
+(SidePanelUI.prototype as any).applyProfileJsonEditor = async function applyProfileJsonEditor() {
+  if (!this.elements.profileJsonEditor) return;
+  const target = this.profileEditorTarget || this.currentConfig;
+  if (!target || !this.configs[target]) {
+    this.updateStatus('Select a profile to edit', 'warning');
+    return;
+  }
+  const raw = this.elements.profileJsonEditor.value || '';
+  if (!raw.trim()) {
+    this.updateStatus('Paste profile JSON first', 'warning');
+    return;
+  }
+  let parsed: Record<string, any>;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    this.updateStatus('Invalid JSON format', 'error');
+    return;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    this.updateStatus('Profile JSON must be an object', 'error');
+    return;
+  }
+  const existing = this.configs[target] || {};
+  if (parsed.extraHeaders && typeof parsed.extraHeaders === 'string') {
+    try {
+      parsed.extraHeaders = parseHeadersJson(parsed.extraHeaders);
+    } catch {
+      parsed.extraHeaders = existing.extraHeaders || {};
+    }
+  }
+  this.configs[target] = { ...existing, ...parsed };
+  await this.persistAllSettings({ silent: true });
+  this.editProfile(target, true);
+  if (target === this.currentConfig) {
+    this.populateFormFromConfig(this.configs[target]);
+  }
+  this.updateStatus(`Profile "${target}" updated`, 'success');
 };

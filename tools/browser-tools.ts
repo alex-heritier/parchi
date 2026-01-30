@@ -27,11 +27,14 @@ export class BrowserTools {
   private sessionTabs: Map<number, SessionTabSummary>;
   private currentSessionTabId: number | null;
   private sessionTabGroupId: number | null;
+  private supportsTabGroups: boolean;
 
   constructor() {
     this.sessionTabs = new Map();
     this.currentSessionTabId = null;
     this.sessionTabGroupId = null;
+    this.supportsTabGroups =
+      typeof chrome.tabs.group === 'function' && typeof chrome.tabGroups?.update === 'function';
     this.tools = {
       navigate: true,
       openTab: true,
@@ -48,10 +51,13 @@ export class BrowserTools {
       groupTabs: true,
       describeSessionTabs: true,
     };
+    if (!this.supportsTabGroups) {
+      delete this.tools.groupTabs;
+    }
   }
 
   getToolDefinitions(): ToolDefinition[] {
-    return [
+    const definitions: ToolDefinition[] = [
       {
         name: 'navigate',
         description: 'Navigate the current tab to a URL.',
@@ -209,6 +215,8 @@ export class BrowserTools {
         },
       },
     ];
+
+    return this.supportsTabGroups ? definitions : definitions.filter((tool) => tool.name !== 'groupTabs');
   }
 
   getSessionTabSummaries(): SessionTabSummary[] {
@@ -229,13 +237,14 @@ export class BrowserTools {
         this.currentSessionTabId = tab.id;
       }
     });
-    if (tabs.length > 0) {
+    if (tabs.length > 0 && this.supportsTabGroups) {
       // Create session tab group with "Parchi" title and blue color
       await this.ensureSessionTabGroup({ title: options.title || 'Parchi', color: options.color || 'blue' });
     }
   }
 
   async ensureSessionTabGroup(options: GroupOptions = { title: 'Parchi', color: 'blue' }) {
+    if (!this.supportsTabGroups) return;
     const sessionTabIds = Array.from(this.sessionTabs.keys());
     if (sessionTabIds.length === 0) return;
 
@@ -278,24 +287,24 @@ export class BrowserTools {
           return await this.getContent(args);
         case 'screenshot':
           return await this.screenshot(args);
-      case 'getTabs':
-        return await this.getTabs();
-      case 'closeTab':
-        return await this.closeTab(args);
-      case 'switchTab':
-        return await this.focusTab(args);
-      case 'focusTab':
-        return await this.focusTab(args);
-      case 'groupTabs':
-        return await this.groupTabs(args);
-      case 'describeSessionTabs':
-        return {
-          success: true,
-          tabs: this.getSessionTabSummaries(),
-          tabCount: this.sessionTabs.size,
-          maxTabs: MAX_SESSION_TABS,
-          canOpenMore: this.sessionTabs.size < MAX_SESSION_TABS,
-        };
+        case 'getTabs':
+          return await this.getTabs();
+        case 'closeTab':
+          return await this.closeTab(args);
+        case 'switchTab':
+          return await this.focusTab(args);
+        case 'focusTab':
+          return await this.focusTab(args);
+        case 'groupTabs':
+          return await this.groupTabs(args);
+        case 'describeSessionTabs':
+          return {
+            success: true,
+            tabs: this.getSessionTabSummaries(),
+            tabCount: this.sessionTabs.size,
+            maxTabs: MAX_SESSION_TABS,
+            canOpenMore: this.sessionTabs.size < MAX_SESSION_TABS,
+          };
         default:
           return { success: false, error: `Unknown tool: ${toolName}` };
       }
@@ -329,28 +338,28 @@ export class BrowserTools {
   private async navigate(args: Record<string, any>) {
     const tabId = await this.resolveTabId(args);
     if (!tabId) return { success: false, error: 'No active tab.' };
-    
+
     const url = args.url;
     if (!url || typeof url !== 'string') {
       return { success: false, error: 'Missing or invalid url parameter.' };
     }
-    
+
     // Validate URL format
     if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('chrome://')) {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: `Invalid URL: "${url}". URLs must start with http://, https://, or chrome://`,
         hint: 'For Google searches, use: https://www.google.com/search?q=your+query',
       };
     }
-    
+
     try {
       await chrome.tabs.update(tabId, { url });
       this.currentSessionTabId = tabId;
       return { success: true, tabId, url };
     } catch (error) {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: `Navigation failed: ${error?.message || String(error)}`,
       };
     }
@@ -365,22 +374,22 @@ export class BrowserTools {
         hint: 'Use closeTab({ tabId: <id> }) to close a tab, or navigate({ url: "..." }) to reuse current tab.',
       };
     }
-    
+
     // Validate URL
     const url = args.url;
     if (!url || typeof url !== 'string') {
       return { success: false, error: 'Missing or invalid url parameter.' };
     }
-    
+
     // Check if it looks like a valid URL
     if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('chrome://')) {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: `Invalid URL: "${url}". URLs must start with http://, https://, or chrome://`,
         hint: 'Use navigate({ url: "https://google.com/search?q=..." }) for searches.',
       };
     }
-    
+
     try {
       const tab = await chrome.tabs.create({ url, active: true });
       if (tab.id) {
@@ -391,8 +400,8 @@ export class BrowserTools {
       }
       return { success: true, tabId: tab.id, url };
     } catch (error) {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: `Failed to open tab: ${error?.message || String(error)}`,
         hint: 'Try using navigate() on current tab instead.',
       };
@@ -565,6 +574,9 @@ export class BrowserTools {
   }
 
   private async groupTabs(args: Record<string, any>) {
+    if (!this.supportsTabGroups) {
+      return { success: false, error: 'Tab grouping is not supported in this browser.' };
+    }
     const tabIds = Array.isArray(args.tabIds) ? args.tabIds.filter((id) => typeof id === 'number') : [];
     if (!tabIds.length) {
       return { success: false, error: 'No tab ids provided.' };
@@ -574,7 +586,7 @@ export class BrowserTools {
   }
 
   private async groupTabsInternal(tabIds: number[], options: GroupOptions) {
-    if (!tabIds.length) return;
+    if (!this.supportsTabGroups || !tabIds.length) return;
     const groupId = await chrome.tabs.group({ tabIds });
     if (options.title || options.color) {
       await chrome.tabGroups.update(groupId, {

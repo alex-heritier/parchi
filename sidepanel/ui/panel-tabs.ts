@@ -54,7 +54,11 @@ import { SidePanelUI } from './panel-ui.js';
 };
 
 (SidePanelUI.prototype as any).loadTabs = async function loadTabs() {
-  const [tabs, groups] = await Promise.all([chrome.tabs.query({}), chrome.tabGroups.query({})]);
+  const tabGroupsApi = chrome.tabGroups;
+  const [tabs, groups] = await Promise.all([
+    chrome.tabs.query({}),
+    tabGroupsApi?.query ? tabGroupsApi.query({}) : Promise.resolve([]),
+  ]);
   this.tabGroupInfo = new Map(groups.map((group) => [group.id, group]));
   this.elements.tabList.innerHTML = '';
 
@@ -64,21 +68,17 @@ import { SidePanelUI } from './panel-ui.js';
   tabs
     .filter((tab) => typeof tab.id === 'number')
     .forEach((tab) => {
-      if (tab.groupId !== undefined && tab.groupId >= 0) {
-        if (!groupedTabs.has(tab.groupId)) groupedTabs.set(tab.groupId, []);
-        const bucket = groupedTabs.get(tab.groupId);
+      const groupId = typeof tab.groupId === 'number' ? tab.groupId : -1;
+      if (groupId >= 0) {
+        if (!groupedTabs.has(groupId)) groupedTabs.set(groupId, []);
+        const bucket = groupedTabs.get(groupId);
         if (bucket) bucket.push(tab);
       } else {
         ungroupedTabs.push(tab);
       }
     });
 
-  const renderGroup = (
-    label: string,
-    color: string,
-    groupTabs: chrome.tabs.Tab[],
-    groupId: string | number = 'ungrouped',
-  ) => {
+  const renderGroup = (label: string, color: string, groupTabs: chrome.tabs.Tab[]) => {
     if (!groupTabs.length) return;
     const section = document.createElement('div');
     section.className = 'tab-group';
@@ -124,7 +124,7 @@ import { SidePanelUI } from './panel-ui.js';
     const group = this.tabGroupInfo.get(groupId);
     const label = group?.title || `Group ${groupId}`;
     const color = this.mapGroupColor(group?.color);
-    renderGroup(label, color, groupTabs, groupId);
+    renderGroup(label, color, groupTabs);
   });
 
   renderGroup('Ungrouped', 'var(--text-tertiary)', ungroupedTabs);
@@ -165,15 +165,16 @@ import { SidePanelUI } from './panel-ui.js';
 };
 
 (SidePanelUI.prototype as any).buildSelectedTab = function buildSelectedTab(tab: chrome.tabs.Tab) {
-  const group = this.tabGroupInfo.get(tab.groupId);
-  const hasGroup = tab.groupId !== undefined && tab.groupId >= 0;
+  const groupId = typeof tab.groupId === 'number' ? tab.groupId : -1;
+  const group = groupId >= 0 ? this.tabGroupInfo.get(groupId) : undefined;
+  const hasGroup = groupId >= 0;
   return {
     id: tab.id,
     title: tab.title,
     url: tab.url,
     windowId: tab.windowId,
-    groupId: tab.groupId,
-    groupTitle: hasGroup ? group?.title || `Group ${tab.groupId}` : 'Ungrouped',
+    groupId: hasGroup ? groupId : -1,
+    groupTitle: hasGroup ? group?.title || `Group ${groupId}` : 'Ungrouped',
     groupColor: hasGroup ? this.mapGroupColor(group?.color) : 'var(--text-tertiary)',
   };
 };
@@ -188,7 +189,8 @@ import { SidePanelUI } from './panel-ui.js';
   this.elements.selectedTabsBar.innerHTML = '';
   const grouped = new Map<string, Array<any>>();
   this.selectedTabs.forEach((tab: any) => {
-    const key = tab.groupId && tab.groupId >= 0 ? `group-${tab.groupId}` : 'ungrouped';
+    const hasGroup = typeof tab.groupId === 'number' && tab.groupId >= 0;
+    const key = hasGroup ? `group-${tab.groupId}` : 'ungrouped';
     if (!grouped.has(key)) grouped.set(key, []);
     const bucket = grouped.get(key);
     if (bucket) bucket.push(tab);

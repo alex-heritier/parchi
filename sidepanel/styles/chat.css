@@ -26,14 +26,13 @@
   height: 120px;
   border-radius: 50%;
   background: radial-gradient(circle at 30% 30%, rgba(168, 99, 255, 0.5), rgba(40, 20, 60, 0.2));
-  box-shadow:
-    0 0 40px rgba(168, 99, 255, 0.18),
-    inset 0 0 30px rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 40px rgba(168, 99, 255, 0.18), inset 0 0 30px rgba(255, 255, 255, 0.06);
   animation: orbPulse 4s ease-in-out infinite, orbFloat 6s ease-in-out infinite;
 }
 
 @keyframes orbFloat {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {
@@ -77,7 +76,7 @@
 
 /* Scroll anchor for auto-scroll */
 .chat-messages::after {
-  content: '';
+  content: "";
   display: block;
   height: 1px;
 }

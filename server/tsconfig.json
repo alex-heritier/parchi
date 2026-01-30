@@ -8,6 +8,8 @@
     "noEmitOnError": true,
     "strict": true,
     "noImplicitAny": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "strictPropertyInitialization": false,
     "useUnknownInCatchVariables": false,
     "types": ["node"],

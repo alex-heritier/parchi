@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "build:firefox": "BROWSER=firefox node scripts/build.mjs",
+    "build:firefox:xpi": "npm run build:firefox && node scripts/build-firefox-xpi.mjs",
     "validate": "node scripts/build.mjs && node dist/tests/validate-extension.js",
     "test": "node scripts/build.mjs && node dist/tests/run-tests.js",
     "test:unit": "node scripts/build.mjs && node dist/tests/unit/run-unit-tests.js",
@@ -45,6 +47,7 @@
     "marked": "^17.0.1",
     "playwright": "^1.57.0",
     "stripe": "^16.5.0",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "web-ext": "^8.10.0"
   }
 }

@@ -14,7 +14,7 @@ export const showRightPanel = (elements: SidePanelElements, panelName: RightPane
   if (!container) {
     console.log('[Navigation] showRightPanel: no container found', {
       rightPanelPanels: elements.rightPanelPanels,
-      rightPanel: elements.rightPanel
+      rightPanel: elements.rightPanel,
     });
     return;
   }
@@ -35,7 +35,9 @@ export const showRightPanel = (elements: SidePanelElements, panelName: RightPane
     console.log('[Navigation] showRightPanel: target panel not found for', panelName);
     // Try searching in rightPanel directly as fallback
     if (elements.rightPanel) {
-      const fallbackPanel = elements.rightPanel.querySelector(`${PANEL_SELECTOR}[data-panel="${panelName}"]`) as HTMLElement | null;
+      const fallbackPanel = elements.rightPanel.querySelector(
+        `${PANEL_SELECTOR}[data-panel="${panelName}"]`,
+      ) as HTMLElement | null;
       if (fallbackPanel) {
         fallbackPanel.classList.remove('hidden');
         console.log('[Navigation] showRightPanel: showed', panelName, '(via fallback)');
@@ -84,7 +86,7 @@ export const bindSidebarNavigation = (elements: SidePanelElements, handlers: Nav
     navSettingsBtn: !!elements.navSettingsBtn,
     navAccountBtn: !!elements.navAccountBtn,
     rightPanelPanels: !!elements.rightPanelPanels,
-    rightPanel: !!elements.rightPanel
+    rightPanel: !!elements.rightPanel,
   });
 
   elements.openSidebarBtn?.addEventListener('click', () => {
@@ -100,7 +102,7 @@ export const bindSidebarNavigation = (elements: SidePanelElements, handlers: Nav
     }
   });
   elements.closeSidebarBtn?.addEventListener('click', handlers.onClose);
-  
+
   // Bind nav buttons
   elements.navChatBtn?.addEventListener('click', handlers.onChat);
   elements.navHistoryBtn?.addEventListener('click', () => {

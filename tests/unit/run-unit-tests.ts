@@ -14,8 +14,8 @@ import {
 } from '../../ai/compaction.js';
 import { createMessage, normalizeConversationHistory, toProviderMessages } from '../../ai/message-schema.js';
 import type { Message } from '../../ai/message-schema.js';
-import { createExponentialBackoff, isValidFinalResponse } from '../../ai/retry-engine.js';
 import { extractThinking } from '../../ai/message-utils.js';
+import { createExponentialBackoff, isValidFinalResponse } from '../../ai/retry-engine.js';
 
 import { buildRunPlan, normalizePlanStatus, normalizePlanSteps } from '../../types/plan.js';
 import type { RunPlan } from '../../types/plan.js';
@@ -375,8 +375,6 @@ function testMessageSchema(runner: TestRunner) {
     runner.assertFalse('thinking' in provider[0], 'Provider messages should not include thinking');
   });
 }
-
-
 
 // Test Conversation Compaction
 function testConversationCompaction(runner: TestRunner) {

@@ -181,15 +181,15 @@ async function buildBillingOverview(user: User) {
   return { entitlement, paymentMethod, invoices };
 }
 
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/device', (req, res) => {
+app.get('/device', (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/device.html'));
 });
 
-app.get('/portal', (req, res) => {
+app.get('/portal', (_req, res) => {
   res.sendFile(path.join(__dirname, '../public/portal.html'));
 });
 
@@ -332,7 +332,7 @@ app.post('/v1/billing/portal', requireAuth, async (req, res, next) => {
   }
 });
 
-app.use((error, req, res, next) => {
+app.use((error, _req, res, _next) => {
   console.error('[billing]', error);
   res.status(500).json({ error: error.message || 'Server error' });
 });

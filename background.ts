@@ -1,11 +1,12 @@
 import { generateText, stepCountIs, streamText } from 'ai';
+import { APICallError } from '@ai-sdk/provider';
 import {
-  applyCompaction,
-  buildCompactionSummaryMessage,
   DEFAULT_COMPACTION_SETTINGS,
   SUMMARIZATION_PROMPT,
   SUMMARIZATION_SYSTEM_PROMPT,
   UPDATE_SUMMARIZATION_PROMPT,
+  applyCompaction,
+  buildCompactionSummaryMessage,
   estimateContextTokens,
   findCutPoint,
   serializeConversation,
@@ -38,6 +39,8 @@ class BackgroundService {
   lastBrowserAction: string | null;
   awaitingVerification: boolean;
   currentStepVerified: boolean;
+  kimiHeaderRuleOk: boolean;
+  kimiWarningSent: boolean;
 
   constructor() {
     this.browserTools = new BrowserTools();
@@ -50,52 +53,79 @@ class BackgroundService {
     this.lastBrowserAction = null;
     this.awaitingVerification = false;
     this.currentStepVerified = false;
+    this.kimiHeaderRuleOk = false;
+    this.kimiWarningSent = false;
     this.init();
   }
 
   init() {
-    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((error) => console.error(error));
+    if (chrome.sidePanel?.setPanelBehavior) {
+      chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((error) => console.error(error));
+    } else if (chrome.sidebarAction?.open && chrome.action?.onClicked) {
+      chrome.action.onClicked.addListener((tab) => {
+        const options = typeof tab?.windowId === 'number' ? { windowId: tab.windowId } : undefined;
+        chrome.sidebarAction
+          .open(options)
+          .catch((error) => console.error('Failed to open sidebar:', error));
+      });
+    }
 
     // Kimi API requires a coding-agent User-Agent header.
     // Chrome MV3 service workers cannot set User-Agent via fetch(),
     // so we use declarativeNetRequest to inject it at the network level.
-    chrome.declarativeNetRequest.updateDynamicRules({
-      removeRuleIds: [9000],
-      addRules: [{
-        id: 9000,
-        priority: 1,
-        action: {
-          type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
-          requestHeaders: [{
-            header: 'User-Agent',
-            operation: chrome.declarativeNetRequest.HeaderOperation.SET,
-            value: 'claude-code/1.0',
-          }],
-        },
-        condition: {
-          urlFilter: '||api.kimi.com',
-          resourceTypes: [chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST],
-        },
-      }],
-    }).catch((e) => console.warn('Failed to set Kimi UA rule:', e));
+    if (chrome.declarativeNetRequest?.updateDynamicRules) {
+      chrome.declarativeNetRequest
+        .updateDynamicRules({
+          removeRuleIds: [9000],
+          addRules: [
+            {
+              id: 9000,
+              priority: 1,
+              action: {
+                type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
+                requestHeaders: [
+                  {
+                    header: 'User-Agent',
+                    operation: chrome.declarativeNetRequest.HeaderOperation.SET,
+                    value: 'coding-agent',
+                  },
+                ],
+              },
+              condition: {
+                urlFilter: '||api.kimi.com',
+                resourceTypes: [chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST],
+              },
+            },
+          ],
+        })
+        .then(() => {
+          this.kimiHeaderRuleOk = true;
+        })
+        .catch((e) => {
+          this.kimiHeaderRuleOk = false;
+          console.warn('Failed to set Kimi UA rule:', e);
+        });
+    } else {
+      this.kimiHeaderRuleOk = false;
+      console.warn('declarativeNetRequest not available; skipping Kimi UA header rule.');
+    }
 
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      this.handleMessage(message, sender, sendResponse);
+      void this.handleMessage(message, sender, sendResponse);
       return true;
     });
   }
 
-  async handleMessage(message, sender, sendResponse) {
+  async handleMessage(message, _sender, sendResponse) {
     try {
       switch (message.type) {
-        case 'user_message':
-          await this.processUserMessage(
-            message.message,
-            message.conversationHistory,
-            message.selectedTabs || [],
-            message.sessionId || `session-${Date.now()}`,
-          );
+        case 'user_message': {
+          const sessionId = message.sessionId || `session-${Date.now()}`;
+          const userMessage = typeof message.message === 'string' ? message.message : '';
+          sendResponse({ success: true, accepted: true, sessionId });
+          void this.processUserMessage(userMessage, message.conversationHistory, message.selectedTabs || [], sessionId);
           break;
+        }
 
         case 'execute_tool': {
           const result = await this.browserTools.executeTool(message.tool, message.args);
@@ -134,6 +164,7 @@ class BackgroundService {
         'apiKey',
         'model',
         'customEndpoint',
+        'extraHeaders',
         'systemPrompt',
         'sendScreenshotsAsImages',
         'screenshotQuality',
@@ -184,6 +215,7 @@ class BackgroundService {
         this.currentPlan = null;
         this.subAgentCount = 0;
         this.subAgentProfileCursor = 0;
+        this.kimiWarningSent = false;
         // Reset enforcement state
         this.lastBrowserAction = null;
         this.awaitingVerification = false;
@@ -212,6 +244,19 @@ class BackgroundService {
       const visionProfile =
         settings.visionBridge !== false ? this.resolveProfile(settings, visionProfileName || activeProfileName) : null;
 
+      const kimiInUse =
+        activeProfile?.provider === 'kimi' ||
+        orchestratorProfile?.provider === 'kimi' ||
+        visionProfile?.provider === 'kimi';
+      if (kimiInUse && !this.kimiHeaderRuleOk && !this.kimiWarningSent) {
+        this.kimiWarningSent = true;
+        this.sendRuntime(runMeta, {
+          type: 'run_warning',
+          message:
+            'Kimi requires a User-Agent header. Some Chromium forks (e.g., Brave) block UA overrides, which can break requests. Try Chrome, or use a proxy that adds the header.',
+        });
+      }
+
       const tools = this.getToolsForSession(settings, orchestratorEnabled, teamProfiles);
 
       const [activeTab] = await chrome.tabs.query({
@@ -237,7 +282,15 @@ class BackgroundService {
         teamProfiles,
       };
 
-      const normalizedHistory = normalizeConversationHistory(conversationHistory || []);
+      const historyInput = Array.isArray(conversationHistory) ? conversationHistory : [];
+      const trimmedUserMessage = typeof userMessage === 'string' ? userMessage.trim() : '';
+      const lastMessage = historyInput[historyInput.length - 1];
+      const lastContentText = typeof lastMessage?.content === 'string' ? lastMessage.content : '';
+      const shouldAppendUserMessage =
+        trimmedUserMessage && (!lastMessage || lastMessage.role !== 'user' || lastContentText !== userMessage);
+      const normalizedHistory = normalizeConversationHistory(
+        shouldAppendUserMessage ? [...historyInput, { role: 'user', content: userMessage }] : historyInput,
+      );
       const model = resolveLanguageModel(orchestratorProfile);
 
       const toolSet = buildToolSet(tools, async (toolName, args, options) =>
@@ -518,9 +571,15 @@ class BackgroundService {
       }
     } catch (error) {
       console.error('Error processing user message:', error);
+      let message = error.message || 'Unknown error';
+      if (APICallError.isInstance(error)) {
+        const status = error.statusCode ? `Status ${error.statusCode}.` : '';
+        const body = error.responseBody ? ` Response: ${error.responseBody.slice(0, 500)}` : '';
+        message = `${message}${status ? ` ${status}` : ''}${body}`;
+      }
       this.sendRuntime(runMeta, {
         type: 'run_error',
-        message: error.message || 'Unknown error',
+        message,
       });
     }
   }
@@ -568,8 +627,8 @@ class BackgroundService {
       }
       this.currentPlan = plan;
       this.sendRuntime(options.runMeta, { type: 'plan_update', plan });
-      const result = { 
-        success: true, 
+      const result = {
+        success: true,
         plan,
         message: `Plan created with ${plan.steps.length} steps. Use update_plan({ step_index: 0, status: "done" }) after completing each step.`,
       };
@@ -579,8 +638,8 @@ class BackgroundService {
 
     if (toolName === 'update_plan') {
       if (!this.currentPlan) {
-        const errorResult = { 
-          success: false, 
+        const errorResult = {
+          success: false,
           error: 'No active plan to update. Call set_plan first.',
           hint: 'Create a plan with set_plan({ steps: [{ title: "..." }, ...] }) before updating.',
         };
@@ -876,7 +935,7 @@ class BackgroundService {
     }
   }
 
-  async resolveToolUrl(toolName, args) {
+  async resolveToolUrl(_toolName, args) {
     if (args?.url) return args.url;
     const tabId = args?.tabId || this.browserTools.getCurrentSessionTabId();
     try {
@@ -1059,6 +1118,7 @@ Before your next tool call, verify:
       apiKey: settings.apiKey,
       model: settings.model,
       customEndpoint: settings.customEndpoint,
+      extraHeaders: settings.extraHeaders,
       systemPrompt: settings.systemPrompt,
       sendScreenshotsAsImages: settings.sendScreenshotsAsImages,
       screenshotQuality: settings.screenshotQuality,
@@ -1255,14 +1315,6 @@ Always cite evidence from tools. Finish by calling subagent_complete with a shor
       ),
     );
 
-    const [activeTab] = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
-    const sessionTabs = this.browserTools.getSessionTabSummaries();
-    const sessionTabContext = sessionTabs
-      .filter((tab) => typeof tab.id === 'number')
-      .map((tab) => ({ id: tab.id as number, title: tab.title, url: tab.url }));
     const taskLines = Array.isArray(args.tasks)
       ? args.tasks.map((t, idx) => `${idx + 1}. ${t}`).join('\n')
       : args.goal || args.task || args.prompt || '';
@@ -1305,4 +1357,4 @@ Always cite evidence from tools. Finish by calling subagent_complete with a shor
   }
 }
 
-const backgroundService = new BackgroundService();
+new BackgroundService();

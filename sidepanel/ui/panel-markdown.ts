@@ -7,7 +7,7 @@ import { SidePanelUI } from './panel-ui.js';
   const escapeAttr = (value = '') => this.escapeAttribute(value);
 
   let working = String(text).replace(/\r\n/g, '\n');
-  
+
   // Extract code blocks first (preserve them)
   const codeBlocks: string[] = [];
   const codeBlockRegex = /```(\w+)?\n?([\s\S]*?)```/g;
@@ -169,45 +169,48 @@ import { SidePanelUI } from './panel-ui.js';
 
 (SidePanelUI.prototype as any).renderMarkdownTable = function renderMarkdownTable(tableText: string): string {
   const escape = (value = '') => this.escapeHtmlBasic(value);
-  
-  const lines = tableText.trim().split('\n').filter(line => line.trim());
+
+  const lines = tableText
+    .trim()
+    .split('\n')
+    .filter((line) => line.trim());
   if (lines.length < 2) return `<p>${escape(tableText)}</p>`;
-  
+
   // Parse header row
   const headerLine = lines[0];
   const headers = headerLine
     .split('|')
-    .map(cell => cell.trim())
-    .filter(cell => cell);
-  
+    .map((cell) => cell.trim())
+    .filter((cell) => cell);
+
   // Check if second line is separator
   const separatorLine = lines[1];
   const isSeparator = /^\s*[-:|\s]+$/.test(separatorLine);
-  
+
   const bodyStartIndex = isSeparator ? 2 : 1;
   const bodyLines = lines.slice(bodyStartIndex);
-  
+
   if (headers.length === 0) return `<p>${escape(tableText)}</p>`;
-  
+
   // Build table HTML
   let html = '<div class="table-wrapper"><table class="markdown-table">';
-  
+
   // Header
   html += '<thead><tr>';
-  headers.forEach(header => {
+  headers.forEach((header) => {
     html += `<th>${escape(header)}</th>`;
   });
   html += '</tr></thead>';
-  
+
   // Body
   if (bodyLines.length > 0) {
     html += '<tbody>';
-    bodyLines.forEach(rowLine => {
+    bodyLines.forEach((rowLine) => {
       const cells = rowLine
         .split('|')
-        .map(cell => cell.trim())
-        .filter(cell => cell);
-      
+        .map((cell) => cell.trim())
+        .filter((cell) => cell);
+
       if (cells.length > 0) {
         html += '<tr>';
         cells.forEach((cell, idx) => {
@@ -224,7 +227,7 @@ import { SidePanelUI } from './panel-ui.js';
     });
     html += '</tbody>';
   }
-  
+
   html += '</table></div>';
   return html;
 };

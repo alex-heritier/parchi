@@ -60,7 +60,6 @@ import { SidePanelUI } from './panel-ui.js';
 };
 
 (SidePanelUI.prototype as any).updateAccessUI = function updateAccessUI() {
-  const accountRequired = this.isAccountRequired();
   const state = this.getAccessState();
   this.updateAccessConfigPrompt();
   const showAccess = this.accessPanelVisible || state !== 'ready';

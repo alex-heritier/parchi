@@ -10,7 +10,7 @@
   --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-in-out-sine: cubic-bezier(0.37, 0, 0.63, 1);
   --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  
+
   --duration-fast: 150ms;
   --duration-normal: 250ms;
   --duration-slow: 400ms;
@@ -88,7 +88,8 @@
 }
 
 @keyframes thinkingPulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.4;
   }
   50% {
@@ -97,8 +98,13 @@
 }
 
 @keyframes cursorBlink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -135,7 +141,8 @@
 }
 
 @keyframes bounce {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {
@@ -155,15 +162,35 @@
 }
 
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
-  20%, 40%, 60%, 80% { transform: translateX(2px); }
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-2px);
+  }
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(2px);
+  }
 }
 
 @keyframes pop {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -171,7 +198,8 @@
    -------------------------------------------------------------------------- */
 
 @keyframes glowPulse {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 20px hsla(270, 50%, 55%, 0.3);
   }
   50% {
@@ -180,7 +208,8 @@
 }
 
 @keyframes borderGlow {
-  0%, 100% {
+  0%,
+  100% {
     border-color: var(--accent);
   }
   50% {
@@ -193,8 +222,7 @@
    -------------------------------------------------------------------------- */
 
 .sidebar {
-  transition: transform var(--duration-normal) var(--ease-out-expo),
-              opacity var(--duration-normal) var(--ease-out-expo);
+  transition: transform var(--duration-normal) var(--ease-out-expo), opacity var(--duration-normal) var(--ease-out-expo);
 }
 
 .sidebar.closed {
@@ -212,7 +240,7 @@
 }
 
 .nav-item::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: 50%;
@@ -255,10 +283,10 @@
 }
 
 .btn::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(255,255,255,0.1), transparent);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent);
   opacity: 0;
   transition: opacity var(--duration-fast);
 }
@@ -293,10 +321,10 @@
 }
 
 .icon-btn::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at center, rgba(255,255,255,0.15), transparent 70%);
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.15), transparent 70%);
   opacity: 0;
   transform: scale(0.5);
   transition: all var(--duration-fast);
@@ -338,11 +366,8 @@
 
 .composer:focus-within {
   border-color: rgba(168, 99, 255, 0.4);
-  box-shadow:
-    0 18px 42px rgba(0, 0, 0, 0.55),
-    0 0 0 1px rgba(168, 99, 255, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(168, 99, 255, 0.15), inset 0 1px 0
+    rgba(255, 255, 255, 0.04), inset 0 0 0 1px rgba(255, 255, 255, 0.02);
   transform: translateY(-1px);
 }
 
@@ -450,11 +475,21 @@
   animation-fill-mode: both;
 }
 
-.history-item:nth-child(1) { animation-delay: 0ms; }
-.history-item:nth-child(2) { animation-delay: 50ms; }
-.history-item:nth-child(3) { animation-delay: 100ms; }
-.history-item:nth-child(4) { animation-delay: 150ms; }
-.history-item:nth-child(5) { animation-delay: 200ms; }
+.history-item:nth-child(1) {
+  animation-delay: 0ms;
+}
+.history-item:nth-child(2) {
+  animation-delay: 50ms;
+}
+.history-item:nth-child(3) {
+  animation-delay: 100ms;
+}
+.history-item:nth-child(4) {
+  animation-delay: 150ms;
+}
+.history-item:nth-child(5) {
+  animation-delay: 200ms;
+}
 
 .history-item:hover {
   transform: translateX(4px);
@@ -481,8 +516,12 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .modal-content {
@@ -522,7 +561,7 @@
 }
 
 .status-dot.active::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: 50%;
@@ -536,8 +575,7 @@
    -------------------------------------------------------------------------- */
 
 .error-banner {
-  animation: slideIn var(--duration-normal) var(--ease-out-back),
-             shake 0.4s ease-in-out var(--duration-normal);
+  animation: slideIn var(--duration-normal) var(--ease-out-back), shake 0.4s ease-in-out var(--duration-normal);
 }
 
 .success-indicator {
@@ -603,8 +641,7 @@
    -------------------------------------------------------------------------- */
 
 .hover-lift {
-  transition: transform var(--duration-fast) var(--ease-out-expo),
-              box-shadow var(--duration-fast) var(--ease-out-expo);
+  transition: transform var(--duration-fast) var(--ease-out-expo), box-shadow var(--duration-fast) var(--ease-out-expo);
 }
 
 .hover-lift:hover {
@@ -626,7 +663,8 @@ textarea:focus-visible {
 }
 
 @keyframes focusPulse {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 0 2px var(--accent), 0 0 0 4px hsla(270, 50%, 55%, 0.2);
   }
   50% {
@@ -643,14 +681,30 @@ textarea:focus-visible {
   animation: fadeInUp var(--duration-normal) var(--ease-out-expo) forwards;
 }
 
-.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
-.stagger-children > *:nth-child(2) { animation-delay: 50ms; }
-.stagger-children > *:nth-child(3) { animation-delay: 100ms; }
-.stagger-children > *:nth-child(4) { animation-delay: 150ms; }
-.stagger-children > *:nth-child(5) { animation-delay: 200ms; }
-.stagger-children > *:nth-child(6) { animation-delay: 250ms; }
-.stagger-children > *:nth-child(7) { animation-delay: 300ms; }
-.stagger-children > *:nth-child(8) { animation-delay: 350ms; }
+.stagger-children > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.stagger-children > *:nth-child(2) {
+  animation-delay: 50ms;
+}
+.stagger-children > *:nth-child(3) {
+  animation-delay: 100ms;
+}
+.stagger-children > *:nth-child(4) {
+  animation-delay: 150ms;
+}
+.stagger-children > *:nth-child(5) {
+  animation-delay: 200ms;
+}
+.stagger-children > *:nth-child(6) {
+  animation-delay: 250ms;
+}
+.stagger-children > *:nth-child(7) {
+  animation-delay: 300ms;
+}
+.stagger-children > *:nth-child(8) {
+  animation-delay: 350ms;
+}
 
 /* --------------------------------------------------------------------------
    Reduced Motion Support

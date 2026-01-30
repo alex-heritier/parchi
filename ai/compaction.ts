@@ -234,9 +234,7 @@ export function serializeConversation(messages: Message[]): string {
       if (msg.thinking) parts.push(`[Assistant thinking]: ${msg.thinking}`);
       if (contentText) parts.push(`[Assistant]: ${contentText}`);
       if (Array.isArray(msg.toolCalls) && msg.toolCalls.length > 0) {
-        const toolCalls = msg.toolCalls
-          .map((call) => `${call.name}(${JSON.stringify(call.args || {})})`)
-          .join('; ');
+        const toolCalls = msg.toolCalls.map((call) => `${call.name}(${JSON.stringify(call.args || {})})`).join('; ');
         parts.push(`[Assistant tool calls]: ${toolCalls}`);
       }
     } else if (msg.role === 'tool') {

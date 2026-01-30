@@ -35,6 +35,10 @@
             <label for="profileEditorEndpoint">Endpoint</label>
             <input type="text" id="profileEditorEndpoint" placeholder="https://..." />
         </div>
+        <div class="form-group full-width">
+            <label for="profileEditorHeaders">Extra Headers (JSON)</label>
+            <textarea id="profileEditorHeaders" rows="3" placeholder='{"HTTP-Referer":"https://your.app","X-Title":"Parchi"}'></textarea>
+        </div>
         <div class="form-group">
             <label for="profileEditorTemperature">Temp: <span id="profileEditorTemperatureValue">0.7</span></label>
             <input type="range" id="profileEditorTemperature" min="0" max="2" step="0.1" value="0.7" />
@@ -75,3 +79,19 @@
     </div>
     <button id="saveProfileBtn" class="btn btn-primary">Save Profile</button>
 </div>
+
+<details class="settings-section">
+    <summary>🧾 Profile JSON</summary>
+    <div class="settings-body">
+        <div class="form-group">
+            <label for="profileJsonEditor">Active Profile JSON</label>
+            <textarea id="profileJsonEditor" rows="8" spellcheck="false"></textarea>
+            <small>Directly edit the selected profile JSON. Invalid JSON will be rejected.</small>
+        </div>
+        <div class="config-row">
+            <button id="refreshProfileJsonBtn" class="btn btn-secondary">Refresh</button>
+            <button id="copyProfileJsonBtn" class="btn btn-secondary">Copy</button>
+            <button id="applyProfileJsonBtn" class="btn btn-primary">Apply to Profile</button>
+        </div>
+    </div>
+</details>

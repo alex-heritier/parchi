@@ -8,7 +8,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
-const distDir = path.join(rootDir, 'dist');
+const args = process.argv.slice(2);
+const browserArg = args.find((arg) => arg.startsWith('--browser='));
+const targetBrowser = (
+  (browserArg ? browserArg.split('=')[1] : process.env.BROWSER || process.env.TARGET || 'chrome') || 'chrome'
+).toLowerCase();
+const isFirefox = targetBrowser === 'firefox';
+const manifestName = isFirefox ? 'manifest.firefox.json' : 'manifest.json';
+const distName = isFirefox ? 'dist-firefox' : 'dist';
+const distDir = path.join(rootDir, distName);
 const serverDistDir = path.join(rootDir, 'server', 'dist');
 
 const ensureDir = (dir) => fs.mkdirSync(dir, { recursive: true });
@@ -90,9 +98,11 @@ const run = async () => {
     external: ['chromium-bidi/lib/cjs/bidiMapper/BidiMapper', 'chromium-bidi/lib/cjs/cdp/CdpConnection'],
   });
 
-  const manifestPath = path.join(rootDir, 'manifest.json');
+  const manifestPath = path.join(rootDir, manifestName);
+  const fallbackManifestPath = path.join(rootDir, 'manifest.json');
+  const manifestSourcePath = fs.existsSync(manifestPath) ? manifestPath : fallbackManifestPath;
   const manifestDest = path.join(distDir, 'manifest.json');
-  const manifestData = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const manifestData = JSON.parse(fs.readFileSync(manifestSourcePath, 'utf8'));
   ensureDir(path.dirname(manifestDest));
   fs.writeFileSync(manifestDest, JSON.stringify(manifestData, null, 2));
   copyFile(path.join(rootDir, 'sidepanel', 'panel.html'), path.join(distDir, 'sidepanel', 'panel.html'));

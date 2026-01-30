@@ -166,7 +166,7 @@ import { SidePanelUI } from './panel-ui.js';
 
   // Auto-expand textarea height as user types
   const userInput = this.elements.userInput;
-  userInput?.addEventListener('input', function () {
+  userInput?.addEventListener('input', () => {
     userInput.style.height = 'auto';
     userInput.style.height = `${userInput.scrollHeight}px`;
   });
@@ -195,12 +195,19 @@ import { SidePanelUI } from './panel-ui.js';
 
   // Profile editor controls
   this.elements.profileEditorProvider?.addEventListener('change', () => this.toggleProfileEditorEndpoint());
+  this.elements.profileEditorHeaders?.addEventListener('input', () => this.validateProfileEditorHeaders());
   this.elements.profileEditorTemperature?.addEventListener('input', () => {
     if (this.elements.profileEditorTemperatureValue) {
       this.elements.profileEditorTemperatureValue.textContent = this.elements.profileEditorTemperature.value;
     }
   });
   this.elements.saveProfileBtn?.addEventListener('click', () => this.saveProfileEdits());
+  this.elements.refreshProfileJsonBtn?.addEventListener('click', () => this.refreshProfileJsonEditor());
+  this.elements.copyProfileJsonBtn?.addEventListener('click', () => this.copyProfileJsonEditor());
+  this.elements.applyProfileJsonBtn?.addEventListener('click', () => this.applyProfileJsonEditor());
+
+  // Provider headers validation
+  this.elements.customHeaders?.addEventListener('input', () => this.validateCustomHeaders());
 
   // Listen for messages from background
   chrome.runtime.onMessage.addListener((message) => {

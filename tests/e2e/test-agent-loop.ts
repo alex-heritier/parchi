@@ -16,14 +16,10 @@ const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'parchi-test-'));
 async function main() {
   console.log('🚀 Starting Parchi agent test...');
   console.log('📁 Extension path:', extensionPath);
-  
+
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false, // Must be false for extensions
-    args: [
-      `--disable-extensions-except=${extensionPath}`,
-      `--load-extension=${extensionPath}`,
-      '--no-sandbox',
-    ],
+    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`, '--no-sandbox'],
     viewport: { width: 1400, height: 900 },
   });
 
@@ -33,7 +29,7 @@ async function main() {
     console.log('⏳ Waiting for service worker...');
     worker = await context.waitForEvent('serviceworker', { timeout: 30000 });
   }
-  
+
   const extensionId = new URL(worker.url()).host;
   console.log('✅ Extension loaded:', extensionId);
 
@@ -49,7 +45,7 @@ async function main() {
   console.log('📊 Status:', status);
 
   // Listen for console messages
-  panel.on('console', msg => {
+  panel.on('console', (msg) => {
     if (msg.type() === 'error') {
       console.log('❌ Panel error:', msg.text());
     }
@@ -68,7 +64,7 @@ async function main() {
   await new Promise(() => {});
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('Test failed:', err);
   process.exit(1);
 });
