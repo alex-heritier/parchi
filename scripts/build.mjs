@@ -18,6 +18,7 @@ const manifestName = isFirefox ? 'manifest.firefox.json' : 'manifest.json';
 const distName = isFirefox ? 'dist-firefox' : 'dist';
 const distDir = path.join(rootDir, distName);
 const serverDistDir = path.join(rootDir, 'server', 'dist');
+const extensionRoot = path.join(rootDir, 'packages', 'extension');
 
 const ensureDir = (dir) => fs.mkdirSync(dir, { recursive: true });
 const cleanDir = (dir) => {
@@ -56,9 +57,9 @@ const run = async () => {
 
   // Build background and sidepanel as ESM (they support modules)
   await esbuild.build({
-    entryPoints: [path.join(rootDir, 'background.ts'), path.join(rootDir, 'sidepanel', 'panel.ts')],
+    entryPoints: [path.join(extensionRoot, 'background.ts'), path.join(extensionRoot, 'sidepanel', 'panel.ts')],
     outdir: distDir,
-    outbase: rootDir,
+    outbase: extensionRoot,
     bundle: true,
     format: 'esm',
     platform: 'browser',
@@ -69,9 +70,9 @@ const run = async () => {
 
   // Build content script as IIFE (content scripts don't support ESM)
   await esbuild.build({
-    entryPoints: [path.join(rootDir, 'content.ts')],
+    entryPoints: [path.join(extensionRoot, 'content.ts')],
     outdir: distDir,
-    outbase: rootDir,
+    outbase: extensionRoot,
     bundle: true,
     format: 'iife',
     platform: 'browser',
@@ -86,6 +87,7 @@ const run = async () => {
       path.join(rootDir, 'tests', 'validate-extension.ts'),
       path.join(rootDir, 'tests', 'unit', 'run-unit-tests.ts'),
       path.join(rootDir, 'tests', 'e2e', 'run-e2e.ts'),
+      path.join(rootDir, 'tests', 'api', 'run-api-tests.ts'),
     ],
     outdir: distDir,
     outbase: rootDir,
@@ -98,18 +100,18 @@ const run = async () => {
     external: ['chromium-bidi/lib/cjs/bidiMapper/BidiMapper', 'chromium-bidi/lib/cjs/cdp/CdpConnection'],
   });
 
-  const manifestPath = path.join(rootDir, manifestName);
-  const fallbackManifestPath = path.join(rootDir, 'manifest.json');
+  const manifestPath = path.join(extensionRoot, manifestName);
+  const fallbackManifestPath = path.join(extensionRoot, 'manifest.json');
   const manifestSourcePath = fs.existsSync(manifestPath) ? manifestPath : fallbackManifestPath;
   const manifestDest = path.join(distDir, 'manifest.json');
   const manifestData = JSON.parse(fs.readFileSync(manifestSourcePath, 'utf8'));
   ensureDir(path.dirname(manifestDest));
   fs.writeFileSync(manifestDest, JSON.stringify(manifestData, null, 2));
-  copyFile(path.join(rootDir, 'sidepanel', 'panel.html'), path.join(distDir, 'sidepanel', 'panel.html'));
-  copyFile(path.join(rootDir, 'sidepanel', 'panel.css'), path.join(distDir, 'sidepanel', 'panel.css'));
-  copyDirFiltered(path.join(rootDir, 'sidepanel', 'styles'), path.join(distDir, 'sidepanel', 'styles'));
-  copyDirFiltered(path.join(rootDir, 'sidepanel', 'templates'), path.join(distDir, 'sidepanel', 'templates'));
-  copyDirFiltered(path.join(rootDir, 'icons'), path.join(distDir, 'icons'));
+  copyFile(path.join(extensionRoot, 'sidepanel', 'panel.html'), path.join(distDir, 'sidepanel', 'panel.html'));
+  copyFile(path.join(extensionRoot, 'sidepanel', 'panel.css'), path.join(distDir, 'sidepanel', 'panel.css'));
+  copyDirFiltered(path.join(extensionRoot, 'sidepanel', 'styles'), path.join(distDir, 'sidepanel', 'styles'));
+  copyDirFiltered(path.join(extensionRoot, 'sidepanel', 'templates'), path.join(distDir, 'sidepanel', 'templates'));
+  copyDirFiltered(path.join(extensionRoot, 'icons'), path.join(distDir, 'icons'));
 
   copyDirFiltered(path.join(rootDir, 'server', 'public'), path.join(serverDistDir, 'public'), (srcPath) => {
     return !srcPath.endsWith('.ts');

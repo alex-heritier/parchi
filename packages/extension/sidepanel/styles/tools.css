@@ -1,0 +1,384 @@
+/* ============================================================================
+   Tools & Plan Drawer — Warm Paper Design System
+   ============================================================================ */
+
+/* Plan Drawer — Paper Ledger Style */
+.plan-drawer {
+  background: var(--card);
+  border: 1px solid var(--ink-2);
+  border-bottom: none;
+  border-radius: 12px 12px 0 0;
+  overflow: hidden;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
+  animation: slideUpFade 0.3s var(--ease-out-expo);
+  transform-origin: bottom center;
+  /* Constrain to composer width */
+  width: min(var(--content-max), 100%);
+  margin: 0 auto;
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.plan-drawer.hidden {
+  display: none;
+}
+
+/* When plan drawer is visible, connect to composer */
+.plan-drawer:not(.hidden) ~ .composer-wrapper {
+  padding-top: 0;
+}
+
+.plan-drawer:not(.hidden) ~ .composer-wrapper .composer {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top-color: var(--ink-1);
+}
+
+/* Plan drawer header */
+.plan-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--ink-1);
+  cursor: pointer;
+  color: var(--foreground);
+  text-align: left;
+  transition: all var(--duration-fast) ease;
+}
+
+.plan-drawer-header:hover {
+  background: linear-gradient(90deg, hsla(30, 5%, 100%, 0.02), transparent);
+}
+
+.plan-drawer-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.plan-drawer-chevron {
+  transition: transform var(--duration-fast) var(--ease-out-back);
+  color: var(--muted-dim);
+}
+
+.plan-drawer.collapsed .plan-drawer-chevron {
+  transform: rotate(-90deg);
+}
+
+.plan-drawer-count {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted-dim);
+  font-family: var(--font-mono);
+  padding: 2px 6px;
+  border: 1px solid var(--ink-1);
+  border-radius: 999px;
+}
+
+.plan-drawer-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.plan-drawer-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--ink-1);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+}
+
+.plan-drawer-btn:hover {
+  background: var(--background);
+  border-color: var(--ink-2);
+  color: var(--foreground);
+  transform: scale(1.05);
+}
+
+.plan-drawer-btn:active {
+  transform: scale(0.95);
+}
+
+.plan-drawer-content {
+  padding: 8px 12px 12px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.plan-drawer.collapsed .plan-drawer-content {
+  display: none;
+}
+
+/* Plan Checklist */
+.plan-checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.plan-checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--foreground);
+  background: transparent;
+  border-left: 2px solid transparent;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+  animation: fadeInUp 0.3s var(--ease-out-expo) backwards;
+}
+
+.plan-checklist-item:nth-child(1) { animation-delay: 0ms; }
+.plan-checklist-item:nth-child(2) { animation-delay: 40ms; }
+.plan-checklist-item:nth-child(3) { animation-delay: 80ms; }
+.plan-checklist-item:nth-child(4) { animation-delay: 120ms; }
+.plan-checklist-item:nth-child(5) { animation-delay: 160ms; }
+
+.plan-checklist-item:hover {
+  background: hsla(30, 5%, 100%, 0.02);
+}
+
+.plan-checklist-item.completed {
+  color: var(--muted);
+}
+
+.plan-checklist-item.completed .plan-checklist-title {
+  text-decoration: line-through;
+  text-decoration-color: var(--ink-2);
+  opacity: 0.7;
+}
+
+.plan-checklist-item.current {
+  background: hsla(30, 5%, 100%, 0.03);
+  border-left-color: var(--accent);
+}
+
+.plan-checklist-item.blocked {
+  opacity: 0.5;
+}
+
+/* Checkbox — elegant minimal */
+.plan-checklist-checkbox {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border: 1.5px solid var(--ink-2);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--duration-fast) var(--ease-out-back);
+}
+
+.plan-checklist-checkbox:hover:not(:disabled) {
+  border-color: var(--accent);
+  transform: scale(1.08);
+}
+
+.plan-checklist-checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.plan-checklist-checkbox.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+  animation: pop 0.25s var(--ease-out-back);
+}
+
+.plan-checklist-checkbox.checked svg {
+  color: white;
+  stroke-width: 2.5;
+}
+
+.plan-checklist-checkbox svg {
+  width: 9px;
+  height: 9px;
+  color: transparent;
+}
+
+.plan-checklist-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.plan-checklist-title {
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--foreground);
+}
+
+.plan-checklist-item.completed .plan-checklist-title {
+  color: var(--muted);
+}
+
+.plan-checklist-notes {
+  font-size: 11px;
+  color: var(--muted-dim);
+  margin-top: 2px;
+  font-style: italic;
+}
+
+/* Legacy Plan Block (inline in chat) */
+.plan-block {
+  margin: 8px 0;
+  padding: 8px 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.plan-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.plan-title {
+  font-weight: 600;
+}
+
+.plan-meta {
+  font-family: var(--font-mono);
+  color: var(--muted-dim);
+}
+
+.plan-steps {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.plan-step {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--foreground);
+}
+
+/* ============================================================================
+   Tool Rows — Compact inline telemetry
+   ============================================================================ */
+
+.tool-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: hsla(30, 5%, 100%, 0.02);
+  border: 1px solid var(--ink-1);
+  font-size: 11px;
+  color: var(--foreground);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-row.running {
+  border-color: rgb(var(--accent-rgb) / 0.6);
+  background: rgb(var(--accent-rgb) / 0.06);
+}
+
+.tool-row.done {
+  opacity: 0.7;
+}
+
+.tool-row.error {
+  border-color: hsla(0, 40%, 60%, 0.55);
+  color: hsla(0, 40%, 70%, 0.95);
+}
+
+.tool-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.tool-name {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--foreground);
+  flex-shrink: 0;
+}
+
+.tool-badge {
+  font-size: 8px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  border: 1px solid var(--ink-2);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.tool-args {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
+.tool-status {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.tool-duration {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--muted-dim);
+  padding-left: 6px;
+  border-left: 1px solid var(--ink-1);
+}

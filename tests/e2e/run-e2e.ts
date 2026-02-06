@@ -41,6 +41,11 @@ if (headless) {
   log('Extensions are not supported in headless mode; tests may fail.', 'warning');
 }
 
+const readEnv = (key: string) => {
+  const raw = process.env[key];
+  return typeof raw === 'string' ? raw.trim() : '';
+};
+
 type TestContext = {
   panel: import('playwright').Page;
   context: import('playwright').BrowserContext;
@@ -78,6 +83,16 @@ async function seedAccessState(worker: import('playwright').Worker): Promise<voi
 
 async function sendRuntimeMessage(worker: import('playwright').Worker, message: Record<string, unknown>) {
   await worker.evaluate((payload) => chrome.runtime.sendMessage(payload), message);
+}
+
+async function sendRuntimeMessageWithResponse(worker: import('playwright').Worker, message: Record<string, unknown>) {
+  return await worker.evaluate(
+    (payload) =>
+      new Promise((resolve) => {
+        chrome.runtime.sendMessage(payload, (response) => resolve(response));
+      }),
+    message,
+  );
 }
 
 test('Side panel loads and shows ready state', async ({ panel }) => {
@@ -389,6 +404,73 @@ test('Tool calls appear in collapsible Tools section', async ({ panel, worker })
     state: 'attached',
     timeout: timeoutMs,
   });
+});
+
+test('Live API smoke test via background (optional)', async ({ worker }) => {
+  const providers = [
+    {
+      label: 'OpenAI',
+      provider: 'openai',
+      apiKeyEnv: 'OPENAI_API_KEY',
+      modelEnv: 'OPENAI_MODEL',
+      defaultModel: 'gpt-4o',
+    },
+    {
+      label: 'Anthropic',
+      provider: 'anthropic',
+      apiKeyEnv: 'ANTHROPIC_API_KEY',
+      modelEnv: 'ANTHROPIC_MODEL',
+    },
+    {
+      label: 'Kimi',
+      provider: 'kimi',
+      apiKeyEnv: 'KIMI_API_KEY',
+      modelEnv: 'KIMI_MODEL',
+      endpointEnv: 'KIMI_BASE_URL',
+    },
+    {
+      label: 'Custom',
+      provider: 'custom',
+      apiKeyEnv: 'CUSTOM_API_KEY',
+      modelEnv: 'CUSTOM_MODEL',
+      endpointEnv: 'CUSTOM_ENDPOINT',
+    },
+  ];
+
+  const configured = providers.filter((spec) => {
+    const apiKey = readEnv(spec.apiKeyEnv);
+    const model = readEnv(spec.modelEnv) || (spec as any).defaultModel || '';
+    return Boolean(apiKey && model);
+  });
+
+  if (!configured.length) {
+    log('API smoke test skipped (no provider env vars set).', 'warning');
+    return;
+  }
+
+  for (const spec of configured) {
+    const apiKey = readEnv(spec.apiKeyEnv);
+    const model = readEnv(spec.modelEnv) || (spec as any).defaultModel || '';
+    const customEndpoint = spec.endpointEnv ? readEnv(spec.endpointEnv) : '';
+
+    const response: any = await sendRuntimeMessageWithResponse(worker, {
+      type: 'api_smoke_test',
+      settings: {
+        provider: spec.provider,
+        apiKey,
+        model,
+        customEndpoint: customEndpoint || undefined,
+      },
+      prompt: 'Reply with the word "pong" only.',
+    });
+
+    assert(response && response.success, `${spec.label} API smoke test failed to return success.`);
+    const resolvedText = String(response?.result?.resolvedText || '').trim().toLowerCase();
+    assert(resolvedText.includes('pong'), `${spec.label} returned unexpected response: ${resolvedText}`);
+
+    const usedFallback = !response?.result?.rawText && response?.result?.fallbackText;
+    log(`✓ ${spec.label} API responded${usedFallback ? ' (responseMessages fallback)' : ''}`, 'success');
+  }
 });
 
 test('Color scheme uses neutral grays', async ({ panel }) => {

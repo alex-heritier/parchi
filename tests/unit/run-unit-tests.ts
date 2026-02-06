@@ -11,16 +11,16 @@ import {
   buildCompactionSummaryMessage,
   estimateContextTokens,
   shouldCompact,
-} from '../../ai/compaction.js';
-import { createMessage, normalizeConversationHistory, toProviderMessages } from '../../ai/message-schema.js';
-import type { Message } from '../../ai/message-schema.js';
-import { extractThinking } from '../../ai/message-utils.js';
-import { createExponentialBackoff, isValidFinalResponse } from '../../ai/retry-engine.js';
+} from '../../packages/extension/ai/compaction.js';
+import { createMessage, normalizeConversationHistory, toProviderMessages } from '../../packages/extension/ai/message-schema.js';
+import type { Message } from '../../packages/extension/ai/message-schema.js';
+import { extractThinking } from '../../packages/extension/ai/message-utils.js';
+import { createExponentialBackoff, isValidFinalResponse } from '../../packages/extension/ai/retry-engine.js';
 
-import { buildRunPlan, normalizePlanStatus, normalizePlanSteps } from '../../types/plan.js';
-import type { RunPlan } from '../../types/plan.js';
-import { RUNTIME_MESSAGE_SCHEMA_VERSION, isRuntimeMessage } from '../../types/runtime-messages.js';
-import type { RuntimeMessage } from '../../types/runtime-messages.js';
+import { buildRunPlan, normalizePlanStatus, normalizePlanSteps } from '../../packages/shared/src/plan.js';
+import type { RunPlan } from '../../packages/shared/src/plan.js';
+import { RUNTIME_MESSAGE_SCHEMA_VERSION, isRuntimeMessage } from '../../packages/shared/src/runtime-messages.js';
+import type { RuntimeMessage } from '../../packages/shared/src/runtime-messages.js';
 
 const colors = {
   info: '\x1b[36m',

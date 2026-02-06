@@ -36,5 +36,11 @@ temp/
 *.tmp
 
 
+# Vendored tarballs
+*.tgz
+
+# Planning notes
+plan.md
+
 .claude
 .osgrep

@@ -1,0 +1,140 @@
+/* ============================================================================
+   Utilities — Warm Paper Design System
+   ============================================================================ */
+
+/* Error/Warning Banners — Toast style */
+.error-banner,
+.run-incomplete-banner {
+  position: fixed;
+  bottom: 120px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  max-width: 320px;
+  animation: slideInToast 0.4s var(--ease-out-back);
+}
+
+@keyframes slideInToast {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.error-banner {
+  border-color: var(--error);
+  background: hsl(0, 30%, 12%);
+}
+
+.run-incomplete-banner {
+  border-color: var(--warning, hsl(40, 55%, 60%));
+  background: hsl(35, 20%, 12%);
+}
+
+.error-banner .error-icon {
+  flex-shrink: 0;
+  color: var(--error);
+}
+
+.error-banner .error-text {
+  flex: 1;
+}
+
+.error-banner .error-dismiss {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-size: 11px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+}
+
+.error-banner .error-dismiss:hover {
+  background: var(--card-hover);
+  color: var(--foreground);
+  transform: scale(1.05);
+}
+
+.error-banner .error-dismiss:active {
+  transform: scale(0.95);
+}
+
+/* Text utilities */
+.text-muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Tab panels */
+.tab-panel {
+  animation: fadeInUp 0.3s var(--ease-out-expo);
+}
+
+.tab-panel.hidden {
+  display: none !important;
+}
+
+/* Hidden */
+.hidden {
+  display: none !important;
+}
+
+/* Streaming */
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.1); }
+}
+
+.streaming .status-dot {
+  animation: pulse 1.5s ease-in-out infinite;
+  background: var(--accent);
+  position: relative;
+}
+
+.streaming .status-dot::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.3;
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+/* Focus */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Disabled */
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+::selection {
+  background: hsl(35, 25%, 28%);
+  color: var(--foreground);
+}
