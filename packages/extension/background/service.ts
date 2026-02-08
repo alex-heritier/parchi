@@ -198,6 +198,14 @@ export class BackgroundService {
       return true;
     });
 
+    // Ensure relay can come up after a browser restart without needing the UI opened first.
+    chrome.runtime.onStartup?.addListener(() => {
+      void this.applyRelayConfig();
+    });
+    chrome.runtime.onInstalled?.addListener(() => {
+      void this.applyRelayConfig();
+    });
+
     chrome.runtime.onConnect.addListener((port) => {
       if (port.name !== 'relay-keepalive') return;
       this.relayKeepalivePorts.add(port);
