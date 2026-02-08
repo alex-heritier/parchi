@@ -802,8 +802,8 @@ body.sidebar-open .new-session-fab {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 6px;
-  max-height: 140px;
+  gap: 8px;
+  max-height: 180px;
   overflow: auto;
   padding-right: 4px;
 }

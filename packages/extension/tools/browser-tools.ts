@@ -138,6 +138,7 @@ export class BrowserTools {
           properties: {
             direction: { type: 'string', description: 'up, down, top, or bottom.' },
             amount: { type: 'number', description: 'Scroll amount in pixels.' },
+            selector: { type: 'string', description: 'Optional selector for a scrollable container.' },
             tabId: { type: 'number', description: 'Optional tab id.' },
           },
         },
@@ -1063,6 +1064,7 @@ export class BrowserTools {
     }
     const direction = String(args.direction || 'down');
     const amount = typeof args.amount === 'number' ? args.amount : 600;
+    const selector = args.selector ? String(args.selector) : '';
     await this.sendOverlay(tabId, {
       label: 'Scroll',
       note: direction === 'down' || direction === 'up' ? `${direction} ${amount}px` : direction,
@@ -1070,19 +1072,76 @@ export class BrowserTools {
     });
     const result = await this.runInTab(
       tabId,
-      (dir, amt) => {
-        if (dir === 'top') {
-          window.scrollTo({ top: 0, behavior: 'instant' });
-        } else if (dir === 'bottom') {
-          window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' });
-        } else if (dir === 'up') {
-          window.scrollBy({ top: -amt, behavior: 'instant' });
+      (dir, amt, sel) => {
+        const resolveScroller = () => {
+          if (sel) {
+            const el = document.querySelector(sel);
+            if (el && (el as HTMLElement).scrollHeight - (el as HTMLElement).clientHeight > 24) {
+              return el as HTMLElement;
+            }
+          }
+
+          const root = (document.scrollingElement || document.documentElement) as HTMLElement | null;
+          if (root && root.scrollHeight - root.clientHeight > 24) return root;
+
+          // Fall back: find a likely scroll container (many apps don't scroll the window).
+          const nodes = Array.from(
+            document.querySelectorAll<HTMLElement>(
+              'main, [role="main"], [data-scroll], .scroll, .scroller, .scroll-container, .cm-scroller, .CodeMirror-scroll',
+            ),
+          );
+          const extras = Array.from(document.querySelectorAll<HTMLElement>('body *')).slice(0, 1200);
+          const candidates = nodes.length ? nodes.concat(extras) : extras;
+
+          let best: HTMLElement | null = null;
+          let bestScore = 0;
+          for (const el of candidates) {
+            if (!el || el === document.body) continue;
+            const ch = el.clientHeight || 0;
+            if (ch < 80) continue;
+            const overflow = getComputedStyle(el).overflowY;
+            if (!(overflow === 'auto' || overflow === 'scroll')) continue;
+            const delta = (el.scrollHeight || 0) - ch;
+            if (delta < 40) continue;
+            const score = delta + ch * 0.25;
+            if (score > bestScore) {
+              bestScore = score;
+              best = el;
+            }
+          }
+
+          return best || root || (document.documentElement as HTMLElement);
+        };
+
+        const scroller = resolveScroller();
+        const before = scroller.scrollTop;
+        const maxTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+
+        const normalized = String(dir || 'down').toLowerCase();
+        if (normalized === 'top') {
+          scroller.scrollTop = 0;
+        } else if (normalized === 'bottom') {
+          scroller.scrollTop = maxTop;
+        } else if (normalized === 'up') {
+          scroller.scrollTop = Math.max(0, before - amt);
         } else {
-          window.scrollBy({ top: amt, behavior: 'instant' });
+          scroller.scrollTop = Math.min(maxTop, before + amt);
         }
-        return { success: true };
+
+        const after = scroller.scrollTop;
+        return {
+          success: true,
+          scroller: {
+            tag: scroller.tagName,
+            id: scroller.id || null,
+            className: scroller.className || null,
+          },
+          before,
+          after,
+          moved: after !== before,
+        };
       },
-      [direction, amount],
+      [direction, amount, selector],
     );
     return result || { success: false, error: 'Script execution failed.' };
   }
