@@ -243,14 +243,14 @@ class ContentScriptHandler {
   }
 
   showActionOverlay(payload) {
-    const { action, selector, note, status, durationMs, bringIntoView } = payload || {};
+    const { label: overlayLabel, selector, note, status, durationMs, bringIntoView } = payload || {};
     this.ensureOverlayRoot();
 
     const toast = this.overlay.toast;
     const label = this.overlay.label;
     const target = this.overlay.target;
 
-    const actionLabel = [action, note].filter(Boolean).join(' · ');
+    const actionLabel = [overlayLabel, note].filter(Boolean).join(' · ');
     if (toast) {
       const textEl = toast.querySelector('.parchi-overlay-text');
       if (textEl) textEl.textContent = actionLabel || 'Working…';

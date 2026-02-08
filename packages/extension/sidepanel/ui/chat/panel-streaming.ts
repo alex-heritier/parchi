@@ -81,10 +81,16 @@ const formatElapsed = (elapsedMs: number) => {
   const eventsEl = container.querySelector('.stream-events') as HTMLElement | null;
   const toggleBtn = container.querySelector('.run-hud-toggle') as HTMLButtonElement | null;
   if (toggleBtn) {
+    const collapsedByDefault = (this as any).timelineCollapsed !== false;
+    container.classList.toggle('timeline-collapsed', collapsedByDefault);
+    toggleBtn.setAttribute('aria-expanded', collapsedByDefault ? 'false' : 'true');
+    toggleBtn.title = collapsedByDefault ? 'Expand timeline' : 'Collapse timeline';
     toggleBtn.addEventListener('click', () => {
       const collapsed = container.classList.toggle('timeline-collapsed');
       toggleBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
       toggleBtn.title = collapsed ? 'Expand timeline' : 'Collapse timeline';
+      (this as any).timelineCollapsed = collapsed;
+      chrome.storage.local.set({ timelineCollapsed: collapsed }).catch(() => {});
     });
   }
   // Reset per-run timeline counters.

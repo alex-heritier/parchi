@@ -1,13 +1,7 @@
-import type { Message } from "../../../ai/message-schema.js";
-import type { RunPlan } from "../../../../shared/src/plan.js";
-import { AccountClient } from "../../services/account-client.js";
-import { getSidePanelElements } from "./panel-elements.js";
-import type {
-  AuthState,
-  BillingOverview,
-  Entitlement,
-  UsageStats,
-} from "../types/panel-types.js";
+import type { Message } from '../../../ai/message-schema.js';
+import type { RunPlan } from '../../../../shared/src/plan.js';
+import { getSidePanelElements } from './panel-elements.js';
+import type { UsageStats } from '../types/panel-types.js';
 
 export class SidePanelUI {
   elements: Record<string, any>;
@@ -61,15 +55,9 @@ export class SidePanelUI {
     screenshots: boolean;
   };
   auxAgentProfiles: string[];
-  currentView: "chat" | "history";
-  currentSettingsTab: "general" | "profiles";
+  currentView: 'chat' | 'history';
+  currentSettingsTab: 'general' | 'profiles';
   profileEditorTarget: string;
-  authState: AuthState;
-  entitlement: Entitlement;
-  billingOverview: BillingOverview | null;
-  accessPanelVisible: boolean;
-  settingsOpen: boolean;
-  accountClient: AccountClient;
   subagents: Map<
     string,
     { name: string; status: string; messages: any[]; tasks?: string[] }
@@ -106,6 +94,11 @@ export class SidePanelUI {
   >;
   pendingTurnDraft: { userMessage: string; startedAt: number } | null;
   isReplayingHistory: boolean;
+  _lastRuntimeMessageAt: number;
+  _watchdogTimerId: ReturnType<typeof setInterval> | null;
+  _deleteConfirmTarget: string | null;
+  _deleteConfirmAt: number | null;
+  timelineCollapsed: boolean;
 
   // Methods attached via prototype in panel-modules
   declare init: () => Promise<void>;
@@ -156,20 +149,11 @@ export class SidePanelUI {
       screenshots: true,
     };
     this.auxAgentProfiles = [];
-    this.currentView = "chat";
-    this.currentSettingsTab = "general";
-    this.profileEditorTarget = "default";
-    this.authState = { status: "signed_out" };
-    this.entitlement = { active: false, plan: "none" };
-    this.billingOverview = null;
-    this.accessPanelVisible = false;
-    this.settingsOpen = false;
-    this.accountClient = new AccountClient({
-      baseUrl: "",
-      getAuthToken: () => this.authState?.accessToken || "",
-    });
+    this.currentView = 'chat';
+    this.currentSettingsTab = 'general';
+    this.profileEditorTarget = 'default';
     this.subagents = new Map();
-    this.activeAgent = "main";
+    this.activeAgent = 'main';
     this.activityPanelOpen = false;
     this.latestThinking = null;
     this.activeToolName = null;
@@ -183,6 +167,11 @@ export class SidePanelUI {
     this.historyTurnMap = new Map();
     this.pendingTurnDraft = null;
     this.isReplayingHistory = false;
+    this._lastRuntimeMessageAt = 0;
+    this._watchdogTimerId = null;
+    this._deleteConfirmTarget = null;
+    this._deleteConfirmAt = null;
+    this.timelineCollapsed = true;
     void this.init();
   }
 }

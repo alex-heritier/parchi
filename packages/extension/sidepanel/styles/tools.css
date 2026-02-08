@@ -2,29 +2,27 @@
    Tools & Plan Drawer — Warm Paper Design System
    ============================================================================ */
 
-/* Plan Drawer — Paper Ledger Style */
+/* Plan Drawer — Editorial Waypoint Style */
 .plan-drawer {
-  background: var(--card);
+  background: hsl(30, 6%, 9%);
   border: 1px solid var(--ink-2);
   border-bottom: none;
   border-radius: 12px 12px 0 0;
   overflow: hidden;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
-  animation: slideUpFade 0.3s var(--ease-out-expo);
+  animation: drawerGrow 0.25s var(--ease-out-expo);
   transform-origin: bottom center;
-  /* Constrain to composer width */
   width: min(var(--content-max), 100%);
   margin: 0 auto;
 }
 
-@keyframes slideUpFade {
+@keyframes drawerGrow {
   from {
     opacity: 0;
-    transform: translateY(16px) scale(0.98);
+    transform: scaleY(0.3);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: scaleY(1);
   }
 }
 
@@ -52,7 +50,7 @@
   padding: 8px 12px;
   background: transparent;
   border: none;
-  border-bottom: 1px solid var(--ink-1);
+  border-bottom: 1px solid hsla(30, 5%, 100%, 0.04);
   cursor: pointer;
   color: var(--foreground);
   text-align: left;
@@ -134,27 +132,38 @@
   display: none;
 }
 
-/* Plan Checklist */
+/* Plan Checklist — Vertical Thread / Waypoint */
 .plan-checklist {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 0 0 22px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0;
+  position: relative;
+}
+
+/* Vertical connecting line */
+.plan-checklist::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: hsla(30, 5%, 100%, 0.06);
 }
 
 .plan-checklist-item {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 6px 8px;
-  border-radius: 6px;
+  padding: 5px 0;
   font-size: 12px;
   color: var(--foreground);
   background: transparent;
-  border-left: 2px solid transparent;
-  transition: all var(--duration-fast) var(--ease-out-expo);
+  position: relative;
+  transition: color var(--duration-fast) var(--ease-out-expo);
   animation: fadeInUp 0.3s var(--ease-out-expo) backwards;
 }
 
@@ -164,70 +173,62 @@
 .plan-checklist-item:nth-child(4) { animation-delay: 120ms; }
 .plan-checklist-item:nth-child(5) { animation-delay: 160ms; }
 
-.plan-checklist-item:hover {
-  background: hsla(30, 5%, 100%, 0.02);
-}
-
 .plan-checklist-item.completed {
-  color: var(--muted);
-}
-
-.plan-checklist-item.completed .plan-checklist-title {
-  text-decoration: line-through;
-  text-decoration-color: var(--ink-2);
-  opacity: 0.7;
+  color: var(--muted-dim);
+  opacity: 0.6;
 }
 
 .plan-checklist-item.current {
-  background: hsla(30, 5%, 100%, 0.03);
-  border-left-color: var(--accent);
+  color: var(--foreground);
+}
+
+.plan-checklist-item.current .plan-checklist-title {
+  font-weight: 500;
 }
 
 .plan-checklist-item.blocked {
-  opacity: 0.5;
+  opacity: 0.4;
 }
 
-/* Checkbox — elegant minimal */
+/* Node (replaces checkbox) — small circle on the thread line */
 .plan-checklist-checkbox {
   flex-shrink: 0;
-  width: 14px;
-  height: 14px;
-  margin-top: 2px;
+  width: 7px;
+  height: 7px;
+  min-width: 7px;
+  min-height: 7px;
+  margin-top: 5px;
   border: 1.5px solid var(--ink-2);
-  border-radius: 3px;
+  border-radius: 50%;
   background: transparent;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: 0;
+  position: absolute;
+  left: -19px;
   transition: all var(--duration-fast) var(--ease-out-back);
 }
 
 .plan-checklist-checkbox:hover:not(:disabled) {
   border-color: var(--accent);
-  transform: scale(1.08);
+  transform: scale(1.3);
 }
 
 .plan-checklist-checkbox:disabled {
   cursor: not-allowed;
-  opacity: 0.4;
+  opacity: 0.5;
 }
 
+/* Done node — filled muted */
 .plan-checklist-checkbox.checked {
+  background: var(--muted-dim);
+  border-color: var(--muted-dim);
+}
+
+/* Current node — filled accent with glow */
+.plan-checklist-item.current .plan-checklist-checkbox {
   background: var(--accent);
   border-color: var(--accent);
-  animation: pop 0.25s var(--ease-out-back);
-}
-
-.plan-checklist-checkbox.checked svg {
-  color: white;
-  stroke-width: 2.5;
-}
-
-.plan-checklist-checkbox svg {
-  width: 9px;
-  height: 9px;
-  color: transparent;
+  box-shadow: 0 0 6px rgb(var(--accent-rgb) / 0.5);
 }
 
 .plan-checklist-content {
@@ -236,13 +237,9 @@
 }
 
 .plan-checklist-title {
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.4;
-  color: var(--foreground);
-}
-
-.plan-checklist-item.completed .plan-checklist-title {
-  color: var(--muted);
+  color: inherit;
 }
 
 .plan-checklist-notes {
@@ -301,7 +298,7 @@
    ============================================================================ */
 
 .tool-row {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
   padding: 3px 8px;
@@ -310,6 +307,7 @@
   border: 1px solid var(--ink-1);
   font-size: 11px;
   color: var(--foreground);
+  width: 100%;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -345,16 +343,6 @@
   letter-spacing: 0.01em;
   color: var(--foreground);
   flex-shrink: 0;
-}
-
-.tool-badge {
-  font-size: 8px;
-  padding: 1px 4px;
-  border-radius: 999px;
-  border: 1px solid var(--ink-2);
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
 
 .tool-args {

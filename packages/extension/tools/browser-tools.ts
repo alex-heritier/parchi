@@ -12,7 +12,7 @@ type GroupOptions = {
 };
 
 type ActionOverlayPayload = {
-  action: string;
+  label: string;
   selector?: string;
   note?: string;
   status?: 'running' | 'done' | 'error';
@@ -401,7 +401,7 @@ export class BrowserTools {
         func,
         args,
       });
-      const success = results.find((entry) => entry?.result?.success);
+      const success = results.find((entry) => (entry?.result as any)?.success);
       if (success?.result) return success.result;
       const first = results.find((entry) => entry?.result);
       return first?.result ?? null;
@@ -450,7 +450,7 @@ export class BrowserTools {
 
     try {
       await this.sendOverlay(tabId, {
-        action: 'Navigate',
+        label: 'Navigate',
         note: url.replace(/^https?:\/\//, ''),
         durationMs: 1800,
       });
@@ -503,7 +503,7 @@ export class BrowserTools {
             console.warn('Failed to add tab to session group:', error);
           }
         }
-        void this.sendOverlay(tab.id, { action: 'Opened tab', note: url.replace(/^https?:\/\//, '') }, 2);
+        void this.sendOverlay(tab.id, { label: 'Opened tab', note: url.replace(/^https?:\/\//, '') }, 2);
       }
       return { success: true, tabId: tab.id, url };
     } catch (error) {
@@ -520,7 +520,7 @@ export class BrowserTools {
     if (!tabId) return { success: false, error: 'Missing tabId.' };
     await chrome.tabs.update(tabId, { active: true });
     this.currentSessionTabId = tabId;
-    await this.sendOverlay(tabId, { action: 'Focused tab', durationMs: 1200 }, 1);
+    await this.sendOverlay(tabId, { label: 'Focused tab', durationMs: 1200 }, 1);
     return { success: true, tabId };
   }
 
@@ -550,7 +550,7 @@ export class BrowserTools {
     const timeoutMs =
       typeof args.timeoutMs === 'number' && Number.isFinite(args.timeoutMs) ? Math.max(0, args.timeoutMs) : 5000;
     await this.sendOverlay(tabId, {
-      action: 'Click',
+      label: 'Click',
       selector,
       bringIntoView: true,
       durationMs: 2000,
@@ -810,10 +810,8 @@ export class BrowserTools {
 
       const start = performance.now();
       const deadline = start + Math.max(0, waitMs || 0);
-      let last: any = null;
       while (performance.now() <= deadline) {
         const resolved = resolveElement(sel);
-        last = resolved;
         if (resolved.el) {
           const result = clickElement(resolved.el);
           return { ...result, strategy: resolved.strategy, candidates: resolved.candidates };
@@ -859,7 +857,7 @@ export class BrowserTools {
       typeof args.timeoutMs === 'number' && Number.isFinite(args.timeoutMs) ? Math.max(0, args.timeoutMs) : 5000;
     const preview = text.length > 28 ? `${text.slice(0, 28)}…` : text;
     await this.sendOverlay(tabId, {
-      action: 'Type',
+      label: 'Type',
       selector,
       note: preview ? `"${preview}"` : undefined,
       bringIntoView: true,
@@ -1033,7 +1031,7 @@ export class BrowserTools {
     const key = String(args.key || '');
     const selector = args.selector ? String(args.selector) : '';
     await this.sendOverlay(tabId, {
-      action: 'Press key',
+      label: 'Press key',
       selector: selector || undefined,
       note: key,
       bringIntoView: Boolean(selector),
@@ -1065,7 +1063,7 @@ export class BrowserTools {
     const direction = String(args.direction || 'down');
     const amount = typeof args.amount === 'number' ? args.amount : 600;
     await this.sendOverlay(tabId, {
-      action: 'Scroll',
+      label: 'Scroll',
       note: direction === 'down' || direction === 'up' ? `${direction} ${amount}px` : direction,
       durationMs: 1200,
     });
@@ -1100,7 +1098,7 @@ export class BrowserTools {
     const selector = args.selector ? String(args.selector) : '';
     const maxChars = typeof args.maxChars === 'number' && args.maxChars > 0 ? args.maxChars : 8000;
     await this.sendOverlay(tabId, {
-      action: 'Read page',
+      label: 'Read page',
       note: selector ? `from ${selector}` : type,
       durationMs: 1200,
     });
@@ -1157,7 +1155,7 @@ export class BrowserTools {
     }
     const tab = await chrome.tabs.get(tabId);
     const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
-    await this.sendOverlay(tabId, { action: 'Screenshot captured', durationMs: 1000 }, 1);
+    await this.sendOverlay(tabId, { label: 'Screenshot captured', durationMs: 1000 }, 1);
     return { success: true, dataUrl };
   }
 

@@ -1,5 +1,3 @@
-import './account/panel-access.js';
-import './account/panel-account.js';
 import './agents/panel-agents.js';
 import './chat/panel-chat.js';
 import './chat/panel-context.js';

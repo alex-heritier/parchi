@@ -13,7 +13,6 @@
         <select id="provider">
             <option value="anthropic">Anthropic (Claude)</option>
             <option value="openai">OpenAI</option>
-            <option value="google">Google (Gemini)</option>
             <option value="kimi">Kimi (Coding)</option>
             <option value="custom">Custom / OpenRouter</option>
         </select>
@@ -57,12 +56,37 @@
         <div class="form-group">
             <label>Add New</label>
             <div class="config-row">
-                <input type="text" id="newProfileInput" placeholder="e.g. Claude, GPT-4, Gemini…" />
+                <input type="text" id="newProfileInput" placeholder="e.g. Claude, GPT-4, Kimi…" />
                 <button id="newConfigBtn" class="btn btn-primary">Create</button>
             </div>
             <small>Creates a copy of the current profile. Edit provider/model/key above, then Save.</small>
         </div>
         <button id="deleteConfigBtn" class="btn btn-secondary" style="width: 100%; margin-top: 4px;">Delete Active Profile</button>
+    </div>
+</details>
+
+<!-- Relay (local daemon + CLI) -->
+<details class="settings-section">
+    <summary>Relay</summary>
+    <div class="settings-body">
+        <div class="form-group">
+            <label for="relayEnabled">Enable Relay</label>
+            <select id="relayEnabled">
+                <option value="false">Disabled</option>
+                <option value="true">Enabled</option>
+            </select>
+            <small>When enabled, this extension connects to a local relay daemon over WebSocket.</small>
+        </div>
+        <div class="form-group">
+            <label for="relayUrl">Relay URL</label>
+            <input type="text" id="relayUrl" placeholder="http://127.0.0.1:17373" />
+            <small>Base URL for the relay daemon. WebSocket will use the same host/port.</small>
+        </div>
+        <div class="form-group">
+            <label for="relayToken">Relay Token</label>
+            <input type="password" id="relayToken" placeholder="PARCHI_RELAY_TOKEN" />
+            <small>Shared secret used by both the daemon and the extension.</small>
+        </div>
     </div>
 </details>
 

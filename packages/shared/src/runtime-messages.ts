@@ -109,6 +109,9 @@ export type AssistantFinal = RuntimeMessageBase & {
 export type RunError = RuntimeMessageBase & {
   type: 'run_error';
   message: string;
+  errorCategory?: string;
+  action?: string;
+  recoverable?: boolean;
 };
 
 export type RunWarning = RuntimeMessageBase & {

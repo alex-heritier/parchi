@@ -60,11 +60,6 @@ const sanitizeForMessaging = (value: any, depth = 0): any => {
   if (!userMessage) return;
 
   this.pendingTurnDraft = { userMessage, startedAt: Date.now() };
-  if (!this.isAccessReady()) {
-    this.updateAccessUI();
-    this.updateStatus('Sign in required', 'warning');
-    return;
-  }
 
   this.elements.userInput.value = '';
   this.elements.userInput.style.height = '';
@@ -117,6 +112,7 @@ const sanitizeForMessaging = (value: any, depth = 0): any => {
   this.updateStatus('Processing...', 'active');
   this.elements.composer?.classList.add('running');
   this.startRunTimer?.();
+  this.startWatchdog?.();
 
   try {
     // Avoid sending huge tool payloads; also ensures errors are caught (promise-based APIs).
@@ -136,6 +132,8 @@ const sanitizeForMessaging = (value: any, depth = 0): any => {
   } catch (error: any) {
     this.stopThinkingTimer?.();
     this.stopRunTimer?.();
+    this.stopWatchdog?.();
+    this.pendingTurnDraft = null;
     this.updateStatus('Error: ' + error.message, 'error');
     this.elements.composer?.classList.remove('running');
     this.displayAssistantMessage('Sorry, an error occurred: ' + error.message);
@@ -204,6 +202,7 @@ const sanitizeForMessaging = (value: any, depth = 0): any => {
     }
     this.updateStatus('Ready', 'success');
     this.elements.composer?.classList.remove('running');
+    this.stopWatchdog?.();
     this.pendingToolCount = 0;
     this.updateActivityState();
     return;
@@ -312,6 +311,7 @@ const sanitizeForMessaging = (value: any, depth = 0): any => {
     this.scrollToBottom();
     this.updateStatus('Ready', 'success');
     this.elements.composer?.classList.remove('running');
+    this.stopWatchdog?.();
     this.stopRunTimer?.();
     this.pendingToolCount = 0;
     this.updateActivityState();
@@ -369,6 +369,7 @@ const sanitizeForMessaging = (value: any, depth = 0): any => {
   this.scrollToBottom();
   this.updateStatus('Ready', 'success');
   this.elements.composer?.classList.remove('running');
+  this.stopWatchdog?.();
   this.stopRunTimer?.();
   this.pendingToolCount = 0;
   this.updateActivityState();

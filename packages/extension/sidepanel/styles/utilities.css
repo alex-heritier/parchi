@@ -74,6 +74,38 @@
   transform: scale(0.95);
 }
 
+.error-banner .error-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.error-banner .error-action {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.error-banner .error-settings-btn {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: hsla(35, 45%, 55%, 0.15);
+  border: 1px solid hsla(35, 45%, 55%, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+}
+
+.error-banner .error-settings-btn:hover {
+  background: hsla(35, 45%, 55%, 0.25);
+  border-color: hsla(35, 45%, 55%, 0.5);
+}
+
 /* Text utilities */
 .text-muted {
   color: var(--muted);

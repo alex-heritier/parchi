@@ -69,24 +69,34 @@ const formatHeadersJson = (headers: Record<string, any> | undefined) => {
 
 (SidePanelUI.prototype as any).deleteConfig = async function deleteConfig() {
   if (this.currentConfig === 'default') {
-    alert('Cannot delete default profile');
+    this.updateStatus('Cannot delete default profile', 'warning');
     return;
   }
 
-  if (confirm(`Delete profile "${this.currentConfig}"?`)) {
+  const now = Date.now();
+  if (this._deleteConfirmTarget === this.currentConfig && this._deleteConfirmAt && now - this._deleteConfirmAt < 3000) {
+    // Second click within 3s — actually delete
+    this._deleteConfirmTarget = null;
+    this._deleteConfirmAt = null;
     delete this.configs[this.currentConfig];
     this.currentConfig = 'default';
     this.refreshConfigDropdown();
     this.updateModelDisplay();
     this.setActiveConfig(this.currentConfig, true);
+    await this.persistAllSettings({ silent: true });
     this.updateStatus('Profile deleted', 'success');
+  } else {
+    // First click — mark for confirmation
+    this._deleteConfirmTarget = this.currentConfig;
+    this._deleteConfirmAt = now;
+    this.updateStatus(`Click delete again to confirm removing "${this.currentConfig}"`, 'warning');
   }
 };
 
 (SidePanelUI.prototype as any).switchConfig = async function switchConfig() {
   const newConfig = this.elements.activeConfig.value;
   if (!this.configs[newConfig]) {
-    alert('Profile not found');
+    this.updateStatus('Profile not found', 'warning');
     return;
   }
   this.configs[this.currentConfig] = this.collectCurrentFormProfile();
@@ -340,7 +350,7 @@ const formatHeadersJson = (headers: Record<string, any> | undefined) => {
     this.elements.sendScreenshotsAsImages.value = config.sendScreenshotsAsImages ? 'true' : 'false';
   if (this.elements.screenshotQuality) this.elements.screenshotQuality.value = config.screenshotQuality || 'high';
   if (this.elements.streamResponses)
-    this.elements.streamResponses.value = config.streamResponses !== false ? 'true' : 'true';
+    this.elements.streamResponses.value = config.streamResponses !== false ? 'true' : 'false';
   if (this.elements.showThinking) this.elements.showThinking.value = config.showThinking !== false ? 'true' : 'false';
   if (this.elements.autoScroll) this.elements.autoScroll.value = config.autoScroll !== false ? 'true' : 'false';
   if (this.elements.confirmActions)

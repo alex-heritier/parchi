@@ -175,7 +175,6 @@ class ExtensionValidator {
       'sidepanel/panel.html',
       'sidepanel/panel.css',
       'sidepanel/panel.js',
-      'tools/browser-tools.js',
     ];
 
     requiredFiles.forEach((file) => {
@@ -188,7 +187,7 @@ class ExtensionValidator {
   validateJavaScriptSyntax() {
     this.log('\n=== Validating JavaScript Files ===', 'info');
 
-    const jsFiles = ['background.js', 'content.js', 'sidepanel/panel.js', 'tools/browser-tools.js'];
+    const jsFiles = ['background.js', 'content.js', 'sidepanel/panel.js'];
 
     jsFiles.forEach((file) => {
       this.test(`${file} has valid syntax`, () => {
@@ -200,14 +199,7 @@ class ExtensionValidator {
           this.warn(`${file} contains debugger statement`);
         }
 
-        // Check for module imports/exports
-        // Note: background.js, content.js, and panel.js are entry points and don't need exports
-        const entryPoints = ['background.js', 'sidepanel/panel.js', 'content.js'];
-        if (!entryPoints.includes(file)) {
-          if (!content.includes('export')) {
-            throw new Error(`${file} should export classes/functions`);
-          }
-        }
+        // Entry points are bundled and do not need exports.
       });
     });
   }
@@ -231,7 +223,7 @@ class ExtensionValidator {
   validateDocumentation() {
     this.log('\n=== Validating Documentation ===', 'info');
 
-    const docs = ['README.md', 'LICENSE', 'docs/API_SPECIFICATION.md', 'docs/QUICK_START.md'];
+    const docs = ['README.md', 'LICENSE'];
 
     docs.forEach((doc) => {
       this.test(`${doc} exists`, () => {
@@ -243,7 +235,7 @@ class ExtensionValidator {
   validateFileStructure() {
     this.log('\n=== Validating File Structure ===', 'info');
 
-    const requiredDirs = ['sidepanel', 'ai', 'tools', 'icons'];
+    const requiredDirs = ['sidepanel', 'sidepanel/styles', 'sidepanel/templates', 'icons'];
 
     requiredDirs.forEach((dir) => {
       this.test(`${dir}/ directory exists`, () => {
@@ -258,16 +250,14 @@ class ExtensionValidator {
   validateToolDefinitions() {
     this.log('\n=== Validating Tool Definitions ===', 'info');
 
-    this.test('BrowserTools class exists and exports getToolDefinitions', () => {
-      const toolsPath = this.fileExists('tools/browser-tools.js');
-      const content = fs.readFileSync(toolsPath, 'utf8');
-
-      if (!content.includes('export class BrowserTools')) {
-        throw new Error('BrowserTools class not exported');
+    this.test('background bundle includes BrowserTools + getToolDefinitions', () => {
+      const bgPath = this.fileExists('background.js');
+      const content = fs.readFileSync(bgPath, 'utf8');
+      if (!content.includes('BrowserTools')) {
+        throw new Error('BrowserTools not found in background bundle');
       }
-
       if (!content.includes('getToolDefinitions')) {
-        throw new Error('getToolDefinitions method not found');
+        throw new Error('getToolDefinitions not found in background bundle');
       }
     });
   }

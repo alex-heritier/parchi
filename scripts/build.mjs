@@ -17,7 +17,7 @@ const isFirefox = targetBrowser === 'firefox';
 const manifestName = isFirefox ? 'manifest.firefox.json' : 'manifest.json';
 const distName = isFirefox ? 'dist-firefox' : 'dist';
 const distDir = path.join(rootDir, distName);
-const serverDistDir = path.join(rootDir, 'server', 'dist');
+const relayDistDir = path.join(rootDir, 'dist-relay');
 const extensionRoot = path.join(rootDir, 'packages', 'extension');
 
 const ensureDir = (dir) => fs.mkdirSync(dir, { recursive: true });
@@ -50,10 +50,9 @@ const copyDirFiltered = (src, dest, filter) => {
 
 const run = async () => {
   cleanDir(distDir);
-  cleanDir(serverDistDir);
+  cleanDir(relayDistDir);
 
   execSync('tsc -p tsconfig.json --noEmit', { stdio: 'inherit' });
-  execSync('tsc -p server/tsconfig.json', { stdio: 'inherit' });
 
   // Build background and sidepanel as ESM (they support modules)
   await esbuild.build({
@@ -88,6 +87,7 @@ const run = async () => {
       path.join(rootDir, 'tests', 'unit', 'run-unit-tests.ts'),
       path.join(rootDir, 'tests', 'e2e', 'run-e2e.ts'),
       path.join(rootDir, 'tests', 'api', 'run-api-tests.ts'),
+      path.join(rootDir, 'tests', 'relay', 'run-relay-tests.ts'),
     ],
     outdir: distDir,
     outbase: rootDir,
@@ -97,7 +97,27 @@ const run = async () => {
     target: 'es2022',
     sourcemap: true,
     logLevel: 'info',
+    packages: 'external',
     external: ['chromium-bidi/lib/cjs/bidiMapper/BidiMapper', 'chromium-bidi/lib/cjs/cdp/CdpConnection'],
+  });
+
+  // Build relay daemon + CLI (Node-only; separate dist folder so it isn't shipped with the extension bundle)
+  await esbuild.build({
+    entryPoints: {
+      'relay-daemon': path.join(rootDir, 'packages', 'relay-service', 'src', 'relay-daemon.ts'),
+      'relay': path.join(rootDir, 'packages', 'relay-service', 'src', 'cli.ts'),
+    },
+    outdir: relayDistDir,
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    target: 'es2022',
+    sourcemap: true,
+    logLevel: 'info',
+    packages: 'external',
+    banner: {
+      js: '#!/usr/bin/env node',
+    },
   });
 
   const manifestPath = path.join(extensionRoot, manifestName);
@@ -112,10 +132,6 @@ const run = async () => {
   copyDirFiltered(path.join(extensionRoot, 'sidepanel', 'styles'), path.join(distDir, 'sidepanel', 'styles'));
   copyDirFiltered(path.join(extensionRoot, 'sidepanel', 'templates'), path.join(distDir, 'sidepanel', 'templates'));
   copyDirFiltered(path.join(extensionRoot, 'icons'), path.join(distDir, 'icons'));
-
-  copyDirFiltered(path.join(rootDir, 'server', 'public'), path.join(serverDistDir, 'public'), (srcPath) => {
-    return !srcPath.endsWith('.ts');
-  });
 };
 
 run().catch((error) => {
