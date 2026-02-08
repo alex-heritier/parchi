@@ -34,13 +34,16 @@ export class RelayBridge {
   private reconnectAttempt: number;
   private getHelloPayload: () => Promise<Record<string, unknown>>;
   private onRequest: (req: JsonRpcRequest) => Promise<unknown>;
+  private onStatus: (status: { connected: boolean; lastError?: string | null }) => void;
 
   constructor({
     getHelloPayload,
     onRequest,
+    onStatus,
   }: {
     getHelloPayload: () => Promise<Record<string, unknown>>;
     onRequest: (req: JsonRpcRequest) => Promise<unknown>;
+    onStatus?: (status: { connected: boolean; lastError?: string | null }) => void;
   }) {
     this.ws = null;
     this.enabled = false;
@@ -50,6 +53,7 @@ export class RelayBridge {
     this.reconnectAttempt = 0;
     this.getHelloPayload = getHelloPayload;
     this.onRequest = onRequest;
+    this.onStatus = onStatus || (() => {});
   }
 
   isConnected() {
@@ -62,10 +66,12 @@ export class RelayBridge {
     this.token = token;
     if (!enabled) {
       this.disconnect();
+      this.onStatus({ connected: false, lastError: null });
       return;
     }
     if (!url || !token) {
       this.disconnect();
+      this.onStatus({ connected: false, lastError: null });
       return;
     }
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
@@ -115,6 +121,7 @@ export class RelayBridge {
     const wsUrl = this.toWsUrl(this.url, this.token);
     if (!wsUrl) {
       console.warn('[relay] invalid relayUrl:', this.url);
+      this.onStatus({ connected: false, lastError: 'Invalid relay URL' });
       return;
     }
     let ws: WebSocket;
@@ -122,6 +129,7 @@ export class RelayBridge {
       ws = new WebSocket(wsUrl);
     } catch (err) {
       console.warn('[relay] failed to create WebSocket:', err);
+      this.onStatus({ connected: false, lastError: 'Failed to create WebSocket' });
       this.scheduleReconnect();
       return;
     }
@@ -129,6 +137,7 @@ export class RelayBridge {
 
     ws.onopen = async () => {
       this.reconnectAttempt = 0;
+      this.onStatus({ connected: true, lastError: null });
       try {
         const helloParams = await this.getHelloPayload();
         const hello: JsonRpcNotification = { jsonrpc: '2.0', method: 'agent.hello', params: helloParams };
@@ -140,11 +149,13 @@ export class RelayBridge {
 
     ws.onclose = () => {
       if (this.ws === ws) this.ws = null;
+      this.onStatus({ connected: false, lastError: null });
       this.scheduleReconnect();
     };
 
     ws.onerror = () => {
       // onclose will schedule reconnect.
+      this.onStatus({ connected: false, lastError: 'WebSocket error' });
     };
 
     ws.onmessage = (event) => {

@@ -11,7 +11,8 @@
   overflow: hidden;
   animation: drawerGrow 0.25s var(--ease-out-expo);
   transform-origin: bottom center;
-  width: min(var(--content-max), 100%);
+  /* Match the composer's horizontal padding (18px left/right) */
+  width: min(var(--content-max), calc(100% - 36px));
   margin: 0 auto;
 }
 

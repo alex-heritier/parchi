@@ -193,6 +193,9 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
       'relayEnabled',
       'relayUrl',
       'relayToken',
+      'relayConnected',
+      'relayLastConnectedAt',
+      'relayLastError',
     ]);
   } catch (error) {
     console.error('[Parchi] Failed to load settings from storage:', error);
@@ -256,6 +259,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
     this.elements.relayEnabled.value = settings.relayEnabled !== undefined ? String(settings.relayEnabled) : 'false';
   if (this.elements.relayUrl) this.elements.relayUrl.value = settings.relayUrl || 'http://127.0.0.1:17373';
   if (this.elements.relayToken) this.elements.relayToken.value = settings.relayToken || '';
+  this.updateRelayStatusFromSettings?.(settings);
 
   const defaultPermissions = {
     read: true,
@@ -288,6 +292,20 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   console.log('[Parchi] loadSettings: calling editProfile');
   this.editProfile(this.currentConfig, true);
   console.log('[Parchi] loadSettings: complete');
+};
+
+(SidePanelUI.prototype as any).updateRelayStatusFromSettings = function updateRelayStatusFromSettings(
+  settings: Record<string, any> = {},
+) {
+  const connected = settings.relayConnected === true;
+  if (this.elements.relayConnectedBadge) {
+    this.elements.relayConnectedBadge.textContent = connected ? 'Connected' : 'Disconnected';
+    this.elements.relayConnectedBadge.classList.toggle('connected', connected);
+  }
+  if (this.elements.relayLastErrorText) {
+    const raw = settings.relayLastError;
+    this.elements.relayLastErrorText.textContent = raw ? String(raw) : '';
+  }
 };
 
 (SidePanelUI.prototype as any).saveSettings = async function saveSettings() {
@@ -470,6 +488,9 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
 (SidePanelUI.prototype as any).persistAllSettings = async function persistAllSettings({ silent = false } = {}) {
   try {
     const activeProfile = this.configs[this.currentConfig] || {};
+    const rawRelayUrl = (this.elements.relayUrl?.value || '').trim();
+    const normalizedRelayUrl =
+      rawRelayUrl && !rawRelayUrl.includes('://') ? `http://${rawRelayUrl}` : rawRelayUrl;
     const payload = {
       provider: activeProfile.provider || 'openai',
       apiKey: activeProfile.apiKey || '',
@@ -498,7 +519,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
       auxAgentProfiles: this.auxAgentProfiles,
       uiZoom: this.uiZoom ?? 1,
       relayEnabled: this.elements.relayEnabled?.value === 'true',
-      relayUrl: (this.elements.relayUrl?.value || '').trim(),
+      relayUrl: normalizedRelayUrl,
       relayToken: this.elements.relayToken?.value || '',
       activeConfig: this.currentConfig,
       configs: this.configs,

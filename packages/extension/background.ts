@@ -81,6 +81,12 @@ class BackgroundService {
         };
       },
       onRequest: async (req) => this.handleRelayRpc(req.method, req.params),
+      onStatus: (status) => {
+        const payload: Record<string, any> = { relayConnected: !!status.connected };
+        if (status.connected) payload.relayLastConnectedAt = Date.now();
+        if (status.lastError !== undefined) payload.relayLastError = status.lastError;
+        chrome.storage.local.set(payload).catch(() => {});
+      },
     });
 
     this.init();
