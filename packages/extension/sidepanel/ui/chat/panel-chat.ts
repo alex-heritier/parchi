@@ -3,6 +3,7 @@ import type { Message } from '../../../ai/message-schema.js';
 import { dedupeThinking, extractThinking } from '../../../ai/message-utils.js';
 import type { UsagePayload } from '../types/panel-types.js';
 import { SidePanelUI } from '../core/panel-ui.js';
+import { getActiveTab } from '../../../utils/active-tab.js';
 
 const truncate = (value: string, max = 12000) => {
   const text = String(value || '');
@@ -83,7 +84,7 @@ const sanitizeForMessaging = (value: any, depth = 0): any => {
 
   if (selectedTabsPayload.length === 0) {
     try {
-      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const activeTab = await getActiveTab();
       if (activeTab && typeof activeTab.id === 'number') {
         const autoTab = this.buildSelectedTab(activeTab);
         selectedTabsPayload = [autoTab];
@@ -212,9 +213,9 @@ const sanitizeForMessaging = (value: any, depth = 0): any => {
   content = parsed.content;
   thinking = parsed.thinking;
   if (thinking) {
-    console.debug('[Parchi] extracted thinking', thinking);
+    // (debug log removed)
   } else {
-    console.debug('[Parchi] no thinking extracted from content');
+    // (debug log removed)
   }
   this.updateThinkingPanel(thinking, false);
 

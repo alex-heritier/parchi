@@ -1,4 +1,5 @@
 import { SidePanelUI } from '../core/panel-ui.js';
+import { getActiveTab } from '../../../utils/active-tab.js';
 
 (SidePanelUI.prototype as any).handleFileSelection = async function handleFileSelection(event: Event) {
   const input = event.target as HTMLInputElement | null;
@@ -37,7 +38,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
 };
 
 (SidePanelUI.prototype as any).addActiveTabToSelection = async function addActiveTabToSelection() {
-  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const activeTab = await getActiveTab();
   if (!activeTab || typeof activeTab.id !== 'number') return;
   this.selectedTabs.set(activeTab.id, this.buildSelectedTab(activeTab));
   this.updateSelectedTabsBar();

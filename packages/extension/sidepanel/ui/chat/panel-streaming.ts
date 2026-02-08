@@ -240,7 +240,7 @@ const formatElapsed = (elapsedMs: number) => {
   if (reasoningContentEl) {
     reasoningContentEl.textContent = cleaned;
   }
-  console.debug('[Parchi] reasoning update', cleaned);
+  // (debug log removed)
   this.scrollToBottom();
 };
 

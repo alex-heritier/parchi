@@ -5,24 +5,18 @@ import { bindSidebarNavigation, setSidebarOpen } from './panel-navigation.js';
 import { SidePanelUI } from './panel-ui.js';
 
 (SidePanelUI.prototype as any).init = async function init() {
-  console.log('[Parchi] init() starting...');
   try {
     this.setupEventListeners();
     this.setupPlanDrawer();
     this.setupResizeObserver();
     // Start with sidebar closed by default
     setSidebarOpen(this.elements, false);
-    console.log('[Parchi] Calling loadSettings...');
     await this.loadSettings();
-    console.log('[Parchi] loadSettings done, configs:', Object.keys(this.configs), 'current:', this.currentConfig);
-    console.log('[Parchi] Config details:', JSON.stringify(this.configs[this.currentConfig] || {}).slice(0, 200));
     await this.loadHistoryList();
     this.updateStatus('Ready', 'success');
     this.updateModelDisplay();
-    console.log('[Parchi] Calling fetchAvailableModels...');
     this.fetchAvailableModels();
     this.updateChatEmptyState?.();
-    console.log('[Parchi] init() complete');
   } catch (error) {
     console.error('[Parchi] init() failed:', error);
     this.updateStatus('Initialization failed - check console', 'error');
