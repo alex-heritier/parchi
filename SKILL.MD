@@ -63,6 +63,11 @@ List agents:
 npm run relay -- agents
 ```
 
+Doctor (sanity-check daemon, auth, agent connection, tool forwarding):
+```bash
+npm run relay -- doctor
+```
+
 Get/set default agent:
 ```bash
 npm run relay -- default-agent get

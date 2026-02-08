@@ -82,6 +82,7 @@ const main = async () => {
     print({
       usage: [
         'parchi-relay rpc <method> [--params=\'{...}\'] [--agentId=...]',
+        'parchi-relay doctor [--agentId=...] [--skipTool=true]',
         'parchi-relay agents',
         'parchi-relay default-agent get|set <agentId>',
         'parchi-relay tools [--agentId=...]',
@@ -99,6 +100,93 @@ const main = async () => {
     const params = readJsonFlag(flags.params, undefined);
     const result = await fetchRpc({ host, port, token, method, params });
     print(result);
+    return;
+  }
+
+  if (cmd === 'doctor') {
+    const agentId = flags.agentId;
+    const skipTool = flags.skipTool === 'true';
+
+    const report: Record<string, any> = {
+      ok: true,
+      target: { host, port },
+      checks: {},
+    };
+
+    const fail = (name: string, err: unknown) => {
+      report.ok = false;
+      report.checks[name] = {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err ?? 'error'),
+      };
+    };
+
+    try {
+      const ping = await fetchRpc({ host, port, token, method: 'relay.ping' });
+      report.checks.ping = { ok: true, result: ping };
+    } catch (err) {
+      fail('ping', err);
+      print(report);
+      process.exit(2);
+    }
+
+    let agents: any[] = [];
+    try {
+      agents = (await fetchRpc({ host, port, token, method: 'agents.list' })) as any[];
+      report.checks.agents = { ok: true, count: Array.isArray(agents) ? agents.length : 0, agents };
+    } catch (err) {
+      fail('agents', err);
+    }
+
+    let resolvedAgentId: string | null = agentId || null;
+    if (!resolvedAgentId) {
+      try {
+        const def = (await fetchRpc({ host, port, token, method: 'agents.default.get' })) as any;
+        resolvedAgentId = typeof def?.agentId === 'string' ? def.agentId : null;
+        report.checks.defaultAgent = { ok: true, agentId: resolvedAgentId };
+      } catch (err) {
+        fail('defaultAgent', err);
+      }
+    } else {
+      report.checks.defaultAgent = { ok: true, agentId: resolvedAgentId, source: 'flag' };
+    }
+
+    const connected = Array.isArray(agents) ? agents.some((a) => a?.agentId === resolvedAgentId) : false;
+    if (resolvedAgentId && !connected) {
+      report.ok = false;
+      report.checks.agentConnected = {
+        ok: false,
+        agentId: resolvedAgentId,
+        hint: 'AgentId not in agents.list. Ensure the extension is loaded from dist/ and Relay is enabled/applied.',
+      };
+    } else {
+      report.checks.agentConnected = { ok: true, agentId: resolvedAgentId };
+    }
+
+    try {
+      const params = resolvedAgentId ? { agentId: resolvedAgentId } : undefined;
+      const tools = await fetchRpc({ host, port, token, method: 'tools.list', params });
+      report.checks.tools = { ok: true, toolCount: Array.isArray(tools) ? tools.length : null, tools };
+    } catch (err) {
+      fail('tools', err);
+    }
+
+    if (!skipTool) {
+      try {
+        const params = resolvedAgentId
+          ? { agentId: resolvedAgentId, tool: 'getTabs', args: {} }
+          : { tool: 'getTabs', args: {} };
+        const result = await fetchRpc({ host, port, token, method: 'tool.call', params });
+        report.checks.forwarding = { ok: true, tool: 'getTabs', result };
+      } catch (err) {
+        fail('forwarding', err);
+      }
+    } else {
+      report.checks.forwarding = { ok: true, skipped: true };
+    }
+
+    print(report);
+    if (!report.ok) process.exit(2);
     return;
   }
 
@@ -176,4 +264,3 @@ const main = async () => {
 };
 
 await main();
-

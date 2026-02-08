@@ -373,3 +373,20 @@
   padding-left: 6px;
   border-left: 1px solid var(--ink-1);
 }
+
+.tool-note {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-dim);
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--ink-1);
+  background: hsla(30, 5%, 100%, 0.02);
+  flex-shrink: 0;
+}
+
+.tool-row.noop {
+  opacity: 0.85;
+}

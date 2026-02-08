@@ -92,6 +92,7 @@ export const getSidePanelElements = (): SidePanelElements => ({
   relayUrl: byId<HTMLInputElement>('relayUrl'),
   relayToken: byId<HTMLInputElement>('relayToken'),
   saveRelayBtn: byId<HTMLButtonElement>('saveRelayBtn'),
+  copyRelayEnvBtn: byId<HTMLButtonElement>('copyRelayEnvBtn'),
   relayConnectedBadge: byId<HTMLElement>('relayConnectedBadge'),
   relayLastErrorText: byId<HTMLElement>('relayLastErrorText'),
 
