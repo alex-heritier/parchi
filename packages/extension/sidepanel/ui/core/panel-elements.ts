@@ -59,10 +59,16 @@ export const getSidePanelElements = (): SidePanelElements => ({
   profileEditorTemperature: byId<HTMLInputElement>('profileEditorTemperature'),
   profileEditorTemperatureValue: byId<HTMLElement>('profileEditorTemperatureValue'),
   profileEditorMaxTokens: byId<HTMLInputElement>('profileEditorMaxTokens'),
+  profileEditorContextLimit: byId<HTMLInputElement>('profileEditorContextLimit'),
   profileEditorTimeout: byId<HTMLInputElement>('profileEditorTimeout'),
   profileEditorEnableScreenshots: byId<HTMLInputElement>('profileEditorEnableScreenshots'),
   profileEditorSendScreenshots: byId<HTMLInputElement>('profileEditorSendScreenshots'),
   profileEditorScreenshotQuality: byId<HTMLSelectElement>('profileEditorScreenshotQuality'),
+  profileEditorShowThinking: byId<HTMLSelectElement>('profileEditorShowThinking'),
+  profileEditorStreamResponses: byId<HTMLSelectElement>('profileEditorStreamResponses'),
+  profileEditorAutoScroll: byId<HTMLSelectElement>('profileEditorAutoScroll'),
+  profileEditorConfirmActions: byId<HTMLSelectElement>('profileEditorConfirmActions'),
+  profileEditorSaveHistory: byId<HTMLSelectElement>('profileEditorSaveHistory'),
   profileEditorPrompt: byId<HTMLTextAreaElement>('profileEditorPrompt'),
   saveProfileBtn: byId<HTMLButtonElement>('saveProfileBtn'),
   profileJsonEditor: byId<HTMLTextAreaElement>('profileJsonEditor'),
@@ -79,10 +85,15 @@ export const getSidePanelElements = (): SidePanelElements => ({
   importSettingsBtn: byId<HTMLButtonElement>('importSettingsBtn'),
   importSettingsInput: byId<HTMLInputElement>('importSettingsInput'),
 
+  openProfilesTabFromGeneralBtn: byId<HTMLButtonElement>('openProfilesTabFromGeneralBtn'),
+
   // Relay
   relayEnabled: byId<HTMLSelectElement>('relayEnabled'),
   relayUrl: byId<HTMLInputElement>('relayUrl'),
   relayToken: byId<HTMLInputElement>('relayToken'),
+  saveRelayBtn: byId<HTMLButtonElement>('saveRelayBtn'),
+  relayConnectedBadge: byId<HTMLElement>('relayConnectedBadge'),
+  relayLastErrorText: byId<HTMLElement>('relayLastErrorText'),
 
   // Form elements - Provider & model
   provider: byId<HTMLSelectElement>('provider'),

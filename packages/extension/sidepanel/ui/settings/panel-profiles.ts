@@ -260,6 +260,8 @@ const formatHeadersJson = (headers: Record<string, any> | undefined) => {
     }
   }
   if (this.elements.profileEditorMaxTokens) this.elements.profileEditorMaxTokens.value = config.maxTokens || 2048;
+  if (this.elements.profileEditorContextLimit)
+    this.elements.profileEditorContextLimit.value = config.contextLimit || 200000;
   if (this.elements.profileEditorTimeout) this.elements.profileEditorTimeout.value = config.timeout || 30000;
   if (this.elements.profileEditorEnableScreenshots)
     this.elements.profileEditorEnableScreenshots.value = config.enableScreenshots ? 'true' : 'false';
@@ -267,6 +269,16 @@ const formatHeadersJson = (headers: Record<string, any> | undefined) => {
     this.elements.profileEditorSendScreenshots.value = config.sendScreenshotsAsImages ? 'true' : 'false';
   if (this.elements.profileEditorScreenshotQuality)
     this.elements.profileEditorScreenshotQuality.value = config.screenshotQuality || 'high';
+  if (this.elements.profileEditorShowThinking)
+    this.elements.profileEditorShowThinking.value = config.showThinking !== false ? 'true' : 'false';
+  if (this.elements.profileEditorStreamResponses)
+    this.elements.profileEditorStreamResponses.value = config.streamResponses !== false ? 'true' : 'false';
+  if (this.elements.profileEditorAutoScroll)
+    this.elements.profileEditorAutoScroll.value = config.autoScroll !== false ? 'true' : 'false';
+  if (this.elements.profileEditorConfirmActions)
+    this.elements.profileEditorConfirmActions.value = config.confirmActions !== false ? 'true' : 'false';
+  if (this.elements.profileEditorSaveHistory)
+    this.elements.profileEditorSaveHistory.value = config.saveHistory !== false ? 'true' : 'false';
   if (this.elements.profileEditorPrompt)
     this.elements.profileEditorPrompt.value = config.systemPrompt || this.getDefaultSystemPrompt();
 
@@ -295,10 +307,16 @@ const formatHeadersJson = (headers: Record<string, any> | undefined) => {
     })(),
     temperature: Number.parseFloat(this.elements.profileEditorTemperature.value) || 0.7,
     maxTokens: Number.parseInt(this.elements.profileEditorMaxTokens.value) || 2048,
+    contextLimit: Number.parseInt(this.elements.profileEditorContextLimit?.value || '') || 200000,
     timeout: Number.parseInt(this.elements.profileEditorTimeout.value) || 30000,
     enableScreenshots: this.elements.profileEditorEnableScreenshots.value === 'true',
     sendScreenshotsAsImages: this.elements.profileEditorSendScreenshots.value === 'true',
     screenshotQuality: this.elements.profileEditorScreenshotQuality.value || 'high',
+    showThinking: this.elements.profileEditorShowThinking?.value !== 'false',
+    streamResponses: this.elements.profileEditorStreamResponses?.value !== 'false',
+    autoScroll: this.elements.profileEditorAutoScroll?.value !== 'false',
+    confirmActions: this.elements.profileEditorConfirmActions?.value !== 'false',
+    saveHistory: this.elements.profileEditorSaveHistory?.value !== 'false',
     systemPrompt: this.elements.profileEditorPrompt.value || this.getDefaultSystemPrompt(),
   };
 };

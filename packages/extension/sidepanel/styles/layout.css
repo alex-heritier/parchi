@@ -11,9 +11,10 @@
   display: flex;
   height: 100%;
   overflow: hidden;
+  position: relative;
 }
 
-/* Sidebar — right side */
+/* Sidebar — right side overlay (must not shrink the chat layout) */
 .sidebar {
   width: var(--sidebar-width);
   height: 100%;
@@ -21,19 +22,24 @@
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 80;
   transform: translateX(0);
-  transition: transform var(--duration-normal) var(--ease-out-expo),
-              opacity var(--duration-normal) var(--ease-out-expo);
-  order: 2;
+  transition:
+    transform var(--duration-normal) var(--ease-out-expo),
+    opacity var(--duration-normal) var(--ease-out-expo),
+    box-shadow var(--duration-normal) var(--ease-out-expo);
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.35);
 }
 
 .sidebar.closed {
   transform: translateX(100%);
-  opacity: 0.95;
-  position: absolute;
-  right: 0;
-  z-index: 50;
+  opacity: 0.98;
+  pointer-events: none;
+  box-shadow: none;
 }
 
 /* Right Panel */

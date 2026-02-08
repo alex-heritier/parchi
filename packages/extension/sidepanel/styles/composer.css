@@ -407,6 +407,48 @@
   }
 }
 
+/* Sidepanel widths are often narrow; avoid crushing the toolbar into a single row. */
+@media (max-width: 520px) {
+  .composer-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .composer-toolbar-left,
+  .composer-toolbar-right {
+    width: 100%;
+  }
+
+  .composer-toolbar-left {
+    justify-content: space-between;
+  }
+
+  .composer-toolbar-right {
+    justify-content: flex-end;
+    overflow: visible;
+  }
+
+  .zoom-controls {
+    display: none;
+  }
+
+  .composer-status {
+    max-width: none;
+    flex: 1;
+  }
+
+  .composer .icon-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+  }
+
+  .model-selector {
+    max-width: 180px;
+  }
+}
+
 /* Selected Tabs — Paper card style matching composer */
 .selected-tabs {
   display: flex;

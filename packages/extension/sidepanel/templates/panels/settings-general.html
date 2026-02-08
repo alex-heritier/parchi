@@ -9,6 +9,13 @@
         <h3 class="setup-title">Active Profile</h3>
     </div>
     <div class="form-group">
+        <label for="activeConfig">Profile</label>
+        <select id="activeConfig">
+            <option value="default">Default</option>
+        </select>
+        <small>Switch profiles here, or manage profiles in the Profiles tab.</small>
+    </div>
+    <div class="form-group">
         <label for="provider">Provider</label>
         <select id="provider">
             <option value="anthropic">Anthropic (Claude)</option>
@@ -40,33 +47,13 @@
     <button id="saveSettingsBtn" class="btn btn-primary" style="width: 100%; margin-top: 8px;">
         Save Settings
     </button>
+    <button id="openProfilesTabFromGeneralBtn" class="btn btn-secondary" style="width: 100%; margin-top: 6px;">
+        Manage Profiles
+    </button>
 </div>
 
-<!-- Profiles Section -->
-<details class="settings-section" id="profilesSection">
-    <summary>Profiles</summary>
-    <div class="settings-body">
-        <div class="form-group">
-            <label>Active Profile</label>
-            <select id="activeConfig">
-                <option value="default">Default</option>
-            </select>
-            <small>Switch profiles to load their provider/model/key.</small>
-        </div>
-        <div class="form-group">
-            <label>Add New</label>
-            <div class="config-row">
-                <input type="text" id="newProfileInput" placeholder="e.g. Claude, GPT-4, Kimi…" />
-                <button id="newConfigBtn" class="btn btn-primary">Create</button>
-            </div>
-            <small>Creates a copy of the current profile. Edit provider/model/key above, then Save.</small>
-        </div>
-        <button id="deleteConfigBtn" class="btn btn-secondary" style="width: 100%; margin-top: 4px;">Delete Active Profile</button>
-    </div>
-</details>
-
 <!-- Relay (local daemon + CLI) -->
-<details class="settings-section">
+<details class="settings-section" open>
     <summary>Relay</summary>
     <div class="settings-body">
         <div class="form-group">
@@ -87,6 +74,17 @@
             <input type="password" id="relayToken" placeholder="PARCHI_RELAY_TOKEN" />
             <small>Shared secret used by both the daemon and the extension.</small>
         </div>
+        <div class="form-group">
+            <label>Connection</label>
+            <div class="relay-status-row">
+                <span id="relayConnectedBadge" class="status-pill">Disconnected</span>
+                <span id="relayLastErrorText" class="relay-last-error"></span>
+            </div>
+            <small>Start the daemon, then Apply. The extension will reconnect automatically.</small>
+        </div>
+        <button id="saveRelayBtn" class="btn btn-primary" style="width: 100%; margin-top: 4px;">
+            Apply Relay Settings
+        </button>
     </div>
 </details>
 

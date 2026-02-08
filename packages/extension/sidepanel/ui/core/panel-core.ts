@@ -75,6 +75,7 @@ import { SidePanelUI } from './panel-ui.js';
 
   this.elements.settingsTabGeneralBtn?.addEventListener('click', () => this.switchSettingsTab('general'));
   this.elements.settingsTabProfilesBtn?.addEventListener('click', () => this.switchSettingsTab('profiles'));
+  this.elements.openProfilesTabFromGeneralBtn?.addEventListener('click', () => this.switchSettingsTab('profiles'));
   this.elements.createProfileBtn?.addEventListener('click', () => this.createProfileFromInput());
   this.elements.openGeneralBtn?.addEventListener('click', () => this.switchSettingsTab('general'));
   this.elements.agentGrid?.addEventListener('click', (event) => {
@@ -101,6 +102,9 @@ import { SidePanelUI } from './panel-ui.js';
   // Save settings
   this.elements.saveSettingsBtn?.addEventListener('click', () => {
     void this.saveSettings();
+  });
+  this.elements.saveRelayBtn?.addEventListener('click', () => {
+    void this.persistAllSettings({ silent: false });
   });
 
   // Cancel settings
@@ -189,6 +193,16 @@ import { SidePanelUI } from './panel-ui.js';
     if (isRuntimeMessage(message)) {
       this.handleRuntimeMessage(message);
     }
+  });
+
+  // Keep relay connection status fresh while Settings is open.
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local') return;
+    if (!changes.relayConnected && !changes.relayLastError) return;
+    const next: Record<string, any> = {};
+    if (changes.relayConnected) next.relayConnected = changes.relayConnected.newValue;
+    if (changes.relayLastError) next.relayLastError = changes.relayLastError.newValue;
+    this.updateRelayStatusFromSettings?.(next);
   });
 };
 
