@@ -56,7 +56,11 @@ const run = async () => {
 
   // Build background and sidepanel as ESM (they support modules)
   await esbuild.build({
-    entryPoints: [path.join(extensionRoot, 'background.ts'), path.join(extensionRoot, 'sidepanel', 'panel.ts')],
+    entryPoints: [
+      path.join(extensionRoot, 'background.ts'),
+      path.join(extensionRoot, 'sidepanel', 'panel.ts'),
+      path.join(extensionRoot, 'offscreen', 'offscreen.ts'),
+    ],
     outdir: distDir,
     outbase: extensionRoot,
     bundle: true,
@@ -131,6 +135,7 @@ const run = async () => {
   copyFile(path.join(extensionRoot, 'sidepanel', 'panel.css'), path.join(distDir, 'sidepanel', 'panel.css'));
   copyDirFiltered(path.join(extensionRoot, 'sidepanel', 'styles'), path.join(distDir, 'sidepanel', 'styles'));
   copyDirFiltered(path.join(extensionRoot, 'sidepanel', 'templates'), path.join(distDir, 'sidepanel', 'templates'));
+  copyFile(path.join(extensionRoot, 'offscreen', 'offscreen.html'), path.join(distDir, 'offscreen', 'offscreen.html'));
   copyDirFiltered(path.join(extensionRoot, 'icons'), path.join(distDir, 'icons'));
 };
 

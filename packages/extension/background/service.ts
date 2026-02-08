@@ -43,6 +43,7 @@ export class BackgroundService {
   relay: RelayBridge;
   relayActiveRunIds: Set<string>;
   private applyRelayConfig: () => Promise<void>;
+  private relayKeepalivePorts: Set<chrome.runtime.Port>;
   // State tracking for enforcement
   lastBrowserAction: string | null;
   awaitingVerification: boolean;
@@ -58,6 +59,7 @@ export class BackgroundService {
     this.subAgentCount = 0;
     this.subAgentProfileCursor = 0;
     this.relayActiveRunIds = new Set();
+    this.relayKeepalivePorts = new Set();
     // State tracking for enforcement
     this.lastBrowserAction = null;
     this.awaitingVerification = false;
@@ -102,10 +104,43 @@ export class BackgroundService {
           .set({ relayConnected: false, relayLastError: 'Missing relay URL or token' })
           .catch(() => {});
       }
+      if (enabled && url && token) {
+        await this.ensureRelayKeepalive();
+      } else {
+        await this.closeRelayKeepalive();
+      }
       this.relay.configure({ enabled, url, token });
     };
 
     this.init();
+  }
+
+  private async ensureRelayKeepalive() {
+    const offscreen = (chrome as any).offscreen;
+    if (!offscreen?.createDocument) return;
+    try {
+      const hasDoc = typeof offscreen.hasDocument === 'function' ? await offscreen.hasDocument() : false;
+      if (hasDoc) return;
+      await offscreen.createDocument({
+        url: 'offscreen/offscreen.html',
+        reasons: [offscreen.Reason?.DOM_PARSER || 'DOM_PARSER'],
+        justification: 'Keep relay WebSocket alive for the extension relay agent in MV3.',
+      });
+    } catch (err) {
+      console.warn('[relay] offscreen keepalive failed:', err);
+    }
+  }
+
+  private async closeRelayKeepalive() {
+    const offscreen = (chrome as any).offscreen;
+    if (!offscreen?.closeDocument) return;
+    try {
+      const hasDoc = typeof offscreen.hasDocument === 'function' ? await offscreen.hasDocument() : false;
+      if (!hasDoc) return;
+      await offscreen.closeDocument();
+    } catch (err) {
+      // Ignore - offscreen may not exist or may already be closed.
+    }
   }
 
   init() {
@@ -161,6 +196,16 @@ export class BackgroundService {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       void this.handleMessage(message, sender, sendResponse);
       return true;
+    });
+
+    chrome.runtime.onConnect.addListener((port) => {
+      if (port.name !== 'relay-keepalive') return;
+      this.relayKeepalivePorts.add(port);
+      port.onDisconnect.addListener(() => {
+        this.relayKeepalivePorts.delete(port);
+      });
+      // Optional: accept pings; no response required.
+      port.onMessage.addListener(() => {});
     });
 
     void this.initRelay();
