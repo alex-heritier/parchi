@@ -169,10 +169,13 @@ const toolIcons: Record<string, string> = {
   entry.endTime = Date.now();
   const isError = result && (result.error || result.success === false);
   const duration = entry.endTime - entry.startTime;
+  const isNoopScroll =
+    entry.fullToolName === 'scroll' && result && result.success === true && result.moved === false;
 
   // Update visual state - subtle, no red/green
   entry.element.classList.remove('running');
   entry.element.classList.add(isError ? 'error' : 'done');
+  entry.element.classList.toggle('noop', isNoopScroll);
 
   // Update duration display
   if (entry.durationEl) {
@@ -181,6 +184,29 @@ const toolIcons: Record<string, string> = {
 
   if (entry.statusEl) {
     entry.statusEl.textContent = isError ? 'ERR' : 'OK';
+  }
+
+  // When scroll can't move (common in nested scroll containers), surface it without marking as an error.
+  if (isNoopScroll) {
+    entry.element.title = 'Scroll did not move. The page may use an inner scroll container; pass scroll.selector.';
+    let noteEl = entry.element.querySelector('.tool-note') as HTMLElement | null;
+    if (!noteEl) {
+      noteEl = document.createElement('span');
+      noteEl.className = 'tool-note';
+      noteEl.textContent = 'no-op';
+      // Prefer placing after args, before status.
+      const argsEl = entry.element.querySelector('.tool-args');
+      if (argsEl && argsEl.parentElement) {
+        argsEl.insertAdjacentElement('afterend', noteEl);
+      } else {
+        const statusEl = entry.element.querySelector('.tool-status');
+        if (statusEl && statusEl.parentElement) {
+          statusEl.insertAdjacentElement('beforebegin', noteEl);
+        } else {
+          entry.element.appendChild(noteEl);
+        }
+      }
+    }
   }
 
   // Store result for potential expansion
