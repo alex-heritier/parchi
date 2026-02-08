@@ -42,6 +42,7 @@ export class BackgroundService {
   subAgentProfileCursor: number;
   relay: RelayBridge;
   relayActiveRunIds: Set<string>;
+  private applyRelayConfig: () => Promise<void>;
   // State tracking for enforcement
   lastBrowserAction: string | null;
   awaitingVerification: boolean;
@@ -90,6 +91,19 @@ export class BackgroundService {
         chrome.storage.local.set(payload).catch(() => {});
       },
     });
+
+    this.applyRelayConfig = async () => {
+      const stored = await chrome.storage.local.get(['relayEnabled', 'relayUrl', 'relayToken']);
+      const enabled = stored.relayEnabled === true || stored.relayEnabled === 'true';
+      const url = typeof stored.relayUrl === 'string' ? stored.relayUrl.trim() : '';
+      const token = typeof stored.relayToken === 'string' ? stored.relayToken.trim() : '';
+      if (enabled && (!url || !token)) {
+        await chrome.storage.local
+          .set({ relayConnected: false, relayLastError: 'Missing relay URL or token' })
+          .catch(() => {});
+      }
+      this.relay.configure({ enabled, url, token });
+    };
 
     this.init();
   }
@@ -153,23 +167,15 @@ export class BackgroundService {
   }
 
   async initRelay() {
-    const applyConfig = async () => {
-      const stored = await chrome.storage.local.get(['relayEnabled', 'relayUrl', 'relayToken']);
-      const enabled = stored.relayEnabled === true || stored.relayEnabled === 'true';
-      const url = typeof stored.relayUrl === 'string' ? stored.relayUrl.trim() : '';
-      const token = typeof stored.relayToken === 'string' ? stored.relayToken.trim() : '';
-      this.relay.configure({ enabled, url, token });
-    };
-
     try {
-      await applyConfig();
+      await this.applyRelayConfig();
     } catch (err) {
       console.warn('[relay] init failed:', err);
     }
 
     chrome.storage.onChanged.addListener((_changes, areaName) => {
       if (areaName !== 'local') return;
-      void applyConfig();
+      void this.applyRelayConfig();
     });
   }
 
@@ -256,6 +262,12 @@ export class BackgroundService {
   async handleMessage(message, _sender, sendResponse) {
     try {
       switch (message.type) {
+        case 'relay_reconfigure': {
+          await this.applyRelayConfig();
+          sendResponse({ success: true });
+          break;
+        }
+
         case 'user_message': {
           const sessionId = message.sessionId || `session-${Date.now()}`;
           const userMessage = typeof message.message === 'string' ? message.message : '';
