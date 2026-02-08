@@ -97,8 +97,12 @@ import { SidePanelUI } from './panel-ui.js';
   this.elements.saveSettingsBtn?.addEventListener('click', () => {
     void this.saveSettings();
   });
-  this.elements.saveRelayBtn?.addEventListener('click', () => {
-    void this.persistAllSettings({ silent: false });
+  this.elements.saveRelayBtn?.addEventListener('click', async () => {
+    await this.persistAllSettings({ silent: false });
+    // Ensure the MV3 service worker wakes up and immediately applies the new config.
+    try {
+      await chrome.runtime.sendMessage({ type: 'relay_reconfigure' });
+    } catch {}
   });
 
   // Cancel settings
