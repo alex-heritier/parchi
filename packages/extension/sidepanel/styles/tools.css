@@ -307,9 +307,11 @@
   background: hsla(30, 5%, 100%, 0.02);
   border: 1px solid var(--ink-1);
   font-size: 12px;
+  line-height: 1.25;
   color: var(--foreground);
   width: 100%;
   max-width: 100%;
+  min-height: 26px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
