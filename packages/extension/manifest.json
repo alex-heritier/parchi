@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Parchi",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Warm-paper browser automation assistant with configurable LLM/vision profiles and enterprise-ready controls",
   "permissions": [
     "sidePanel",
@@ -37,8 +37,5 @@
       "run_at": "document_idle",
       "all_frames": false
     }
-  ],
-  "parchi": {
-    "requireAccount": false
-  }
+  ]
 }

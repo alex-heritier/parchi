@@ -800,8 +800,12 @@ body.sidebar-open .new-session-fab {
 
 .step-tools {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  max-height: 140px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .step-tools:empty {
@@ -970,13 +974,4 @@ body.sidebar-open .new-session-fab {
   word-break: break-word;
   max-height: 300px;
   overflow-y: auto;
-}
-
-/* MCP output */
-.mcp-output {
-  border-left: 3px solid var(--accent);
-}
-
-.mcp-output-header {
-  color: var(--accent);
 }

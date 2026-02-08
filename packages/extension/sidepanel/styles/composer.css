@@ -97,6 +97,22 @@
   background: hsl(0, 45%, 55%);
 }
 
+/* Stop/reset button — hidden unless running */
+.stop-run-btn {
+  display: none;
+}
+
+.composer.running ~ .composer-toolbar .stop-run-btn,
+.composer.running .stop-run-btn {
+  display: flex;
+  color: var(--error);
+}
+
+.stop-run-btn:hover {
+  background: hsla(0, 40%, 50%, 0.15) !important;
+  color: var(--error) !important;
+}
+
 .composer textarea {
   width: 100%;
   min-height: 54px;

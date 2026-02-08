@@ -100,7 +100,6 @@ import { SidePanelUI } from '../core/panel-ui.js';
   const clean = model
     .replace(/^claude-/, '')
     .replace(/^gpt-/, '')
-    .replace(/^gemini-/, '')
     .replace(/^kimi-/, '');
   // Truncate if still long
   if (clean.length <= 20) return clean;
@@ -135,7 +134,6 @@ import { SidePanelUI } from '../core/panel-ui.js';
   const icons: Record<string, string> = {
     anthropic: '🅒',
     openai: '🅞',
-    google: '🅖',
     kimi: '🅚',
     custom: '⚙️',
   };

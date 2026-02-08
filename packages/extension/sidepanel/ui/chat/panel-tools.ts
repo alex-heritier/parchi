@@ -50,24 +50,6 @@ const toolIcons: Record<string, string> = {
   browser_delete_cookie:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8 12h8"/></svg>',
 
-  // MCP (Model Context Protocol) tools
-  mcp_read_resource:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
-  mcp_call_tool:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
-  mcp_list_resources:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
-  mcp_list_tools:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>',
-
-  // File system tools
-  fs_read:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
-  fs_write:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
-  fs_list:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
-
   // Default
   default:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m4.22-10.22l4.24-4.24M6.34 6.34L2.1 2.1m20.9 9.9h-6m-6 0H2.1m16.12 4.24l4.24 4.24M6.34 17.66l-4.24 4.24"/></svg>',
@@ -85,10 +67,7 @@ const toolIcons: Record<string, string> = {
 ) {
   const entryId = toolCallId || `tool-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   let entry = this.toolCallViews.get(entryId);
-
-  // Detect MCP tools
-  const isMcp = toolName.startsWith('mcp_') || args?._mcp || result?._mcp;
-  const displayName = isMcp ? toolName.replace(/^mcp_/, '') : toolName;
+  const displayName = toolName;
 
   if (!entry) {
     entry = {
@@ -96,7 +75,6 @@ const toolIcons: Record<string, string> = {
       toolName: displayName,
       fullToolName: toolName,
       args,
-      isMcp,
       startTime: Date.now(),
       element: null,
       statusEl: null,
@@ -149,7 +127,7 @@ const toolIcons: Record<string, string> = {
   container.className = 'tool-row running';
   container.dataset.toolId = entry.id;
 
-  const icon = this.getToolIcon(entry.fullToolName, entry.isMcp);
+  const icon = this.getToolIcon(entry.fullToolName);
   const argsTokens = this.getArgsTokens(entry.args);
   const argsLabel = argsTokens.join(' · ');
   if (argsLabel) {
@@ -159,7 +137,6 @@ const toolIcons: Record<string, string> = {
   container.innerHTML = `
     <span class="tool-icon">${icon}</span>
     <span class="tool-name">${this.escapeHtml(entry.toolName)}</span>
-    ${entry.isMcp ? '<span class="tool-badge">MCP</span>' : ''}
     ${argsLabel ? `<span class="tool-args">${this.escapeHtml(argsLabel)}</span>` : ''}
     <span class="tool-status">RUN</span>
     <span class="tool-duration">...</span>
@@ -232,29 +209,16 @@ const toolIcons: Record<string, string> = {
   }
 };
 
-(SidePanelUI.prototype as any).getToolIcon = function getToolIcon(toolName: string, isMcp = false): string {
+(SidePanelUI.prototype as any).getToolIcon = function getToolIcon(toolName: string): string {
   // Check for exact match first
   if (toolIcons[toolName]) {
     return toolIcons[toolName];
   }
 
-  // Check for MCP prefix
-  if (isMcp || toolName.startsWith('mcp_')) {
-    const mcpName = toolName.replace(/^mcp_/, '');
-    if (toolIcons[`mcp_${mcpName}`]) {
-      return toolIcons[`mcp_${mcpName}`];
-    }
-    // Try generic MCP icon
-    return toolIcons.mcp_call_tool || toolIcons.default;
-  }
-
   // Try partial matches for browser tools
   for (const [key, icon] of Object.entries(toolIcons)) {
     if (key === 'default') continue;
-    const searchKey = key
-      .replace(/^browser_/, '')
-      .replace(/^mcp_/, '')
-      .replace(/^fs_/, '');
+    const searchKey = key.replace(/^browser_/, '');
     if (toolName.toLowerCase().includes(searchKey.toLowerCase())) {
       return icon;
     }
@@ -297,9 +261,19 @@ const toolIcons: Record<string, string> = {
 // Error Handling
 // ============================================================================
 
-(SidePanelUI.prototype as any).showErrorBanner = function showErrorBanner(message: string) {
+(SidePanelUI.prototype as any).showErrorBanner = function showErrorBanner(
+  message: string,
+  opts?: { category?: string; action?: string },
+) {
   // Remove any existing error banners to prevent stacking
   document.querySelectorAll('.error-banner').forEach((el) => el.remove());
+
+  const actionHtml =
+    opts?.action ? `<span class="error-action">${this.escapeHtml(opts.action)}</span>` : '';
+  const settingsBtnHtml =
+    opts?.category === 'auth'
+      ? `<button class="error-settings-btn" title="Open Settings">Settings</button>`
+      : '';
 
   const banner = document.createElement('div');
   banner.className = 'error-banner';
@@ -309,7 +283,11 @@ const toolIcons: Record<string, string> = {
       <line x1="12" y1="8" x2="12" y2="12"></line>
       <line x1="12" y1="16" x2="12.01" y2="16"></line>
     </svg>
-    <span class="error-text">${this.escapeHtml(message)}</span>
+    <div class="error-body">
+      <span class="error-text">${this.escapeHtml(message)}</span>
+      ${actionHtml}
+    </div>
+    ${settingsBtnHtml}
     <button class="error-dismiss" title="Dismiss">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -321,8 +299,14 @@ const toolIcons: Record<string, string> = {
   const dismissButton = banner.querySelector('.error-dismiss');
   dismissButton?.addEventListener('click', () => banner.remove());
 
+  const settingsBtn = banner.querySelector('.error-settings-btn');
+  settingsBtn?.addEventListener('click', () => {
+    banner.remove();
+    this.openSettingsPanel?.();
+  });
+
   document.body.appendChild(banner);
-  setTimeout(() => banner.remove(), 8000);
+  setTimeout(() => banner.remove(), 12000);
 };
 
 (SidePanelUI.prototype as any).clearRunIncompleteBanner = function clearRunIncompleteBanner() {

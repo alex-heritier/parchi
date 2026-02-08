@@ -92,23 +92,17 @@ import { SidePanelUI } from '../core/panel-ui.js';
 
         const checkboxClass = ['plan-checklist-checkbox', isDone ? 'checked' : ''].filter(Boolean).join(' ');
 
-        const checkIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-          <polyline points="20 6 9 17 4 12"></polyline>
-        </svg>`;
-
         const notes = step.notes ? `<div class="plan-checklist-notes">${this.escapeHtml(step.notes)}</div>` : '';
 
         return `
           <li class="${itemClass}" data-step-index="${index}" data-step-id="${step.id}">
-            <button 
-              class="${checkboxClass}" 
+            <button
+              class="${checkboxClass}"
               ${!canCheck && !isDone ? 'disabled' : ''}
               data-action="toggle-step"
               data-step-index="${index}"
               title="${isDone ? 'Completed' : canCheck ? 'Mark as done' : 'Complete previous steps first'}"
-            >
-              ${checkIcon}
-            </button>
+            ></button>
             <div class="plan-checklist-content">
               <div class="plan-checklist-title">${this.escapeHtml(step.title)}</div>
               ${notes}

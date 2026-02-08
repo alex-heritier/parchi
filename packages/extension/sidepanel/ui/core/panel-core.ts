@@ -17,10 +17,7 @@ import { SidePanelUI } from './panel-ui.js';
     console.log('[Parchi] loadSettings done, configs:', Object.keys(this.configs), 'current:', this.currentConfig);
     console.log('[Parchi] Config details:', JSON.stringify(this.configs[this.currentConfig] || {}).slice(0, 200));
     await this.loadHistoryList();
-    await this.loadAccessState();
-    if (this.isAccessReady()) {
-      this.updateStatus('Ready', 'success');
-    }
+    this.updateStatus('Ready', 'success');
     this.updateModelDisplay();
     console.log('[Parchi] Calling fetchAvailableModels...');
     this.fetchAvailableModels();
@@ -39,36 +36,11 @@ import { SidePanelUI } from './panel-ui.js';
     onChat: () => this.openChatView(),
     onHistory: () => this.openHistoryPanel(),
     onSettings: () => this.openSettingsPanel(),
-    onAccount: () => this.openAccountPanel(),
   });
 
   this.elements.settingsBtn?.addEventListener('click', () => {
     this.openSettingsPanel();
   });
-
-  this.elements.authStartBtn?.addEventListener('click', (event) => {
-    event?.preventDefault?.();
-    this.startEmailAuth();
-  });
-  this.elements.authForm?.addEventListener('submit', (event) => {
-    event.preventDefault();
-    this.startEmailAuth();
-  });
-  this.elements.authOpenBtn?.addEventListener('click', () => this.openAuthPage());
-  this.elements.authTokenSaveBtn?.addEventListener('click', () => this.saveAccessToken());
-  this.elements.authOpenSettingsBtn?.addEventListener('click', () =>
-    this.openAccountSettings({ focusAccountApi: true }),
-  );
-  this.elements.billingStartBtn?.addEventListener('click', () => this.startSubscription());
-  this.elements.billingManageBtn?.addEventListener('click', () => this.manageBilling());
-  this.elements.authLogoutBtn?.addEventListener('click', () => this.signOut());
-  this.elements.accountRefreshBtn?.addEventListener('click', () => this.refreshAccountData());
-  this.elements.accountCheckoutBtn?.addEventListener('click', () => this.startSubscription());
-  this.elements.accountPortalBtn?.addEventListener('click', () => this.manageBilling());
-  this.elements.accountOpenSettingsBtn?.addEventListener('click', () => this.openSettingsFromAccount());
-  this.elements.accountOpenProfilesBtn?.addEventListener('click', () => this.openProfilesFromAccount());
-  this.elements.accountOpenHistoryBtn?.addEventListener('click', () => this.openHistoryFromAccount());
-  this.elements.accountLogoutBtn?.addEventListener('click', () => this.signOut());
 
   this.elements.startNewSessionBtn?.addEventListener('click', () => this.startNewSession());
   this.elements.newSessionFab?.addEventListener('click', () => this.startNewSession());
@@ -118,16 +90,6 @@ import { SidePanelUI } from './panel-ui.js';
       const profile = (card as HTMLElement).dataset.profile;
       this.editProfile(profile);
     }
-  });
-  this.elements.refreshProfilesBtn?.addEventListener('click', () => this.renderProfileGrid());
-
-  // Agent management grid
-  this.elements.agentGrid?.addEventListener('click', (event) => {
-    const button = (event.target as HTMLElement | null)?.closest('[data-role]');
-    if (!button) return;
-    const role = (button as HTMLElement).dataset.role;
-    const profile = (button as HTMLElement).dataset.profile;
-    this.assignProfileRole(profile, role);
   });
   this.elements.refreshProfilesBtn?.addEventListener('click', () => this.renderProfileGrid());
 
@@ -203,6 +165,9 @@ import { SidePanelUI } from './panel-ui.js';
   this.elements.chatMessages?.addEventListener('scroll', () => this.handleChatScroll());
   this.elements.scrollToLatestBtn?.addEventListener('click', () => this.scrollToBottom({ force: true }));
 
+  // Stop/reset button
+  this.elements.stopRunBtn?.addEventListener('click', () => this.recoverFromStuckState());
+
   // Profile editor controls
   this.elements.profileEditorProvider?.addEventListener('change', () => this.toggleProfileEditorEndpoint());
   this.elements.profileEditorHeaders?.addEventListener('input', () => this.validateProfileEditorHeaders());
@@ -237,7 +202,49 @@ import { SidePanelUI } from './panel-ui.js';
   this.chatResizeObserver.observe(this.elements.chatMessages);
 };
 
+(SidePanelUI.prototype as any).startWatchdog = function startWatchdog() {
+  this.stopWatchdog();
+  this._lastRuntimeMessageAt = Date.now();
+  this._watchdogTimerId = setInterval(() => {
+    const isRunning = this.elements.composer?.classList.contains('running');
+    if (!isRunning) {
+      this.stopWatchdog();
+      return;
+    }
+    const silence = Date.now() - this._lastRuntimeMessageAt;
+    if (silence > 90_000) {
+      this.recoverFromStuckState();
+    }
+  }, 15_000);
+};
+
+(SidePanelUI.prototype as any).stopWatchdog = function stopWatchdog() {
+  if (this._watchdogTimerId != null) {
+    clearInterval(this._watchdogTimerId);
+    this._watchdogTimerId = null;
+  }
+};
+
+(SidePanelUI.prototype as any).recoverFromStuckState = function recoverFromStuckState() {
+  this.stopWatchdog();
+  this.stopThinkingTimer?.();
+  this.stopRunTimer?.();
+  this.elements.composer?.classList.remove('running');
+  this.pendingTurnDraft = null;
+  this.pendingToolCount = 0;
+  this.isStreaming = false;
+  this.activeToolName = null;
+  this.updateActivityState();
+  this.finishStreamingMessage();
+  this.showErrorBanner('Connection lost — the background service may have restarted. You can send a new message.', {
+    category: 'timeout',
+    action: 'Try sending your message again.',
+  });
+  this.updateStatus('Disconnected', 'error');
+};
+
 (SidePanelUI.prototype as any).handleRuntimeMessage = function handleRuntimeMessage(message: any) {
+  this._lastRuntimeMessageAt = Date.now();
   if (message.type === 'assistant_stream_start') {
     this.streamingReasoning = '';
     this.handleAssistantStream({ status: 'start' });
@@ -424,14 +431,17 @@ import { SidePanelUI } from './panel-ui.js';
   }
 
   if (message.type === 'run_error') {
+    this.stopWatchdog?.();
     this.stopThinkingTimer?.();
+    this.stopRunTimer?.();
     this.elements.composer?.classList.remove('running');
+    this.pendingTurnDraft = null;
     this.pendingToolCount = 0;
     this.isStreaming = false;
     this.activeToolName = null;
     this.updateActivityState();
     this.finishStreamingMessage();
-    this.showErrorBanner(message.message);
+    this.showErrorBanner(message.message, { category: (message as any).errorCategory, action: (message as any).action });
     this.updateStatus('Error', 'error');
     return;
   }

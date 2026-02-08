@@ -1,4 +1,5 @@
 import { APICallError } from '@ai-sdk/provider';
+import { classifyApiError } from './ai/error-classifier.js';
 import { generateText, stepCountIs, streamText } from 'ai';
 import {
   DEFAULT_COMPACTION_SETTINGS,
@@ -19,6 +20,7 @@ import { toModelMessages } from './ai/model-convert.js';
 import { isValidFinalResponse } from './ai/retry-engine.js';
 import { buildToolSet, describeImageWithModel, resolveLanguageModel } from './ai/sdk-client.js';
 import { BrowserTools } from './tools/browser-tools.js';
+import { RelayBridge } from './relay/relay-bridge.js';
 import { buildRunPlan } from '../shared/src/plan.js';
 import type { RunPlan } from '../shared/src/plan.js';
 import { RUNTIME_MESSAGE_SCHEMA_VERSION } from '../shared/src/runtime-messages.js';
@@ -36,6 +38,8 @@ class BackgroundService {
   currentPlan: RunPlan | null;
   subAgentCount: number;
   subAgentProfileCursor: number;
+  relay: RelayBridge;
+  relayActiveRunIds: Set<string>;
   // State tracking for enforcement
   lastBrowserAction: string | null;
   awaitingVerification: boolean;
@@ -50,12 +54,35 @@ class BackgroundService {
     this.currentPlan = null;
     this.subAgentCount = 0;
     this.subAgentProfileCursor = 0;
+    this.relayActiveRunIds = new Set();
     // State tracking for enforcement
     this.lastBrowserAction = null;
     this.awaitingVerification = false;
     this.currentStepVerified = false;
     this.kimiHeaderRuleOk = false;
     this.kimiWarningSent = false;
+
+    this.relay = new RelayBridge({
+      getHelloPayload: async () => {
+        const manifest = chrome.runtime.getManifest();
+        const stored = await chrome.storage.local.get(['relayAgentId']);
+        let agentId = typeof stored.relayAgentId === 'string' ? stored.relayAgentId : '';
+        if (!agentId) {
+          agentId = `agent-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+          await chrome.storage.local.set({ relayAgentId: agentId });
+        }
+        return {
+          agentId,
+          name: 'parchi-extension',
+          version: String(manifest.version || ''),
+          browser: typeof (globalThis as any).browser !== 'undefined' ? 'firefox' : 'chrome',
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+          capabilities: { tools: true, agentRun: true },
+        };
+      },
+      onRequest: async (req) => this.handleRelayRpc(req.method, req.params),
+    });
+
     this.init();
   }
 
@@ -113,6 +140,109 @@ class BackgroundService {
       void this.handleMessage(message, sender, sendResponse);
       return true;
     });
+
+    void this.initRelay();
+  }
+
+  async initRelay() {
+    const applyConfig = async () => {
+      const stored = await chrome.storage.local.get(['relayEnabled', 'relayUrl', 'relayToken']);
+      const enabled = stored.relayEnabled === true || stored.relayEnabled === 'true';
+      const url = typeof stored.relayUrl === 'string' ? stored.relayUrl.trim() : '';
+      const token = typeof stored.relayToken === 'string' ? stored.relayToken.trim() : '';
+      this.relay.configure({ enabled, url, token });
+    };
+
+    try {
+      await applyConfig();
+    } catch (err) {
+      console.warn('[relay] init failed:', err);
+    }
+
+    chrome.storage.onChanged.addListener((_changes, areaName) => {
+      if (areaName !== 'local') return;
+      void applyConfig();
+    });
+  }
+
+  async handleRelayRpc(method: string, params: unknown) {
+    switch (method) {
+      case 'tools.list':
+        return this.browserTools.getToolDefinitions();
+
+      case 'tool.call': {
+        const tool = typeof (params as any)?.tool === 'string' ? (params as any).tool : '';
+        const args = (params as any)?.args;
+        if (!tool) throw new Error('tool.call: missing tool');
+        const safeArgs = args && typeof args === 'object' && !Array.isArray(args) ? (args as Record<string, any>) : {};
+        const settings = await chrome.storage.local.get(['toolPermissions', 'allowedDomains']);
+        const perm = await this.checkToolPermission(tool, safeArgs, settings);
+        if (!perm.allowed) {
+          throw new Error(perm.reason || 'Tool blocked by policy');
+        }
+        return await this.browserTools.executeTool(tool, safeArgs);
+      }
+
+      case 'session.setTabs': {
+        const ids = Array.isArray((params as any)?.tabIds) ? (params as any).tabIds : [];
+        const tabIds = ids.map((n: any) => Number(n)).filter((n: any) => Number.isFinite(n) && n > 0);
+        const tabs: chrome.tabs.Tab[] = [];
+        for (const tabId of tabIds) {
+          try {
+            const tab = await chrome.tabs.get(tabId);
+            if (tab) tabs.push(tab);
+          } catch {}
+        }
+        await this.browserTools.configureSessionTabs(tabs, { title: 'Session', color: 'blue' });
+        return { ok: true, tabIds: tabs.map((t) => t.id).filter((id): id is number => typeof id === 'number') };
+      }
+
+      case 'settings.get': {
+        const keys = (params as any)?.keys;
+        if (!Array.isArray(keys)) throw new Error('settings.get: keys must be an array');
+        return await chrome.storage.local.get(keys);
+      }
+
+      case 'settings.set': {
+        const data = (params as any)?.data;
+        if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('settings.set: data must be an object');
+        await chrome.storage.local.set(data);
+        return { ok: true };
+      }
+
+      case 'agent.run': {
+        const prompt = typeof (params as any)?.prompt === 'string' ? String((params as any).prompt) : '';
+        if (!prompt.trim()) throw new Error('agent.run: missing prompt');
+        const selectedTabIds = Array.isArray((params as any)?.selectedTabIds) ? (params as any).selectedTabIds : null;
+        const sessionId = typeof (params as any)?.sessionId === 'string' ? (params as any).sessionId : `session-${Date.now()}`;
+        const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const turnId = `turn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+        const selectedTabs: chrome.tabs.Tab[] = [];
+        if (Array.isArray(selectedTabIds) && selectedTabIds.length) {
+          for (const rawId of selectedTabIds) {
+            const tabId = Number(rawId);
+            if (!Number.isFinite(tabId) || tabId <= 0) continue;
+            try {
+              const tab = await chrome.tabs.get(tabId);
+              if (tab) selectedTabs.push(tab);
+            } catch {}
+          }
+        }
+        if (selectedTabs.length === 0) {
+          const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (activeTab) selectedTabs.push(activeTab);
+        }
+
+        // Fire-and-forget; relay will receive runtime events and run.done.
+        void this.processUserMessage(prompt, [], selectedTabs, sessionId, { runId, turnId, origin: 'relay' });
+
+        return { runId, sessionId };
+      }
+
+      default:
+        throw new Error(`Unknown method: ${method}`);
+    }
   }
 
   async handleMessage(message, _sender, sendResponse) {
@@ -158,12 +288,15 @@ class BackgroundService {
     conversationHistory: Message[],
     selectedTabs: chrome.tabs.Tab[],
     sessionId: string,
+    meta?: Partial<RunMeta> & { origin?: 'sidepanel' | 'relay' },
   ) {
     const runMeta: RunMeta = {
-      runId: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      turnId: `turn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      runId: typeof meta?.runId === 'string' && meta.runId ? meta.runId : `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      turnId: typeof meta?.turnId === 'string' && meta.turnId ? meta.turnId : `turn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       sessionId,
     };
+    const origin = meta?.origin || 'sidepanel';
+    if (origin === 'relay') this.relayActiveRunIds.add(runMeta.runId);
 
     // Reset enforcement state at the start of every turn so stale verification
     // requirements from the previous turn don't pollute the system prompt.
@@ -392,9 +525,9 @@ class BackgroundService {
           return typeof message === 'string' && message.includes('No output generated');
         };
 
-        const safeAwait = async <T>(promise: Promise<T>, fallback: T): Promise<T> => {
+        const safeAwait = async <T>(promise: PromiseLike<T>, fallback: T): Promise<T> => {
           try {
-            return await promise;
+            return await Promise.resolve(promise);
           } catch (error) {
             if (isNoOutputError(error)) return fallback;
             throw error;
@@ -449,14 +582,14 @@ class BackgroundService {
           messages: modelMessages,
           tools: toolSet,
           temperature: orchestratorProfile.temperature ?? 0.7,
-          maxOutputTokens: orchestratorProfile.maxTokens ?? 2048,
+          maxOutputTokens: orchestratorProfile.maxTokens ?? 4096,
           stopWhen: stepCountIs(48),
           providerOptions: enableAnthropicThinking
             ? {
                 anthropic: {
                   thinking: {
                     type: 'enabled',
-                    budgetTokens: 2048,
+                    budgetTokens: Math.min(Math.max(1024, Math.floor((orchestratorProfile.maxTokens ?? 4096) * 0.5)), 16384),
                   },
                 },
               }
@@ -521,9 +654,11 @@ class BackgroundService {
           }
 
           if (!resolvedText && textStreamError) {
+            const streamClassified = classifyApiError(new Error(textStreamError));
+            const detail = streamClassified.action ? ` ${streamClassified.action}` : '';
             this.sendRuntime(runMeta, {
               type: 'run_warning',
-              message: `Model produced no output. Stream error: ${textStreamError}`,
+              message: `Model produced no output. ${streamClassified.message}${detail}`,
             });
           }
 
@@ -619,14 +754,79 @@ class BackgroundService {
         reasoningText = passResult.reasoningText || null;
         totalUsage = passResult.totalUsage || totalUsage;
         const cleanedText = this.stripXmlToolCalls(passResult.text);
-        const hadToolCalls = toolResults.length > 0;
-        const fallbackText = hadToolCalls ? 'Task completed. See tool results above for details.' : 'Done.';
-        const isValid = isValidFinalResponse(cleanedText, { allowEmpty: hadToolCalls });
-        finalText = isValid
-          ? cleanedText || fallbackText
-          : hadToolCalls
-            ? fallbackText
-            : 'I completed the requested actions but could not produce a final summary. Please try again.';
+        const isValid = isValidFinalResponse(cleanedText, { allowEmpty: false });
+        finalText = isValid ? cleanedText.trim() : '';
+
+        if (!finalText) {
+          const maxFinalizeAttempts = 2;
+
+          const toolDigest = (() => {
+            if (!toolResults.length) return '';
+            const items = toolResults.slice(-10).map((r) => ({
+              tool: r.toolName || 'tool',
+              args: r.input || r.args || {},
+              output: r.output ?? null,
+            }));
+            let raw = JSON.stringify(items);
+            const limit = 12_000;
+            if (raw.length > limit) raw = `${raw.slice(0, limit)}...`;
+            return raw;
+          })();
+
+          for (let attempt = 1; attempt <= maxFinalizeAttempts; attempt += 1) {
+            this.sendRuntime(runMeta, {
+              type: 'run_warning',
+              message: `Model did not produce a valid final response. Retrying finalization (${attempt}/${maxFinalizeAttempts}).`,
+            });
+
+            const finalizePromptParts = [
+              'Your previous response did not include a valid final answer.',
+              'Write the final answer now.',
+              'Do NOT call tools.',
+              'Do NOT mention retrying, failures, or internal errors unless the user explicitly asked.',
+            ];
+            if (toolDigest) {
+              finalizePromptParts.push('Use the tool results below as ground truth.');
+              finalizePromptParts.push(`TOOL_RESULTS_JSON=${toolDigest}`);
+            }
+
+            const finalizeResult = await generateText({
+              model,
+              system: this.enhanceSystemPrompt(orchestratorProfile.systemPrompt || '', context),
+              messages: [
+                ...toModelMessages(currentHistory),
+                {
+                  role: 'user',
+                  content: finalizePromptParts.join('\n'),
+                },
+              ],
+              temperature: 0.2,
+              maxOutputTokens: Math.min(2048, orchestratorProfile.maxTokens ?? 4096),
+            });
+
+            const candidate = String(finalizeResult.text || '').trim();
+            if (isValidFinalResponse(candidate, { allowEmpty: false })) {
+              finalText = candidate;
+              totalUsage = {
+                inputTokens: (totalUsage.inputTokens || 0) + Number((finalizeResult as any)?.usage?.inputTokens || 0),
+                outputTokens: (totalUsage.outputTokens || 0) + Number((finalizeResult as any)?.usage?.outputTokens || 0),
+                totalTokens: (totalUsage.totalTokens || 0) + Number((finalizeResult as any)?.usage?.totalTokens || 0),
+              };
+              break;
+            }
+          }
+
+          if (!finalText) {
+            this.sendRuntime(runMeta, {
+              type: 'run_error',
+              message: 'Model failed to produce a valid final response after retries.',
+              errorCategory: 'finalize',
+              action: 'Try a different model, increase maxTokens, or disable streaming if enabled.',
+              recoverable: true,
+            });
+            return;
+          }
+        }
 
         const assistantMsg: Message = {
           role: 'assistant',
@@ -750,16 +950,22 @@ class BackgroundService {
       }
     } catch (error) {
       console.error('Error processing user message:', error);
-      let message = error.message || 'Unknown error';
-      if (APICallError.isInstance(error)) {
-        const status = error.statusCode ? `Status ${error.statusCode}.` : '';
+      const classified = classifyApiError(error);
+      let message = classified.message;
+      if (classified.category === 'unknown' && APICallError.isInstance(error)) {
+        const status = error.statusCode ? ` Status ${error.statusCode}.` : '';
         const body = error.responseBody ? ` Response: ${error.responseBody.slice(0, 500)}` : '';
-        message = `${message}${status ? ` ${status}` : ''}${body}`;
+        message = `${error.message || 'Unknown error'}${status}${body}`;
       }
       this.sendRuntime(runMeta, {
         type: 'run_error',
         message,
+        errorCategory: classified.category,
+        action: classified.action,
+        recoverable: classified.recoverable,
       });
+    } finally {
+      if (origin === 'relay') this.relayActiveRunIds.delete(runMeta.runId);
     }
   }
 
@@ -1185,9 +1391,10 @@ class BackgroundService {
     return active?.url || '';
   }
 
-  async checkToolPermission(toolName, args) {
-    if (!this.currentSettings) return { allowed: true };
-    const permissions = this.currentSettings.toolPermissions || {};
+  async checkToolPermission(toolName, args, settingsOverride?: Record<string, any> | null) {
+    const settings = settingsOverride || this.currentSettings;
+    if (!settings) return { allowed: true };
+    const permissions = settings.toolPermissions || {};
     const category = this.getToolPermissionCategory(toolName);
     if (category && permissions[category] === false) {
       return {
@@ -1203,7 +1410,7 @@ class BackgroundService {
 
     if (category === 'tabs') return { allowed: true };
 
-    const allowlist = this.parseAllowedDomains(this.currentSettings.allowedDomains || '');
+    const allowlist = this.parseAllowedDomains(settings.allowedDomains || '');
     if (!allowlist.length) return { allowed: true };
 
     const targetUrl = await this.resolveToolUrl(toolName, args);
@@ -1223,14 +1430,25 @@ class BackgroundService {
   }
 
   sendRuntime(runMeta: RunMeta, payload: Record<string, unknown>) {
-    this.sendToSidePanel({
+    const message = {
       schemaVersion: RUNTIME_MESSAGE_SCHEMA_VERSION,
       runId: runMeta.runId,
       turnId: runMeta.turnId,
       sessionId: runMeta.sessionId,
       timestamp: Date.now(),
       ...payload,
-    });
+    };
+    this.sendToSidePanel(message);
+
+    if (this.relayActiveRunIds.has(runMeta.runId) && this.relay.isConnected()) {
+      this.relay.notify('run.event', { runId: runMeta.runId, event: message });
+      const type = typeof payload.type === 'string' ? payload.type : '';
+      if (type === 'assistant_final') {
+        this.relay.notify('run.done', { runId: runMeta.runId, status: 'completed', final: message });
+      } else if (type === 'run_error') {
+        this.relay.notify('run.done', { runId: runMeta.runId, status: 'failed', error: message });
+      }
+    }
   }
 
   sendToSidePanel(message) {

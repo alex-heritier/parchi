@@ -453,57 +453,6 @@
   color: var(--error);
 }
 
-/* Access / Account */
-.access-card {
-  background: var(--background);
-  border: 1px solid var(--ink-1);
-  border-radius: var(--radius-sm);
-  padding: 12px;
-  margin-bottom: 8px;
-}
-
-.access-form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 8px;
-}
-
-.access-banner {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 10px;
-  background: var(--card);
-  border: 1px solid var(--warning);
-  border-radius: var(--radius-sm);
-  margin: 8px 0;
-  font-size: 11px;
-}
-
-.access-status {
-  padding: 6px 10px;
-  background: var(--card);
-  border: 1px solid var(--ink-1);
-  border-radius: var(--radius-sm);
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.access-status.success { border-color: var(--success); color: var(--success); }
-.access-status.warning { border-color: var(--warning); color: var(--warning); }
-.access-status.error { border-color: var(--error); color: var(--error); }
-
-.divider {
-  text-align: center;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--muted-dim);
-  margin: 12px 0;
-}
-
 .plan-card {
   display: flex;
   justify-content: space-between;
@@ -527,32 +476,6 @@
   color: var(--accent);
   border-radius: 9999px;
   font-weight: 500;
-}
-
-.account-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 10px 0;
-}
-
-.account-card {
-  padding: 10px;
-  background: var(--card);
-  border: 1px solid var(--ink-1);
-  border-radius: var(--radius-sm);
-}
-
-.card-title {
-  font-size: 11px;
-  font-weight: 500;
-  margin-bottom: 4px;
-  color: var(--muted);
-}
-
-.account-list {
-  font-size: 11px;
-  color: var(--muted);
 }
 
 /* Modal */

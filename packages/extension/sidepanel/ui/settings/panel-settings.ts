@@ -29,36 +29,9 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   this.applyUiZoom(next);
 };
 
-(SidePanelUI.prototype as any).toggleSettings = async function toggleSettings(saveOnClose = true) {
-  try {
-    const isOpen = this.elements.settingsPanel ? !this.elements.settingsPanel.classList.contains('hidden') : false;
-    if (isOpen) {
-      if (saveOnClose) {
-        this.configs[this.currentConfig] = this.collectCurrentFormProfile();
-        await this.persistAllSettings({ silent: true });
-      }
-      this.settingsOpen = false;
-      this.showRightPanel(null);
-      this.setNavActive('chat');
-      this.updateAccessUI();
-      return;
-    }
-    this.settingsOpen = true;
-    this.accessPanelVisible = false;
-    this.openSidebar();
-    this.showRightPanel('settings');
-    this.switchSettingsTab(this.currentSettingsTab || 'general');
-    this.setNavActive('settings');
-    this.updateAccessUI();
-  } catch (error) {
-    console.error('[Parchi] toggleSettings error:', error);
-    this.updateStatus('Settings panel error', 'error');
-  }
-};
-
 (SidePanelUI.prototype as any).cancelSettings = async function cancelSettings() {
   await this.loadSettings();
-  await this.toggleSettings(false);
+  this.openChatView?.();
 };
 
 (SidePanelUI.prototype as any).toggleCustomEndpoint = function toggleCustomEndpoint() {
@@ -97,9 +70,6 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
         break;
       case 'openai':
         modelHint.textContent = 'Recommended: gpt-4o or gpt-4-turbo';
-        break;
-      case 'google':
-        modelHint.textContent = 'Recommended: gemini-2.0-flash or gemini-1.5-pro';
         break;
       case 'kimi':
         modelHint.textContent = 'Recommended: kimi-for-coding (or your Kimi model ID)';
@@ -210,6 +180,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
       'orchestratorProfile',
       'showThinking',
       'streamResponses',
+      'timelineCollapsed',
       'autoScroll',
       'confirmActions',
       'saveHistory',
@@ -218,8 +189,10 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
       'activeConfig',
       'configs',
       'auxAgentProfiles',
-      'accountApiBase',
       'uiZoom',
+      'relayEnabled',
+      'relayUrl',
+      'relayToken',
     ]);
   } catch (error) {
     console.error('[Parchi] Failed to load settings from storage:', error);
@@ -277,6 +250,12 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
       settings.confirmActions !== undefined ? String(settings.confirmActions) : 'true';
   if (this.elements.saveHistory)
     this.elements.saveHistory.value = settings.saveHistory !== undefined ? String(settings.saveHistory) : 'true';
+  this.timelineCollapsed = settings.timelineCollapsed !== undefined ? settings.timelineCollapsed !== false : true;
+
+  if (this.elements.relayEnabled)
+    this.elements.relayEnabled.value = settings.relayEnabled !== undefined ? String(settings.relayEnabled) : 'false';
+  if (this.elements.relayUrl) this.elements.relayUrl.value = settings.relayUrl || 'http://127.0.0.1:17373';
+  if (this.elements.relayToken) this.elements.relayToken.value = settings.relayToken || '';
 
   const defaultPermissions = {
     read: true,
@@ -297,17 +276,6 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   if (this.elements.permissionScreenshots)
     this.elements.permissionScreenshots.value = String(toolPermissions.screenshots);
   if (this.elements.allowedDomains) this.elements.allowedDomains.value = settings.allowedDomains || '';
-  const fallbackAccountBase = this.getDefaultAccountApiBase();
-  const accountApiBase = settings.accountApiBase || fallbackAccountBase;
-  if (this.elements.accountApiBase) {
-    this.elements.accountApiBase.value = accountApiBase || '';
-  }
-  this.accountClient.setBaseUrl(accountApiBase || '');
-  if (!settings.accountApiBase && accountApiBase) {
-    await chrome.storage.local.set({ accountApiBase });
-  }
-  console.log('[Parchi] loadSettings: calling updateAccessConfigPrompt');
-  this.updateAccessConfigPrompt();
 
   console.log('[Parchi] loadSettings: calling refreshConfigDropdown');
   this.refreshConfigDropdown();
@@ -358,13 +326,16 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
       'orchestratorProfile',
       'showThinking',
       'streamResponses',
+      'timelineCollapsed',
       'autoScroll',
       'confirmActions',
       'saveHistory',
       'toolPermissions',
       'allowedDomains',
-      'accountApiBase',
       'uiZoom',
+      'relayEnabled',
+      'relayUrl',
+      'relayToken',
     ];
     const settings = await chrome.storage.local.get(keys);
     const payload = {
@@ -405,13 +376,16 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
       'orchestratorProfile',
       'showThinking',
       'streamResponses',
+      'timelineCollapsed',
       'autoScroll',
       'confirmActions',
       'saveHistory',
       'toolPermissions',
       'allowedDomains',
-      'accountApiBase',
       'uiZoom',
+      'relayEnabled',
+      'relayUrl',
+      'relayToken',
     ];
     allowedKeys.forEach((key) => {
       if (data[key] !== undefined) {
@@ -424,7 +398,6 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
     await chrome.storage.local.set(payload);
     await this.loadSettings();
     this.renderProfileGrid();
-    this.updateAccessUI();
     this.updateStatus('Settings imported successfully', 'success');
   } catch (error) {
     this.updateStatus('Unable to import settings', 'error');
@@ -522,15 +495,15 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
       orchestratorProfile: this.elements.orchestratorProfile?.value || '',
       toolPermissions: this.collectToolPermissions(),
       allowedDomains: this.elements.allowedDomains?.value || '',
-      accountApiBase: this.elements.accountApiBase?.value?.trim() || '',
       auxAgentProfiles: this.auxAgentProfiles,
       uiZoom: this.uiZoom ?? 1,
+      relayEnabled: this.elements.relayEnabled?.value === 'true',
+      relayUrl: (this.elements.relayUrl?.value || '').trim(),
+      relayToken: this.elements.relayToken?.value || '',
       activeConfig: this.currentConfig,
       configs: this.configs,
     };
     await chrome.storage.local.set(payload);
-    this.accountClient.setBaseUrl(payload.accountApiBase);
-    this.updateAccessConfigPrompt();
     this.updateContextUsage();
     if (!silent) {
       this.updateStatus('Settings saved successfully', 'success');
@@ -676,32 +649,6 @@ After ALL steps are marked done:
 **Result:** [What you found, with quotes from getContent]
 **Sources:** [URLs you visited]
 </output_format>`;
-};
-
-(SidePanelUI.prototype as any).getDefaultAccountApiBase = function getDefaultAccountApiBase() {
-  try {
-    const manifest = chrome.runtime.getManifest();
-    const config = manifest && (manifest as Record<string, any>).parchi;
-    if (config && typeof config.accountApiBase === 'string') {
-      return config.accountApiBase.trim();
-    }
-  } catch (error) {
-    // Ignore manifest read failures and fall back to empty.
-  }
-  return '';
-};
-
-(SidePanelUI.prototype as any).isAccountRequired = function isAccountRequired() {
-  try {
-    const manifest = chrome.runtime.getManifest();
-    const config = manifest && (manifest as Record<string, any>).parchi;
-    if (config && typeof config.requireAccount === 'boolean') {
-      return config.requireAccount;
-    }
-  } catch (error) {
-    // Ignore manifest read failures and fall back to default.
-  }
-  return true;
 };
 
 (SidePanelUI.prototype as any).updateScreenshotToggleState = function updateScreenshotToggleState() {

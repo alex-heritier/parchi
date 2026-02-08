@@ -17,13 +17,9 @@
     "skipLibCheck": true
   },
   "include": [
-    "background.ts",
-    "content.ts",
-    "ai/**/*.ts",
-    "tools/**/*.ts",
-    "sidepanel/**/*.ts",
+    "packages/**/*.ts",
     "tests/**/*.ts",
     "types/**/*.d.ts"
   ],
-  "exclude": ["server/**", "dist/**", "node_modules/**"]
+  "exclude": ["server/**", "dist/**", "dist-firefox/**", "dist-relay/**", "node_modules/**"]
 }

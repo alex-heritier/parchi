@@ -64,23 +64,6 @@ async function getExtensionId(context: import('playwright').BrowserContext): Pro
   return url.host;
 }
 
-async function seedAccessState(worker: import('playwright').Worker): Promise<void> {
-  await worker.evaluate(async () => {
-    await chrome.storage.local.set({
-      authState: {
-        status: 'signed_in',
-        email: 'qa@parchi.dev',
-        accessToken: 'test-token',
-      },
-      entitlement: {
-        active: true,
-        plan: 'pro',
-        renewsAt: '',
-      },
-    });
-  });
-}
-
 async function sendRuntimeMessage(worker: import('playwright').Worker, message: Record<string, unknown>) {
   await worker.evaluate((payload) => chrome.runtime.sendMessage(payload), message);
 }
@@ -511,7 +494,6 @@ async function run() {
 
     const extensionId = await getExtensionId(context);
     const worker = context.serviceWorkers()[0] || (await context.waitForEvent('serviceworker', { timeout: timeoutMs }));
-    await seedAccessState(worker);
 
     const panel = await context.newPage();
     await panel.goto(`chrome-extension://${extensionId}/sidepanel/panel.html`, {
