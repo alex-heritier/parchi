@@ -1,4 +1,5 @@
 // Message schema utilities for extension <-> provider payloads
+import type { Usage as SharedUsage } from '../../shared/src/usage.js';
 type Role = 'system' | 'user' | 'assistant' | 'tool';
 export type ContentPart =
   | string
@@ -20,11 +21,7 @@ export type ToolCall = {
   name: string;
   args: Record<string, unknown>;
 };
-export type Usage = {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-};
+export type Usage = SharedUsage;
 type OpenAIFunctionCall = {
   name?: string;
   arguments?: string;

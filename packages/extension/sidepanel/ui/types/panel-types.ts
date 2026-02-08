@@ -1,14 +1,1 @@
-// ============================================================================
-// Usage
-// ============================================================================
-export type UsagePayload = {
-  inputTokens?: number;
-  outputTokens?: number;
-  totalTokens?: number;
-};
-
-export type UsageStats = {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-};
+export type { UsagePayload, UsageStats } from '../../../../shared/src/usage.js';

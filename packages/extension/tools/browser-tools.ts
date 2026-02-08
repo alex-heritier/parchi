@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '../../shared/src/tools.js';
+import { getActiveTab } from '../utils/active-tab.js';
 
 type SessionTabSummary = {
   id: number;
@@ -363,7 +364,7 @@ export class BrowserTools {
 
   private async captureActiveTab() {
     try {
-      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const activeTab = await getActiveTab();
       if (!activeTab || typeof activeTab.id !== 'number') return null;
       if (!this.sessionTabs.has(activeTab.id)) {
         this.sessionTabs.set(activeTab.id, { id: activeTab.id, title: activeTab.title, url: activeTab.url });

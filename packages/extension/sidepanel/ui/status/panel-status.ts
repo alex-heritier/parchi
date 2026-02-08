@@ -91,7 +91,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
     select.appendChild(option);
   }
 
-  console.log('[Parchi] Model select now has', select.options.length, 'profiles');
+  // (debug log removed)
 };
 
 (SidePanelUI.prototype as any).shortenModelName = function shortenModelName(model: string): string {

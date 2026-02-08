@@ -1,4 +1,6 @@
 import { SidePanelUI } from '../core/panel-ui.js';
+import { PARCHI_STORAGE_KEYS } from '../../../../shared/src/settings.js';
+import { DEFAULT_AGENT_SYSTEM_PROMPT } from '../../../../shared/src/prompts.js';
 
 const parseHeadersJson = (raw: string): Record<string, string> => {
   const trimmed = raw.trim();
@@ -170,40 +172,15 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
 };
 
 (SidePanelUI.prototype as any).loadSettings = async function loadSettings() {
-  console.log('[Parchi] loadSettings called');
   let settings: Record<string, any> = {};
   try {
-    settings = await chrome.storage.local.get([
-      'visionBridge',
-      'visionProfile',
-      'useOrchestrator',
-      'orchestratorProfile',
-      'showThinking',
-      'streamResponses',
-      'timelineCollapsed',
-      'autoScroll',
-      'confirmActions',
-      'saveHistory',
-      'toolPermissions',
-      'allowedDomains',
-      'activeConfig',
-      'configs',
-      'auxAgentProfiles',
-      'uiZoom',
-      'relayEnabled',
-      'relayUrl',
-      'relayToken',
-      'relayConnected',
-      'relayLastConnectedAt',
-      'relayLastError',
-    ]);
+    settings = await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[]);
   } catch (error) {
     console.error('[Parchi] Failed to load settings from storage:', error);
     this.updateStatus('Failed to load settings', 'error');
   }
 
   const storedConfigs = settings.configs || {};
-  console.log('[Parchi] Loaded configs from storage:', storedConfigs);
   const baseConfig = {
     provider: 'openai',
     apiKey: '',
@@ -230,7 +207,6 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
     ...storedConfigs,
   };
   this.currentConfig = this.configs[settings.activeConfig] ? settings.activeConfig : 'default';
-  console.log('[Parchi] Active config:', this.currentConfig, 'Provider:', this.configs[this.currentConfig]?.provider);
   this.auxAgentProfiles = settings.auxAgentProfiles || [];
   this.applyUiZoom(settings.uiZoom ?? 1, { persist: false });
 
@@ -281,17 +257,11 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
     this.elements.permissionScreenshots.value = String(toolPermissions.screenshots);
   if (this.elements.allowedDomains) this.elements.allowedDomains.value = settings.allowedDomains || '';
 
-  console.log('[Parchi] loadSettings: calling refreshConfigDropdown');
   this.refreshConfigDropdown();
-  console.log('[Parchi] loadSettings: calling setActiveConfig');
   this.setActiveConfig(this.currentConfig, true);
-  console.log('[Parchi] loadSettings: calling toggleCustomEndpoint');
   this.toggleCustomEndpoint();
-  console.log('[Parchi] loadSettings: calling updateScreenshotToggleState');
   this.updateScreenshotToggleState();
-  console.log('[Parchi] loadSettings: calling editProfile');
   this.editProfile(this.currentConfig, true);
-  console.log('[Parchi] loadSettings: complete');
 };
 
 (SidePanelUI.prototype as any).updateRelayStatusFromSettings = function updateRelayStatusFromSettings(
@@ -321,10 +291,8 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
     return;
   }
   const profile = this.collectCurrentFormProfile();
-  console.log('[Parchi] Saving settings for profile:', this.currentConfig, profile);
   this.configs[this.currentConfig] = profile;
   await this.persistAllSettings();
-  console.log('[Parchi] Settings saved to storage');
 
   // Refresh models after saving settings
   this.fetchAvailableModels();
@@ -334,28 +302,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
 
 (SidePanelUI.prototype as any).exportSettings = async function exportSettings() {
   try {
-    const keys = [
-      'configs',
-      'activeConfig',
-      'auxAgentProfiles',
-      'visionBridge',
-      'visionProfile',
-      'useOrchestrator',
-      'orchestratorProfile',
-      'showThinking',
-      'streamResponses',
-      'timelineCollapsed',
-      'autoScroll',
-      'confirmActions',
-      'saveHistory',
-      'toolPermissions',
-      'allowedDomains',
-      'uiZoom',
-      'relayEnabled',
-      'relayUrl',
-      'relayToken',
-    ];
-    const settings = await chrome.storage.local.get(keys);
+    const settings = await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[]);
     const payload = {
       ...settings,
       exportedAt: new Date().toISOString(),
@@ -384,28 +331,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
     const text = await file.text();
     const data = JSON.parse(text);
     const payload: Record<string, any> = {};
-    const allowedKeys = [
-      'configs',
-      'activeConfig',
-      'auxAgentProfiles',
-      'visionBridge',
-      'visionProfile',
-      'useOrchestrator',
-      'orchestratorProfile',
-      'showThinking',
-      'streamResponses',
-      'timelineCollapsed',
-      'autoScroll',
-      'confirmActions',
-      'saveHistory',
-      'toolPermissions',
-      'allowedDomains',
-      'uiZoom',
-      'relayEnabled',
-      'relayUrl',
-      'relayToken',
-    ];
-    allowedKeys.forEach((key) => {
+    (PARCHI_STORAGE_KEYS as unknown as string[]).forEach((key) => {
       if (data[key] !== undefined) {
         payload[key] = data[key];
       }
@@ -539,137 +465,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
 };
 
 (SidePanelUI.prototype as any).getDefaultSystemPrompt = function getDefaultSystemPrompt() {
-  return `You are a browser automation agent. You execute tasks by calling tools in a strict sequence.
-
-<rules priority="CRITICAL">
-VIOLATIONS CAUSE TASK FAILURE. NO EXCEPTIONS.
-
-1. NO PLAN = NO ACTION
-   You CANNOT call navigate, click, type, scroll, or pressKey without an active plan.
-   Your FIRST tool call MUST be set_plan.
-
-2. ACTION → VERIFY → MARK
-   Every browser action MUST be followed by getContent.
-   Every completed step MUST be followed by update_plan.
-   
-3. SEQUENTIAL EXECUTION  
-   Complete step N before starting step N+1.
-   Never skip update_plan. Never.
-
-4. EVIDENCE ONLY
-   Never claim to see content you didn't fetch with getContent.
-   Quote actual text from getContent results.
-
-5. TAB AWARENESS
-   Prefer existing session tabs. Call describeSessionTabs/getTabs before opening new tabs.
-</rules>
-
-<execution_protocol>
-┌─────────────────────────────────────────────────────────────┐
-│  MANDATORY SEQUENCE FOR EVERY STEP                          │
-│                                                             │
-│  1. CHECK: Read <execution_state> for current step          │
-│  2. ACT: Call ONE browser tool for that step                │
-│  3. VERIFY: Call getContent (REQUIRED - no exceptions)      │
-│  4. MARK: Call update_plan(step_index=N, status="done")     │
-│  5. REPEAT: Go to step 1 for next step                      │
-│                                                             │
-│  ⚠️ NEVER skip steps 3 or 4. The system tracks compliance.  │
-└─────────────────────────────────────────────────────────────┘
-</execution_protocol>
-
-<correct_example>
-User: "Find the price of AirPods on Apple's website"
-
-✅ CORRECT execution:
-
-TURN 1:
-set_plan({ steps: [
-  { title: "Navigate to apple.com" },
-  { title: "Search for AirPods" },
-  { title: "Find and extract price" },
-  { title: "Report findings" }
-]})
-
-TURN 2:
-navigate({ url: "https://apple.com" })
-
-TURN 3:
-getContent({ mode: "text" })  ← REQUIRED after navigate
-
-TURN 4:
-update_plan({ step_index: 0, status: "done" })  ← REQUIRED before step 1
-
-TURN 5:
-click({ selector: "button[aria-label='Search']" })
-
-TURN 6:
-getContent({ mode: "text" })  ← REQUIRED after click
-
-... and so on, always: action → getContent → update_plan
-</correct_example>
-
-<wrong_example>
-❌ WRONG - Missing getContent:
-navigate({ url: "https://apple.com" })
-update_plan({ step_index: 0, status: "done" })  ← ERROR: No getContent!
-
-❌ WRONG - Missing update_plan:
-navigate({ url: "https://apple.com" })
-getContent({ mode: "text" })
-click({ selector: "..." })  ← ERROR: Didn't mark step 0 done!
-
-❌ WRONG - No plan:
-navigate({ url: "https://apple.com" })  ← ERROR: No plan exists!
-
-❌ WRONG - Vague plan steps:
-set_plan({ steps: [
-  { title: "Research AirPods" },      ← Too vague
-  { title: "Phase 1: Discovery" },    ← Not an action
-  { title: "Gather information" }     ← What information? How?
-]})
-</wrong_example>
-
-<tools>
-PLANNING (use these to manage your task):
-• set_plan - Create action checklist. MUST BE YOUR FIRST CALL.
-• update_plan - Mark step complete. CALL AFTER EACH STEP IS VERIFIED.
-
-BROWSER ACTIONS (require getContent after):
-• navigate - Go to URL
-• click - Click element by CSS selector  
-• type - Enter text into input field
-• pressKey - Press keyboard key (Enter, Tab, Escape)
-• scroll - Scroll page (up/down/top/bottom)
-
-READING (call after every action):
-• getContent - Read page content. REQUIRED after every browser action.
-• screenshot - Capture visible area (if enabled)
-
-TABS:
-• getTabs, switchTab, openTab, closeTab, focusTab, groupTabs
-• ALWAYS check describeSessionTabs/getTabs before openTab unless explicitly required.
-</tools>
-
-<error_recovery>
-If a tool fails:
-1. Call getContent to understand current page state
-2. Try a different CSS selector
-3. Scroll to find the element  
-4. Try an alternative approach
-5. If stuck, explain what's blocking you
-
-Never give up after one failure. Adapt and retry.
-</error_recovery>
-
-<output_format>
-During execution: Minimal commentary. Your tool calls are your actions.
-
-After ALL steps are marked done:
-**Task:** [What was requested]
-**Result:** [What you found, with quotes from getContent]
-**Sources:** [URLs you visited]
-</output_format>`;
+  return DEFAULT_AGENT_SYSTEM_PROMPT;
 };
 
 (SidePanelUI.prototype as any).updateScreenshotToggleState = function updateScreenshotToggleState() {

@@ -1,12 +1,13 @@
 import { SidePanelUI } from './panel-ui.js';
+import { safeJsonStringify as safeJsonStringifyShared } from '../../../../shared/src/utils/json.js';
+import {
+  escapeAttribute as escapeAttributeShared,
+  escapeHtml as escapeHtmlShared,
+  escapeHtmlBasic as escapeHtmlBasicShared,
+} from '../../../../shared/src/utils/html.js';
 
 (SidePanelUI.prototype as any).safeJsonStringify = function safeJsonStringify(value: any) {
-  try {
-    if (value === undefined) return '';
-    return JSON.stringify(value, null, 2);
-  } catch (error) {
-    return String(value);
-  }
+  return safeJsonStringifyShared(value);
 };
 
 (SidePanelUI.prototype as any).truncateText = function truncateText(text: string, limit = 1200) {
@@ -16,17 +17,15 @@ import { SidePanelUI } from './panel-ui.js';
 };
 
 (SidePanelUI.prototype as any).escapeHtmlBasic = function escapeHtmlBasic(text: string) {
-  const div = document.createElement('div');
-  div.textContent = text == null ? '' : text;
-  return div.innerHTML;
+  return escapeHtmlBasicShared(text);
 };
 
 (SidePanelUI.prototype as any).escapeHtml = function escapeHtml(text: string) {
-  return this.escapeHtmlBasic(text).replace(/\n/g, '<br>');
+  return escapeHtmlShared(text);
 };
 
 (SidePanelUI.prototype as any).escapeAttribute = function escapeAttribute(value: string) {
-  return this.escapeHtmlBasic(value).replace(/"/g, '&quot;');
+  return escapeAttributeShared(value);
 };
 
 (SidePanelUI.prototype as any).createStepContainer = function createStepContainer(stepIndex: number, title: string) {
