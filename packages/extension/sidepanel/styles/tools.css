@@ -302,11 +302,11 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 8px;
   background: hsla(30, 5%, 100%, 0.02);
   border: 1px solid var(--ink-1);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--foreground);
   width: 100%;
   max-width: 100%;
@@ -333,8 +333,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   color: var(--accent);
   flex-shrink: 0;
 }
@@ -348,7 +348,7 @@
 
 .tool-args {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted-dim);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -358,7 +358,7 @@
 
 .tool-status {
   margin-left: auto;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.1em;
   color: var(--muted);
@@ -366,7 +366,7 @@
 
 .tool-duration {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted-dim);
   padding-left: 6px;
   border-left: 1px solid var(--ink-1);

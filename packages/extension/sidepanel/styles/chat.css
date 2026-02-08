@@ -624,7 +624,7 @@ body.sidebar-open .new-session-fab {
 }
 
 .run-hud-title {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--foreground);
@@ -632,7 +632,7 @@ body.sidebar-open .new-session-fab {
 
 .run-hud-count {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted-dim);
   padding: 1px 6px;
   border-radius: 999px;
@@ -642,7 +642,7 @@ body.sidebar-open .new-session-fab {
 }
 
 .run-hud-last {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -652,7 +652,7 @@ body.sidebar-open .new-session-fab {
 
 .run-hud-time {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted-dim);
 }
 
@@ -660,10 +660,10 @@ body.sidebar-open .new-session-fab {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 18px;
+  height: 20px;
   padding: 0 8px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -734,11 +734,11 @@ body.sidebar-open .new-session-fab {
   cursor: pointer;
   text-align: left;
   color: var(--foreground);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .step-title {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   min-width: 0;
   white-space: nowrap;
@@ -750,7 +750,7 @@ body.sidebar-open .new-session-fab {
 
 .step-meta {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 11px;
   font-family: var(--font-mono);
   color: var(--muted-dim);
   opacity: 0;
