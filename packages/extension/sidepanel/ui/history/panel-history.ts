@@ -66,6 +66,10 @@ const normalizeTranscript = (value: any): any[] => {
 };
 
 (SidePanelUI.prototype as any).loadHistoryList = async function loadHistoryList() {
+  if (!this.elements.historyItems) {
+    // Defensive: if element references were captured before layout hydration.
+    this.elements.historyItems = document.getElementById('historyItems') as any;
+  }
   if (!this.elements.historyItems) return;
 
   const saveEnabled = this.elements.saveHistory?.value !== 'false';

@@ -2,6 +2,45 @@
    Layout — Warm Paper Design System
    ============================================================================ */
 
+.sidebar-scrim {
+  display: none;
+}
+
+/* Sidebar sizing: vary by active right panel for better ergonomics. */
+body[data-right-panel="settings"] {
+  --sidebar-width: clamp(320px, 80vw, 760px);
+}
+
+body[data-right-panel="history"] {
+  --sidebar-width: clamp(280px, 60vw, 620px);
+}
+
+@media (max-width: 520px) {
+  body.sidebar-open {
+    --sidebar-width: 92vw;
+  }
+}
+
+/* Dim the chat while the overlay is open so it reads as a modal drawer, not a squeeze. */
+body.sidebar-open::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+      1200px 600px at 30% 30%,
+      rgba(0, 0, 0, 0.35),
+      rgba(0, 0, 0, 0.55)
+    );
+  opacity: 0.85;
+  z-index: 70;
+  pointer-events: none;
+  transition: opacity var(--duration-normal) var(--ease-out-expo);
+}
+
+body:not(.sidebar-open)::before {
+  opacity: 0;
+}
+
 .content-column {
   width: min(var(--content-max), 100%);
   margin: 0 auto;

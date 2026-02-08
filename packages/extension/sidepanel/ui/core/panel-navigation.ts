@@ -8,6 +8,10 @@ const PANEL_SELECTOR = '.right-panel-content';
 export const setSidebarOpen = (elements: SidePanelElements, open: boolean) => {
   elements.sidebar?.classList.toggle('closed', !open);
   document.body.classList.toggle('sidebar-open', open);
+  if (!open) {
+    // Keep CSS state sane when panel is closed.
+    document.body.removeAttribute('data-right-panel');
+  }
 };
 
 export const showRightPanel = (elements: SidePanelElements, panelName: RightPanelName) => {
@@ -17,10 +21,14 @@ export const showRightPanel = (elements: SidePanelElements, panelName: RightPane
   const panels = container.querySelectorAll(PANEL_SELECTOR);
   panels.forEach((panel) => (panel as HTMLElement).classList.add('hidden'));
 
-  if (!panelName) return;
+  if (!panelName) {
+    document.body.removeAttribute('data-right-panel');
+    return;
+  }
 
   const targetPanel = container.querySelector(`${PANEL_SELECTOR}[data-panel="${panelName}"]`) as HTMLElement | null;
   targetPanel?.classList.remove('hidden');
+  document.body.dataset.rightPanel = panelName;
 };
 
 export const updateNavActive = (elements: SidePanelElements, navName: NavName) => {
