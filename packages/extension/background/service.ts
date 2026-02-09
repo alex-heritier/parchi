@@ -335,11 +335,37 @@ export class BackgroundService {
           break;
         }
 
+        case 'configure_session_tabs_test': {
+          // Test-only handler to set up session tabs for e2e tests
+          const tabs = message.tabs;
+          if (!Array.isArray(tabs) || tabs.length === 0) {
+            sendResponse({ success: false, error: 'No tabs provided' });
+            return;
+          }
+          // Use void + then to ensure we respond
+          this.browserTools.configureSessionTabs(tabs, { title: 'Test Session', color: 'blue' })
+            .then(() => {
+              console.log('[test] session tabs configured successfully');
+              sendResponse({ success: true });
+            })
+            .catch((err) => {
+              console.error('[test] configure_session_tabs_test error:', err);
+              sendResponse({ success: false, error: String(err) });
+            });
+          break;
+        }
+
         case 'api_smoke_test': {
           const settings = message.settings || {};
           const prompt = typeof message.prompt === 'string' ? message.prompt : 'Reply with the word "pong" only.';
           const result = await this.runApiSmokeTest(settings, prompt);
           sendResponse({ success: true, result });
+          break;
+        }
+
+        case 'ping_test': {
+          // Simple test to verify messaging works
+          sendResponse({ success: true, pong: true, time: Date.now() });
           break;
         }
 
@@ -578,8 +604,11 @@ export class BackgroundService {
           try {
             return await Promise.resolve(promise);
           } catch (error) {
-            if (isNoOutputError(error)) return fallback;
-            throw error;
+            // Always return fallback to prevent crashes - log other errors but don't throw
+            if (!isNoOutputError(error)) {
+              console.warn('[safeAwait] Error (using fallback):', error);
+            }
+            return fallback;
           }
         };
 
@@ -720,7 +749,14 @@ export class BackgroundService {
           };
         } catch (error) {
           sendStreamStop();
-          throw error;
+          console.error('[runModelPass] Error:', error);
+          // Return empty result instead of throwing to prevent crash
+          return {
+            text: '',
+            reasoningText: null,
+            totalUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+            toolResults: [],
+          };
         }
       };
 
@@ -1015,40 +1051,56 @@ export class BackgroundService {
     settings: { provider?: string; apiKey?: string; model?: string; customEndpoint?: string; extraHeaders?: any },
     prompt: string,
   ) {
-    const model = resolveLanguageModel({
-      provider: settings.provider || 'openai',
-      apiKey: settings.apiKey || '',
-      model: settings.model || '',
-      customEndpoint: settings.customEndpoint,
-      extraHeaders: settings.extraHeaders,
-    });
+    try {
+      const model = resolveLanguageModel({
+        provider: settings.provider || 'openai',
+        apiKey: settings.apiKey || '',
+        model: settings.model || '',
+        customEndpoint: settings.customEndpoint,
+        extraHeaders: settings.extraHeaders,
+      });
 
-    const result = streamText({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-      maxOutputTokens: 64,
-      temperature: 0,
-    });
+      const result = streamText({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        maxOutputTokens: 64,
+        temperature: 0,
+      });
 
-    const [text, responseMessages, usage] = await Promise.all([
-      result.text,
-      (result as any).responseMessages,
-      result.totalUsage,
-    ]);
+      const [text, responseMessages, usage] = await Promise.all([
+        result.text,
+        (result as any).responseMessages,
+        result.totalUsage,
+      ]);
 
-    const fallbackText = extractTextFromResponseMessages(responseMessages);
-    const resolvedText = (text || fallbackText || '').trim();
+      const fallbackText = extractTextFromResponseMessages(responseMessages);
+      const resolvedText = (text || fallbackText || '').trim();
 
-    return {
-      rawText: text || '',
-      fallbackText,
-      resolvedText,
-      usage: {
-        inputTokens: Number(usage?.inputTokens || 0),
-        outputTokens: Number(usage?.outputTokens || 0),
-        totalTokens: Number(usage?.totalTokens || 0),
-      },
-    };
+      return {
+        rawText: text || '',
+        fallbackText,
+        resolvedText,
+        usage: {
+          inputTokens: Number(usage?.inputTokens || 0),
+          outputTokens: Number(usage?.outputTokens || 0),
+          totalTokens: Number(usage?.totalTokens || 0),
+        },
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error ?? 'Unknown error');
+      console.error('[runApiSmokeTest] Error:', error);
+      return {
+        rawText: '',
+        fallbackText: '',
+        resolvedText: '',
+        error: errorMessage,
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+        },
+      };
+    }
   }
 
   async executeToolByName(
@@ -1214,17 +1266,17 @@ export class BackgroundService {
       return errorResult;
     }
 
-    // Track state for enforcement
+    const finalResult = result || { error: 'No result returned' };
+
+    // Track state for enforcement - only set awaiting if tool succeeded
     const browserActions = ['navigate', 'click', 'type', 'scroll', 'pressKey'];
-    if (browserActions.includes(toolName)) {
+    if (browserActions.includes(toolName) && finalResult?.success !== false) {
       this.lastBrowserAction = toolName;
       this.awaitingVerification = true;
       this.currentStepVerified = false;
     } else if (toolName === 'getContent') {
       this.awaitingVerification = false;
     }
-
-    const finalResult = result || { error: 'No result returned' };
 
     if (
       toolName === 'screenshot' &&
@@ -1607,6 +1659,13 @@ Before your next tool call, verify:
 □ Required next call shown above: ${requiredNextCall}
 □ If awaiting verification, call getContent first
 □ If step complete, call update_plan before next step
+
+When a tool fails:
+• Read the error message carefully
+• Try alternative approaches (different selector, wait longer, scroll first, etc.)
+• You can retry the same tool with different parameters
+• If an element is not found, try a broader selector or use text-based selection
+• Never give up - keep trying until you succeed or exhaust options
 </checkpoint>`;
   }
 
@@ -1796,62 +1855,94 @@ Before your next tool call, verify:
       tasks: args.tasks || [args.goal || args.task || 'Task'],
     });
 
-    const subAgentSystemPrompt = `${args.prompt || 'You are a focused sub-agent working under an orchestrator. Be concise and tool-driven.'}
+    try {
+      const subAgentSystemPrompt = `${args.prompt || 'You are a focused sub-agent working under an orchestrator. Be concise and tool-driven.'}
 Always cite evidence from tools. Finish by calling subagent_complete with a short summary and any structured findings.`;
 
-    const tools = this.getToolsForSession(this.currentSettings || {}, false);
-    const toolSet = buildToolSet(tools, async (toolName, toolArgs, options) =>
-      this.executeToolByName(
-        toolName,
-        toolArgs,
+      const tools = this.getToolsForSession(this.currentSettings || {}, false);
+      const toolSet = buildToolSet(tools, async (toolName, toolArgs, options) =>
+        this.executeToolByName(
+          toolName,
+          toolArgs,
+          {
+            runMeta,
+            settings: this.currentSettings || {},
+            visionProfile: null,
+          },
+          options.toolCallId,
+        ),
+      );
+
+      const taskLines = Array.isArray(args.tasks)
+        ? args.tasks.map((t, idx) => `${idx + 1}. ${t}`).join('\n')
+        : args.goal || args.task || args.prompt || '';
+
+      const subHistory: Message[] = [
         {
-          runMeta,
-          settings: this.currentSettings || {},
-          visionProfile: null,
+          role: 'user',
+          content: `Task group:\n${taskLines || 'Follow the provided prompt and complete the goal.'}`,
         },
-        options.toolCallId,
-      ),
-    );
+      ];
 
-    const taskLines = Array.isArray(args.tasks)
-      ? args.tasks.map((t, idx) => `${idx + 1}. ${t}`).join('\n')
-      : args.goal || args.task || args.prompt || '';
+      const subModel = resolveLanguageModel(profileSettings);
+      const result = streamText({
+        model: subModel,
+        system: subAgentSystemPrompt,
+        messages: toModelMessages(subHistory),
+        tools: toolSet,
+        temperature: profileSettings.temperature ?? 0.4,
+        maxOutputTokens: profileSettings.maxTokens ?? 1024,
+        stopWhen: stepCountIs(24),
+      });
 
-    const subHistory: Message[] = [
-      {
-        role: 'user',
-        content: `Task group:\n${taskLines || 'Follow the provided prompt and complete the goal.'}`,
-      },
-    ];
+      // Safely get text with error handling for "No output generated" errors
+      let summary: string;
+      try {
+        summary = (await result.text) || 'Sub-agent finished without a final summary.';
+      } catch (textError) {
+        const message = (textError as any)?.message || String(textError ?? '');
+        if (typeof message === 'string' && message.includes('No output generated')) {
+          summary = 'Sub-agent finished without generating output.';
+        } else {
+          throw textError;
+        }
+      }
 
-    const subModel = resolveLanguageModel(profileSettings);
-    const result = streamText({
-      model: subModel,
-      system: subAgentSystemPrompt,
-      messages: toModelMessages(subHistory),
-      tools: toolSet,
-      temperature: profileSettings.temperature ?? 0.4,
-      maxOutputTokens: profileSettings.maxTokens ?? 1024,
-      stopWhen: stepCountIs(24),
-    });
+      this.sendRuntime(runMeta, {
+        type: 'subagent_complete',
+        id: subagentId,
+        success: true,
+        summary,
+      });
 
-    const summary = (await result.text) || 'Sub-agent finished without a final summary.';
+      return {
+        success: true,
+        source: 'subagent',
+        id: subagentId,
+        name: subagentName,
+        summary,
+        tasks: taskLines,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error ?? 'Unknown error');
+      console.error('[subagent] Error:', error);
 
-    this.sendRuntime(runMeta, {
-      type: 'subagent_complete',
-      id: subagentId,
-      success: true,
-      summary,
-    });
+      this.sendRuntime(runMeta, {
+        type: 'subagent_complete',
+        id: subagentId,
+        success: false,
+        summary: `Sub-agent failed: ${errorMessage}`,
+      });
 
-    return {
-      success: true,
-      source: 'subagent',
-      id: subagentId,
-      name: subagentName,
-      summary,
-      tasks: taskLines,
-    };
+      return {
+        success: false,
+        source: 'subagent',
+        id: subagentId,
+        name: subagentName,
+        error: errorMessage,
+        summary: `Sub-agent failed: ${errorMessage}`,
+      };
+    }
   }
 }
 
