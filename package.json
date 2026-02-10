@@ -1,6 +1,6 @@
 {
   "name": "parchi-extension",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "description": "Warm-paper browser automation extension with configurable LLM providers",
   "type": "module",
   "scripts": {
