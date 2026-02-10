@@ -33,6 +33,17 @@ type RunMeta = {
   sessionId: string;
 };
 
+type SessionState = {
+  sessionId: string;
+  currentPlan: RunPlan | null;
+  subAgentCount: number;
+  subAgentProfileCursor: number;
+  lastBrowserAction: string | null;
+  awaitingVerification: boolean;
+  currentStepVerified: boolean;
+  kimiWarningSent: boolean;
+};
+
 export class BackgroundService {
   browserTools: BrowserTools;
   currentSettings: Record<string, any> | null;
@@ -64,6 +75,8 @@ export class BackgroundService {
   >;
   private activeRunIdBySessionId: Map<string, string>;
   private cancelledRunIds: Set<string>;
+  private sessionStateById: Map<string, SessionState>;
+  private browserToolsBySessionId: Map<string, BrowserTools>;
 
   constructor() {
     this.browserTools = new BrowserTools();
@@ -77,6 +90,8 @@ export class BackgroundService {
     this.activeRuns = new Map();
     this.activeRunIdBySessionId = new Map();
     this.cancelledRunIds = new Set();
+    this.sessionStateById = new Map();
+    this.browserToolsBySessionId = new Map();
     // State tracking for enforcement
     this.lastBrowserAction = null;
     this.awaitingVerification = false;
@@ -256,18 +271,26 @@ export class BackgroundService {
 
       case 'tool.call': {
         const tool = typeof (params as any)?.tool === 'string' ? (params as any).tool : '';
+        const sessionId =
+          typeof (params as any)?.sessionId === 'string'
+            ? String((params as any).sessionId)
+            : this.currentSessionId || 'relay';
         const args = (params as any)?.args;
         if (!tool) throw new Error('tool.call: missing tool');
         const safeArgs = args && typeof args === 'object' && !Array.isArray(args) ? (args as Record<string, any>) : {};
         const settings = await chrome.storage.local.get(['toolPermissions', 'allowedDomains']);
-        const perm = await this.checkToolPermission(tool, safeArgs, settings);
+        const perm = await this.checkToolPermission(tool, safeArgs, settings, sessionId);
         if (!perm.allowed) {
           throw new Error(perm.reason || 'Tool blocked by policy');
         }
-        return await this.browserTools.executeTool(tool, safeArgs);
+        return await this.getBrowserTools(sessionId).executeTool(tool, safeArgs);
       }
 
       case 'session.setTabs': {
+        const sessionId =
+          typeof (params as any)?.sessionId === 'string'
+            ? String((params as any).sessionId)
+            : this.currentSessionId || 'relay';
         const ids = Array.isArray((params as any)?.tabIds) ? (params as any).tabIds : [];
         const tabIds = ids.map((n: any) => Number(n)).filter((n: any) => Number.isFinite(n) && n > 0);
         const tabs: chrome.tabs.Tab[] = [];
@@ -277,7 +300,7 @@ export class BackgroundService {
             if (tab) tabs.push(tab);
           } catch {}
         }
-        await this.browserTools.configureSessionTabs(tabs, { title: 'Session', color: 'blue' });
+        await this.getBrowserTools(sessionId).configureSessionTabs(tabs, { title: 'Session', color: 'blue' });
         return { ok: true, tabIds: tabs.map((t) => t.id).filter((id): id is number => typeof id === 'number') };
       }
 
@@ -358,7 +381,9 @@ export class BackgroundService {
         }
 
         case 'execute_tool': {
-          const result = await this.browserTools.executeTool(message.tool, message.args);
+          const sessionId =
+            typeof message.sessionId === 'string' ? message.sessionId : this.currentSessionId || 'default';
+          const result = await this.getBrowserTools(sessionId).executeTool(message.tool, message.args);
           sendResponse({ success: true, result });
           break;
         }
@@ -371,7 +396,8 @@ export class BackgroundService {
             return;
           }
           // Use void + then to ensure we respond
-          this.browserTools
+          const sessionId = typeof message.sessionId === 'string' ? message.sessionId : this.currentSessionId || 'test';
+          this.getBrowserTools(sessionId)
             .configureSessionTabs(tabs, { title: 'Test Session', color: 'blue' })
             .then(() => {
               console.log('[test] session tabs configured successfully');
@@ -433,12 +459,14 @@ export class BackgroundService {
     if (origin === 'relay') this.relayActiveRunIds.add(runMeta.runId);
     const controller = this.registerActiveRun(runMeta, origin);
     const abortSignal = controller.signal;
+    const sessionState = this.getSessionState(sessionId);
+    const browserTools = this.getBrowserTools(sessionId);
 
     // Reset enforcement state at the start of every turn so stale verification
     // requirements from the previous turn don't pollute the system prompt.
-    this.lastBrowserAction = null;
-    this.awaitingVerification = false;
-    this.currentStepVerified = false;
+    sessionState.lastBrowserAction = null;
+    sessionState.awaitingVerification = false;
+    sessionState.currentStepVerified = false;
 
     try {
       const settings = await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[]);
@@ -467,21 +495,12 @@ export class BackgroundService {
       }
 
       this.currentSettings = settings;
-      const isNewSession = this.currentSessionId !== sessionId;
-      if (isNewSession) {
-        this.currentSessionId = sessionId;
-        this.currentPlan = null;
-        this.subAgentCount = 0;
-        this.subAgentProfileCursor = 0;
-        this.kimiWarningSent = false;
-        // Reset enforcement state
-        this.lastBrowserAction = null;
-        this.awaitingVerification = false;
-        this.currentStepVerified = false;
-      }
+      // Track the most recently active session for legacy callers that don't
+      // supply a sessionId (e.g., some relay RPC usage).
+      this.currentSessionId = sessionId;
 
       try {
-        await this.browserTools.configureSessionTabs(selectedTabs || [], {
+        await browserTools.configureSessionTabs(selectedTabs || [], {
           title: 'Session',
           color: 'blue',
         });
@@ -506,8 +525,8 @@ export class BackgroundService {
         activeProfile?.provider === 'kimi' ||
         orchestratorProfile?.provider === 'kimi' ||
         visionProfile?.provider === 'kimi';
-      if (kimiInUse && !this.kimiHeaderRuleOk && !this.kimiWarningSent) {
-        this.kimiWarningSent = true;
+      if (kimiInUse && !this.kimiHeaderRuleOk && !sessionState.kimiWarningSent) {
+        sessionState.kimiWarningSent = true;
         this.sendRuntime(runMeta, {
           type: 'run_warning',
           message:
@@ -525,7 +544,7 @@ export class BackgroundService {
         active: true,
         currentWindow: true,
       });
-      const sessionTabs = this.browserTools.getSessionTabSummaries();
+      const sessionTabs = browserTools.getSessionTabSummaries();
       const sessionTabContext = sessionTabs
         .filter((tab) => typeof tab.id === 'number')
         .map((tab) => ({
@@ -533,7 +552,7 @@ export class BackgroundService {
           title: tab.title,
           url: tab.url,
         }));
-      const workingTabId: number | null = this.browserTools.getCurrentSessionTabId() ?? activeTab?.id ?? null;
+      const workingTabId: number | null = browserTools.getCurrentSessionTabId() ?? activeTab?.id ?? null;
       const workingTab = sessionTabs.find((tab) => tab.id === workingTabId);
       const context = {
         currentUrl: workingTab?.url || activeTab?.url || 'unknown',
@@ -693,7 +712,7 @@ export class BackgroundService {
 
         const result = streamText({
           model,
-          system: this.enhanceSystemPrompt(orchestratorProfile.systemPrompt || '', context),
+          system: this.enhanceSystemPrompt(orchestratorProfile.systemPrompt || '', context, sessionState),
           messages: modelMessages,
           tools: toolSet,
           abortSignal,
@@ -914,7 +933,7 @@ export class BackgroundService {
 
             const finalizeResult = await generateText({
               model,
-              system: this.enhanceSystemPrompt(orchestratorProfile.systemPrompt || '', context),
+              system: this.enhanceSystemPrompt(orchestratorProfile.systemPrompt || '', context, sessionState),
               messages: [
                 ...toModelMessages(currentHistory),
                 {
@@ -1168,8 +1187,11 @@ export class BackgroundService {
     if (this.isRunCancelled(options.runMeta.runId)) {
       return { success: false, error: 'Run stopped.' };
     }
+    const sessionId = options.runMeta.sessionId;
+    const sessionState = this.getSessionState(sessionId);
+    const browserTools = this.getBrowserTools(sessionId);
     const computeCurrentStepMeta = () => {
-      const steps = this.currentPlan?.steps || [];
+      const steps = sessionState.currentPlan?.steps || [];
       const currentIndex = steps.findIndex((step) => step.status !== 'done');
       if (currentIndex < 0) return {};
       const step = steps[currentIndex];
@@ -1200,7 +1222,7 @@ export class BackgroundService {
     sendStart();
 
     if (toolName === 'set_plan') {
-      const plan = this.buildPlanFromArgs(args);
+      const plan = this.buildPlanFromArgs(args, sessionState.currentPlan);
       if (!plan) {
         const errorResult = {
           success: false,
@@ -1211,7 +1233,7 @@ export class BackgroundService {
         sendResult(errorResult);
         return errorResult;
       }
-      this.currentPlan = plan;
+      sessionState.currentPlan = plan;
       this.sendRuntime(options.runMeta, { type: 'plan_update', plan });
       const result = {
         success: true,
@@ -1223,7 +1245,7 @@ export class BackgroundService {
     }
 
     if (toolName === 'update_plan') {
-      if (!this.currentPlan) {
+      if (!sessionState.currentPlan) {
         const errorResult = {
           success: false,
           error: 'No active plan to update. Call set_plan first.',
@@ -1241,7 +1263,7 @@ export class BackgroundService {
         normalizedStatus === 'pending' || normalizedStatus === 'done' || normalizedStatus === 'blocked'
           ? normalizedStatus
           : 'done';
-      const maxIndex = this.currentPlan.steps.length - 1;
+      const maxIndex = sessionState.currentPlan.steps.length - 1;
       if (stepIndex < 0 || stepIndex > maxIndex) {
         const oneBasedIndex = stepIndex - 1;
         if (oneBasedIndex >= 0 && oneBasedIndex <= maxIndex) {
@@ -1252,22 +1274,22 @@ export class BackgroundService {
         const errorResult = {
           success: false,
           error: `Invalid step_index: ${stepIndex}. Valid range is 0-${maxIndex}.`,
-          hint: `Plan has ${this.currentPlan.steps.length} steps (indices 0 to ${maxIndex}).`,
-          currentPlan: this.currentPlan.steps.map((s, i) => `${i}: ${s.title} [${s.status}]`),
+          hint: `Plan has ${sessionState.currentPlan.steps.length} steps (indices 0 to ${maxIndex}).`,
+          currentPlan: sessionState.currentPlan.steps.map((s, i) => `${i}: ${s.title} [${s.status}]`),
         };
         sendResult(errorResult);
         return errorResult;
       }
-      this.currentPlan.steps[stepIndex].status = status;
-      this.currentPlan.updatedAt = Date.now();
-      this.sendRuntime(options.runMeta, { type: 'plan_update', plan: this.currentPlan });
-      const result = { success: true, step: stepIndex, status, plan: this.currentPlan };
+      sessionState.currentPlan.steps[stepIndex].status = status;
+      sessionState.currentPlan.updatedAt = Date.now();
+      this.sendRuntime(options.runMeta, { type: 'plan_update', plan: sessionState.currentPlan });
+      const result = { success: true, step: stepIndex, status, plan: sessionState.currentPlan };
       sendResult(result);
       return result;
     }
 
     if (toolName === 'spawn_subagent') {
-      const result = await this.handleSpawnSubagent(options.runMeta, args);
+      const result = await this.handleSpawnSubagent(options.runMeta, args, options.settings);
       sendResult(result);
       return result;
     }
@@ -1278,7 +1300,7 @@ export class BackgroundService {
       return result;
     }
 
-    const available = this.browserTools?.tools ? Object.keys(this.browserTools.tools) : [];
+    const available = browserTools?.tools ? Object.keys(browserTools.tools) : [];
     if (!available.includes(toolName)) {
       const errorResult = {
         success: false,
@@ -1288,7 +1310,8 @@ export class BackgroundService {
       return errorResult;
     }
 
-    const permissionCheck = await this.checkToolPermission(toolName, args);
+    // Use the run's settings snapshot so parallel runs can't trample each other.
+    const permissionCheck = await this.checkToolPermission(toolName, args, options.settings, sessionId);
     if (!permissionCheck.allowed) {
       const blocked = {
         success: false,
@@ -1299,7 +1322,7 @@ export class BackgroundService {
       return blocked;
     }
 
-    if (toolName === 'screenshot' && this.currentSettings?.enableScreenshots === false) {
+    if (toolName === 'screenshot' && options.settings?.enableScreenshots === false) {
       const blocked = {
         success: false,
         error: 'Screenshots are disabled in settings.',
@@ -1310,7 +1333,7 @@ export class BackgroundService {
 
     let result: any;
     try {
-      result = await this.browserTools.executeTool(toolName, args);
+      result = await browserTools.executeTool(toolName, args);
     } catch (error) {
       const errorResult = {
         success: false,
@@ -1325,18 +1348,19 @@ export class BackgroundService {
     // Track state for enforcement - only set awaiting if tool succeeded
     const browserActions = ['navigate', 'click', 'type', 'scroll', 'pressKey'];
     if (browserActions.includes(toolName) && finalResult?.success !== false) {
-      this.lastBrowserAction = toolName;
-      this.awaitingVerification = true;
-      this.currentStepVerified = false;
+      sessionState.lastBrowserAction = toolName;
+      sessionState.awaitingVerification = true;
+      sessionState.currentStepVerified = false;
     } else if (toolName === 'getContent') {
-      this.awaitingVerification = false;
+      sessionState.awaitingVerification = false;
+      sessionState.currentStepVerified = true;
     }
 
     if (
       toolName === 'screenshot' &&
       finalResult?.success &&
       finalResult.dataUrl &&
-      this.currentSettings?.visionBridge &&
+      options.settings?.visionBridge &&
       options.visionProfile?.apiKey
     ) {
       try {
@@ -1352,7 +1376,7 @@ export class BackgroundService {
         });
         finalResult.visionDescription = description;
         finalResult.message = 'Screenshot captured and described by vision model.';
-        if (!this.currentSettings?.sendScreenshotsAsImages) {
+        if (!options.settings?.sendScreenshotsAsImages) {
           delete finalResult.dataUrl;
         }
       } catch (visionError) {
@@ -1366,7 +1390,7 @@ export class BackgroundService {
       finalResult?.success &&
       finalResult.frames &&
       finalResult.frames.length > 0 &&
-      this.currentSettings?.visionBridge &&
+      options.settings?.visionBridge &&
       options.visionProfile?.apiKey
     ) {
       try {
@@ -1431,17 +1455,17 @@ export class BackgroundService {
       finalResult.message = `Captured ${finalResult.frames.length} video frames. Configure a vision profile to enable automatic analysis.`;
     }
 
-    const enrichedResult = this.attachPlanToResult(finalResult, toolName);
+    const enrichedResult = this.attachPlanToResult(finalResult, toolName, sessionState);
     sendResult(enrichedResult);
     return enrichedResult;
   }
 
-  attachPlanToResult(result: unknown, toolName: string) {
-    if (!this.currentPlan || toolName === 'set_plan') return result;
+  attachPlanToResult(result: unknown, toolName: string, sessionState: SessionState) {
+    if (!sessionState.currentPlan || toolName === 'set_plan') return result;
     if (result && typeof result === 'object' && !Array.isArray(result)) {
-      return { ...(result as Record<string, unknown>), plan: this.currentPlan };
+      return { ...(result as Record<string, unknown>), plan: sessionState.currentPlan };
     }
-    return { result, plan: this.currentPlan };
+    return { result, plan: sessionState.currentPlan };
   }
 
   extractXmlToolCalls(text: string): Array<{ name: string; args: Record<string, unknown>; raw: string }> {
@@ -1543,14 +1567,14 @@ export class BackgroundService {
       .filter(Boolean);
   }
 
-  buildPlanFromArgs(args: Record<string, any>) {
+  buildPlanFromArgs(args: Record<string, any>, existingPlan?: RunPlan | null) {
     const stepInput = Array.isArray(args?.steps) ? args.steps : null;
     const planText = typeof args?.plan === 'string' ? args.plan : '';
     const parsedSteps = planText ? this.parsePlanSteps(planText) : [];
     const combined = stepInput && stepInput.length ? stepInput : parsedSteps;
     if (!combined || combined.length === 0) return null;
     return buildRunPlan(combined, {
-      existingPlan: this.currentPlan,
+      existingPlan: existingPlan || null,
       maxSteps: 12,
     });
   }
@@ -1592,9 +1616,10 @@ export class BackgroundService {
     }
   }
 
-  async resolveToolUrl(_toolName, args) {
+  async resolveToolUrl(_toolName, args, sessionId?: string) {
     if (args?.url) return args.url;
-    const tabId = args?.tabId || this.browserTools.getCurrentSessionTabId();
+    const tools = this.getBrowserTools(sessionId || this.currentSessionId || 'default');
+    const tabId = args?.tabId || tools.getCurrentSessionTabId();
     try {
       if (tabId) {
         const tab = await chrome.tabs.get(tabId);
@@ -1610,7 +1635,7 @@ export class BackgroundService {
     return active?.url || '';
   }
 
-  async checkToolPermission(toolName, args, settingsOverride?: Record<string, any> | null) {
+  async checkToolPermission(toolName, args, settingsOverride?: Record<string, any> | null, sessionId?: string) {
     const settings = settingsOverride || this.currentSettings;
     if (!settings) return { allowed: true };
     const permissions = settings.toolPermissions || {};
@@ -1632,7 +1657,7 @@ export class BackgroundService {
     const allowlist = this.parseAllowedDomains(settings.allowedDomains || '');
     if (!allowlist.length) return { allowed: true };
 
-    const targetUrl = await this.resolveToolUrl(toolName, args);
+    const targetUrl = await this.resolveToolUrl(toolName, args, sessionId);
     if (!this.isUrlAllowed(targetUrl, allowlist)) {
       return {
         allowed: false,
@@ -1685,17 +1710,37 @@ export class BackgroundService {
     if (runId) this.stopRun(runId, note);
   }
 
-  private stopAllRuns(note = 'Stopped') {
-    for (const runId of Array.from(this.activeRuns.keys())) {
-      this.stopRun(runId, note);
-    }
+  private getSessionState(sessionId: string): SessionState {
+    const id = typeof sessionId === 'string' && sessionId.trim() ? sessionId : 'default';
+    const existing = this.sessionStateById.get(id);
+    if (existing) return existing;
+    const created: SessionState = {
+      sessionId: id,
+      currentPlan: null,
+      subAgentCount: 0,
+      subAgentProfileCursor: 0,
+      lastBrowserAction: null,
+      awaitingVerification: false,
+      currentStepVerified: false,
+      kimiWarningSent: false,
+    };
+    this.sessionStateById.set(id, created);
+    return created;
+  }
+
+  private getBrowserTools(sessionId: string): BrowserTools {
+    const id = typeof sessionId === 'string' && sessionId.trim() ? sessionId : 'default';
+    const existing = this.browserToolsBySessionId.get(id);
+    if (existing) return existing;
+    const created = new BrowserTools();
+    this.browserToolsBySessionId.set(id, created);
+    return created;
   }
 
   private registerActiveRun(runMeta: RunMeta, origin: 'sidepanel' | 'relay') {
-    // Only one active run at a time is supported safely with the current
-    // global/session-wide state. Cancel any in-flight runs to prevent UI and
-    // state from interleaving across sessions.
-    this.stopAllRuns('Superseded by a new message');
+    // Allow parallel runs across sessions, but keep a single active run per
+    // session to avoid interleaving output within the same chat.
+    this.stopRunBySession(runMeta.sessionId, 'Superseded by a new message');
 
     const controller = new AbortController();
     this.activeRuns.set(runMeta.runId, { runMeta, origin, controller });
@@ -1744,7 +1789,7 @@ export class BackgroundService {
     });
   }
 
-  enhanceSystemPrompt(basePrompt: string, context) {
+  enhanceSystemPrompt(basePrompt: string, context, sessionState: SessionState) {
     const tabsSection =
       Array.isArray(context.availableTabs) && context.availableTabs.length
         ? `Tabs selected (${context.availableTabs.length}). You MUST only act on these tabs (session tabs). Always pass tabId from this list to navigate/click/type/pressKey/scroll/getContent/screenshot.\n${context.availableTabs
@@ -1769,7 +1814,7 @@ export class BackgroundService {
     let stateSection = '';
     let requiredNextCall = '';
 
-    if (!this.currentPlan || this.currentPlan.steps.length === 0) {
+    if (!sessionState.currentPlan || sessionState.currentPlan.steps.length === 0) {
       // No plan - MUST create one first
       requiredNextCall = 'set_plan({ steps: [{ title: "..." }, ...] })';
       stateSection = `
@@ -1782,7 +1827,7 @@ You CANNOT call navigate, click, type, scroll, or pressKey until you call set_pl
 Create 3-6 specific action steps, then proceed.
 </execution_state>`;
     } else {
-      const steps = this.currentPlan.steps;
+      const steps = sessionState.currentPlan.steps;
       const doneCount = steps.filter((s) => s.status === 'done').length;
       const currentIndex = steps.findIndex((s) => s.status !== 'done');
       const planLines = steps.map((step, i) => {
@@ -1800,7 +1845,7 @@ ${planLines.join('\n')}
 
 REQUIRED: Provide your final summary now with evidence from getContent.
 </execution_state>`;
-      } else if (this.awaitingVerification) {
+      } else if (sessionState.awaitingVerification) {
         // Browser action taken but getContent not called yet
         requiredNextCall = 'getContent({ mode: "text" })';
         stateSection = `
@@ -1809,7 +1854,7 @@ PROGRESS: ${doneCount}/${steps.length} steps complete
 ${planLines.join('\n')}
 
 CURRENT STEP: "${steps[currentIndex].title}"
-LAST ACTION: ${this.lastBrowserAction || 'unknown'}
+LAST ACTION: ${sessionState.lastBrowserAction || 'unknown'}
 VERIFICATION: ⚠️ PENDING - getContent NOT called
 
 ⛔ REQUIRED NEXT CALL: ${requiredNextCall}
@@ -2016,31 +2061,30 @@ When a tool fails:
     return tools;
   }
 
-  async handleSpawnSubagent(runMeta: RunMeta, args) {
-    if (this.subAgentCount >= 10) {
+  async handleSpawnSubagent(runMeta: RunMeta, args, settings: Record<string, any>) {
+    const sessionState = this.getSessionState(runMeta.sessionId);
+    if (sessionState.subAgentCount >= 10) {
       return {
         success: false,
         error: 'Sub-agent limit reached for this session (max 10).',
       };
     }
-    this.subAgentCount += 1;
-    const subagentId = `subagent-${Date.now()}-${this.subAgentCount}`;
+    sessionState.subAgentCount += 1;
+    const subagentId = `subagent-${Date.now()}-${sessionState.subAgentCount}`;
     let profileName = args.profile || args.config;
     if (!profileName) {
-      const teamProfiles = Array.isArray(this.currentSettings?.auxAgentProfiles)
-        ? this.currentSettings.auxAgentProfiles
-        : [];
+      const teamProfiles = Array.isArray(settings?.auxAgentProfiles) ? settings.auxAgentProfiles : [];
       if (teamProfiles.length) {
-        profileName = teamProfiles[this.subAgentProfileCursor % teamProfiles.length];
-        this.subAgentProfileCursor += 1;
+        profileName = teamProfiles[sessionState.subAgentProfileCursor % teamProfiles.length];
+        sessionState.subAgentProfileCursor += 1;
       }
     }
     if (!profileName) {
-      profileName = this.currentSettings?.activeConfig || 'default';
+      profileName = settings?.activeConfig || 'default';
     }
-    const profileSettings = this.resolveProfile(this.currentSettings || {}, profileName);
+    const profileSettings = this.resolveProfile(settings || {}, profileName);
 
-    const subagentName = args.name || `Sub-Agent ${this.subAgentCount}`;
+    const subagentName = args.name || `Sub-Agent ${sessionState.subAgentCount}`;
     this.sendRuntime(runMeta, {
       type: 'subagent_start',
       id: subagentId,
@@ -2052,14 +2096,14 @@ When a tool fails:
       const subAgentSystemPrompt = `${args.prompt || 'You are a focused sub-agent working under an orchestrator. Be concise and tool-driven.'}
 Always cite evidence from tools. Finish by calling subagent_complete with a short summary and any structured findings.`;
 
-      const tools = this.getToolsForSession(this.currentSettings || {}, false);
+      const tools = this.getToolsForSession(settings || {}, false);
       const toolSet = buildToolSet(tools, async (toolName, toolArgs, options) =>
         this.executeToolByName(
           toolName,
           toolArgs,
           {
             runMeta,
-            settings: this.currentSettings || {},
+            settings: settings || {},
             visionProfile: null,
           },
           options.toolCallId,
@@ -2078,11 +2122,13 @@ Always cite evidence from tools. Finish by calling subagent_complete with a shor
       ];
 
       const subModel = resolveLanguageModel(profileSettings);
+      const abortSignal = this.activeRuns.get(runMeta.runId)?.controller.signal;
       const result = streamText({
         model: subModel,
         system: subAgentSystemPrompt,
         messages: toModelMessages(subHistory),
         tools: toolSet,
+        abortSignal,
         temperature: profileSettings.temperature ?? 0.4,
         maxOutputTokens: profileSettings.maxTokens ?? 1024,
         stopWhen: stepCountIs(24),

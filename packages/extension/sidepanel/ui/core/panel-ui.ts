@@ -102,7 +102,8 @@ export class SidePanelUI {
 
     this.displayHistory = [];
     this.contextHistory = [];
-    this.sessionId = `session-${Date.now()}`;
+    const suffix = typeof crypto?.randomUUID === 'function' ? crypto.randomUUID() : String(Date.now());
+    this.sessionId = `session-${suffix}`;
     this.sessionStartedAt = Date.now();
     this.firstUserMessage = '';
     this.currentConfig = 'default';

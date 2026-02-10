@@ -46,10 +46,10 @@ import { SidePanelUI } from './panel-ui.js';
 };
 
 (SidePanelUI.prototype as any).startNewSession = function startNewSession() {
-  const previousSessionId = this.sessionId;
   this.displayHistory = [];
   this.contextHistory = [];
-  this.sessionId = `session-${Date.now()}`;
+  const suffix = typeof crypto?.randomUUID === 'function' ? crypto.randomUUID() : String(Date.now());
+  this.sessionId = `session-${suffix}`;
   this.sessionStartedAt = Date.now();
   this.firstUserMessage = '';
   this.sessionTokensUsed = 0;
@@ -81,12 +81,4 @@ import { SidePanelUI } from './panel-ui.js';
   this.switchView('chat');
   this.updateContextUsage();
   this.scrollToBottom({ force: true });
-
-  // Best-effort: stop any in-flight run for the previous session so streaming
-  // output doesn't keep arriving after the UI has switched sessions.
-  if (previousSessionId && typeof previousSessionId === 'string') {
-    try {
-      void chrome.runtime.sendMessage({ type: 'stop_run', sessionId: previousSessionId });
-    } catch {}
-  }
 };

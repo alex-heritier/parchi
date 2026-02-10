@@ -212,7 +212,18 @@ export PARCHI_RELAY_PORT="${port}"`;
     try {
       void chrome.runtime.sendMessage({ type: 'stop_run', sessionId: this.sessionId });
     } catch {}
-    this.recoverFromStuckState();
+    this.stopWatchdog?.();
+    this.stopThinkingTimer?.();
+    this.stopRunTimer?.();
+    this.elements.composer?.classList.remove('running');
+    this.pendingTurnDraft = null;
+    this.pendingToolCount = 0;
+    this.isStreaming = false;
+    this.activeToolName = null;
+    this.updateActivityState();
+    this.finishStreamingMessage();
+    this.clearErrorBanner?.();
+    this.updateStatus('Stopped', 'warning');
   });
 
   // Profile editor controls

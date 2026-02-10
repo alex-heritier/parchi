@@ -175,7 +175,8 @@ const normalizeTranscript = (value: any): any[] => {
     try {
       this.displayHistory = [];
       this.contextHistory = [];
-      this.sessionId = session.id || `session-${Date.now()}`;
+      const suffix = typeof crypto?.randomUUID === 'function' ? crypto.randomUUID() : String(Date.now());
+      this.sessionId = session.id || `session-${suffix}`;
       this.firstUserMessage = session.title || '';
       this.elements.chatMessages.innerHTML = '';
       this.toolCallViews.clear();
@@ -254,7 +255,8 @@ const normalizeTranscript = (value: any): any[] => {
     const normalized = normalizeConversationHistory(transcript || []);
     this.displayHistory = normalized;
     this.contextHistory = normalized;
-    this.sessionId = session.id || `session-${Date.now()}`;
+    const suffix = typeof crypto?.randomUUID === 'function' ? crypto.randomUUID() : String(Date.now());
+    this.sessionId = session.id || `session-${suffix}`;
     this.firstUserMessage = session.title || '';
     this.renderConversationHistory();
     this.updateContextUsage();
