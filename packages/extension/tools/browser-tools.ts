@@ -40,8 +40,7 @@ export class BrowserTools {
     this.sessionTabs = new Map();
     this.currentSessionTabId = null;
     this.sessionTabGroupId = null;
-    this.supportsTabGroups =
-      typeof chrome.tabs.group === 'function' && typeof chrome.tabGroups?.update === 'function';
+    this.supportsTabGroups = typeof chrome.tabs.group === 'function' && typeof chrome.tabGroups?.update === 'function';
     this.tools = {
       navigate: true,
       openTab: true,
@@ -91,7 +90,7 @@ export class BrowserTools {
       {
         name: 'click',
         description:
-          'Click an element by selector. Prefer a valid CSS selector (querySelector). Also supports simple text selectors like `text=Create note` and `button.contains(\"Create note\")`.',
+          'Click an element by selector. Prefer a valid CSS selector (querySelector). Also supports simple text selectors like `text=Create note` and `button.contains("Create note")`.',
         input_schema: {
           type: 'object',
           properties: {
@@ -226,6 +225,49 @@ export class BrowserTools {
           properties: {},
         },
       },
+      {
+        name: 'watchVideo',
+        description:
+          'Watch and analyze a video on the current page. Captures multiple frames and describes what is happening. Requires a vision-capable profile to be configured.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            selector: {
+              type: 'string',
+              description:
+                'Optional CSS selector for the video element. If not provided, uses the first video on page.',
+            },
+            durationSeconds: {
+              type: 'number',
+              description: 'How many seconds of video to analyze (default: 10, max: 60).',
+            },
+            frameIntervalSeconds: {
+              type: 'number',
+              description: 'Interval between captured frames in seconds (default: 2).',
+            },
+            question: {
+              type: 'string',
+              description: 'Optional specific question about the video content.',
+            },
+            tabId: { type: 'number', description: 'Optional tab id.' },
+          },
+        },
+      },
+      {
+        name: 'getVideoInfo',
+        description:
+          'Get information about video elements on the page (duration, current time, playing state, dimensions).',
+        input_schema: {
+          type: 'object',
+          properties: {
+            selector: {
+              type: 'string',
+              description: 'Optional CSS selector for a specific video element.',
+            },
+            tabId: { type: 'number', description: 'Optional tab id.' },
+          },
+        },
+      },
     ];
 
     return this.supportsTabGroups ? definitions : definitions.filter((tool) => tool.name !== 'groupTabs');
@@ -329,6 +371,10 @@ export class BrowserTools {
             groupId: this.sessionTabGroupId,
             groupTitle: DEFAULT_SESSION_GROUP.title,
           };
+        case 'watchVideo':
+          return await this.watchVideo(args);
+        case 'getVideoInfo':
+          return await this.getVideoInfo(args);
         default:
           return { success: false, error: `Unknown tool: ${toolName}` };
       }
@@ -432,7 +478,8 @@ export class BrowserTools {
     if (!tabId) {
       return {
         success: false,
-        error: 'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
+        error:
+          'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
       };
     }
 
@@ -542,7 +589,8 @@ export class BrowserTools {
     if (!tabId) {
       return {
         success: false,
-        error: 'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
+        error:
+          'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
       };
     }
     const selector = String(args.selector || '');
@@ -588,23 +636,24 @@ export class BrowserTools {
         // - button:contains("Create note") (jQuery-style)
         // - button:has-text("Create note") (Playwright-style)
         const trimmed = String(raw || '').trim();
-        const dotQuoted =
-          /^([a-zA-Z][\\w-]*)\\s*\\.\\s*contains\\s*\\(\\s*(['"])([\\s\\S]*?)\\2\\s*\\)\\s*$/.exec(trimmed);
+        const dotQuoted = /^([a-zA-Z][\\w-]*)\\s*\\.\\s*contains\\s*\\(\\s*(['"])([\\s\\S]*?)\\2\\s*\\)\\s*$/.exec(
+          trimmed,
+        );
         if (dotQuoted) return { base: dotQuoted[1], text: dotQuoted[3].trim() };
         const dotBare = /^([a-zA-Z][\\w-]*)\\s*\\.\\s*contains\\s*\\(\\s*([\\s\\S]*?)\\s*\\)\\s*$/.exec(trimmed);
         if (dotBare) return { base: dotBare[1], text: String(dotBare[2] || '').trim() };
 
-        const pseudoContainsQuoted =
-          /^(.+?):\\s*contains\\s*\\(\\s*(['"])([\\s\\S]*?)\\2\\s*\\)\\s*$/.exec(trimmed);
+        const pseudoContainsQuoted = /^(.+?):\\s*contains\\s*\\(\\s*(['"])([\\s\\S]*?)\\2\\s*\\)\\s*$/.exec(trimmed);
         if (pseudoContainsQuoted) return { base: pseudoContainsQuoted[1].trim(), text: pseudoContainsQuoted[3].trim() };
         const pseudoContainsBare = /^(.+?):\\s*contains\\s*\\(\\s*([\\s\\S]*?)\\s*\\)\\s*$/.exec(trimmed);
-        if (pseudoContainsBare) return { base: pseudoContainsBare[1].trim(), text: String(pseudoContainsBare[2] || '').trim() };
+        if (pseudoContainsBare)
+          return { base: pseudoContainsBare[1].trim(), text: String(pseudoContainsBare[2] || '').trim() };
 
-        const pseudoHasTextQuoted =
-          /^(.+?):\\s*has-text\\s*\\(\\s*(['"])([\\s\\S]*?)\\2\\s*\\)\\s*$/.exec(trimmed);
+        const pseudoHasTextQuoted = /^(.+?):\\s*has-text\\s*\\(\\s*(['"])([\\s\\S]*?)\\2\\s*\\)\\s*$/.exec(trimmed);
         if (pseudoHasTextQuoted) return { base: pseudoHasTextQuoted[1].trim(), text: pseudoHasTextQuoted[3].trim() };
         const pseudoHasTextBare = /^(.+?):\\s*has-text\\s*\\(\\s*([\\s\\S]*?)\\s*\\)\\s*$/.exec(trimmed);
-        if (pseudoHasTextBare) return { base: pseudoHasTextBare[1].trim(), text: String(pseudoHasTextBare[2] || '').trim() };
+        if (pseudoHasTextBare)
+          return { base: pseudoHasTextBare[1].trim(), text: String(pseudoHasTextBare[2] || '').trim() };
         return null;
       };
 
@@ -682,7 +731,8 @@ export class BrowserTools {
 
       const resolveElement = (rawSelector: string) => {
         const trimmed = String(rawSelector || '').trim();
-        if (!trimmed) return { el: null as HTMLElement | null, strategy: 'none', candidates: 0, error: 'Missing selector.' };
+        if (!trimmed)
+          return { el: null as HTMLElement | null, strategy: 'none', candidates: 0, error: 'Missing selector.' };
 
         // Prefixes:
         // - css=... (explicit CSS)
@@ -834,7 +884,7 @@ export class BrowserTools {
         hint:
           resolved.hint ||
           (sel.trim().toLowerCase().includes('contains') || sel.trim().toLowerCase().includes('has-text')
-            ? 'Use a CSS selector, `text=...`, `tag.contains(\"...\")`, or `button:has-text(\"...\")`.'
+            ? 'Use a CSS selector, `text=...`, `tag.contains("...")`, or `button:has-text("...")`.'
             : 'Try a more specific selector or increase timeoutMs.'),
       };
     };
@@ -850,7 +900,8 @@ export class BrowserTools {
     if (!tabId) {
       return {
         success: false,
-        error: 'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
+        error:
+          'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
       };
     }
     const selector = String(args.selector || '');
@@ -902,8 +953,9 @@ export class BrowserTools {
         }
         // Common pattern: selector points at a wrapper (e.g. CodeMirror/Monaco); find an editable descendant.
         const descendant =
-          candidate.querySelector<HTMLElement>('textarea, input, [contenteditable="true"], [contenteditable=""], [role="textbox"]') ||
-          null;
+          candidate.querySelector<HTMLElement>(
+            'textarea, input, [contenteditable="true"], [contenteditable=""], [role="textbox"]',
+          ) || null;
         if (descendant) return descendant;
         return null;
       };
@@ -923,15 +975,15 @@ export class BrowserTools {
           const active = document.activeElement as HTMLElement | null;
           if (
             active &&
-            (active instanceof HTMLInputElement ||
-              active instanceof HTMLTextAreaElement ||
-              active.isContentEditable)
+            (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || active.isContentEditable)
           ) {
             el = active;
           }
         }
         if (!el) {
-          const candidates = safeQueryAll('input, textarea, [contenteditable="true"], [contenteditable=""], [role="textbox"]');
+          const candidates = safeQueryAll(
+            'input, textarea, [contenteditable="true"], [contenteditable=""], [role="textbox"]',
+          );
           const fallback = candidates.find(isVisible) || candidates[0] || null;
           if (fallback) el = fallback;
         }
@@ -940,7 +992,11 @@ export class BrowserTools {
       }
 
       if (!el) {
-        return { success: false, error: 'Element not found.', hint: 'Try a more specific selector or increase timeoutMs.' };
+        return {
+          success: false,
+          error: 'Element not found.',
+          hint: 'Try a more specific selector or increase timeoutMs.',
+        };
       }
 
       const dispatchInputEvents = (target: HTMLElement) => {
@@ -1011,11 +1067,7 @@ export class BrowserTools {
         hint: 'Use a selector that targets an <input>, <textarea>, or [contenteditable] node (or click to focus it first).',
       };
     };
-    let result = await this.runInTab(
-      tabId,
-      typeScript,
-      [selector, text, timeoutMs],
-    );
+    let result = await this.runInTab(tabId, typeScript, [selector, text, timeoutMs]);
     if (result?.error === 'Element not found.') {
       result = await this.runInAllFrames(tabId, typeScript, [selector, text, timeoutMs]);
     }
@@ -1027,7 +1079,8 @@ export class BrowserTools {
     if (!tabId) {
       return {
         success: false,
-        error: 'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
+        error:
+          'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
       };
     }
     const key = String(args.key || '');
@@ -1059,7 +1112,8 @@ export class BrowserTools {
     if (!tabId) {
       return {
         success: false,
-        error: 'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
+        error:
+          'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
       };
     }
     const direction = String(args.direction || 'down');
@@ -1151,7 +1205,8 @@ export class BrowserTools {
     if (!tabId) {
       return {
         success: false,
-        error: 'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
+        error:
+          'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
       };
     }
     const type = String(args.type || args.mode || 'text');
@@ -1210,7 +1265,8 @@ export class BrowserTools {
     if (!tabId) {
       return {
         success: false,
-        error: 'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
+        error:
+          'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
       };
     }
     const tab = await chrome.tabs.get(tabId);
@@ -1248,5 +1304,302 @@ export class BrowserTools {
         color: options.color,
       });
     }
+  }
+
+  /**
+   * Get information about video elements on the page.
+   */
+  private async getVideoInfo(args: Record<string, any>) {
+    const tabId = await this.resolveTabId(args);
+    if (!tabId) {
+      return {
+        success: false,
+        error:
+          'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
+      };
+    }
+
+    const selector = args.selector ? String(args.selector) : '';
+    await this.sendOverlay(tabId, { label: 'Get video info', durationMs: 800 }, 1);
+
+    const result = await this.runInTab(
+      tabId,
+      (sel: string) => {
+        const videos = sel
+          ? Array.from(document.querySelectorAll<HTMLVideoElement>(sel))
+          : Array.from(document.querySelectorAll<HTMLVideoElement>('video'));
+
+        if (videos.length === 0) {
+          return {
+            success: false,
+            error: 'No video elements found on the page.',
+            hint: 'Make sure the page has a <video> element, or provide a specific selector.',
+          };
+        }
+
+        const info = videos.map((video, index) => ({
+          index,
+          src: video.currentSrc || video.src || null,
+          currentSrc: video.currentSrc || null,
+          duration: video.duration || 0,
+          currentTime: video.currentTime || 0,
+          paused: video.paused,
+          ended: video.ended,
+          muted: video.muted,
+          volume: video.volume,
+          playbackRate: video.playbackRate || 1,
+          readyState: video.readyState,
+          networkState: video.networkState,
+          videoWidth: video.videoWidth || 0,
+          videoHeight: video.videoHeight || 0,
+          aspectRatio: video.videoWidth && video.videoHeight ? `${video.videoWidth}x${video.videoHeight}` : null,
+          id: video.id || null,
+          className: video.className || null,
+        }));
+
+        return {
+          success: true,
+          videoCount: videos.length,
+          videos: info,
+        };
+      },
+      [selector],
+    );
+
+    return result || { success: false, error: 'Script execution failed.' };
+  }
+
+  /**
+   * Watch and analyze a video by capturing frames at intervals.
+   * Returns frame data URLs that can be passed to a vision model.
+   */
+  private async watchVideo(args: Record<string, any>) {
+    const tabId = await this.resolveTabId(args);
+    if (!tabId) {
+      return {
+        success: false,
+        error:
+          'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
+      };
+    }
+
+    const selector = args.selector ? String(args.selector) : '';
+    const durationSeconds = Math.min(Math.max(1, Number(args.durationSeconds) || 10), 60);
+    const frameIntervalSeconds = Math.min(Math.max(0.5, Number(args.frameIntervalSeconds) || 2), 10);
+    const question = args.question ? String(args.question) : null;
+
+    // Limit max frames to prevent memory issues
+    const maxFrames = 30;
+    const effectiveInterval = Math.max(frameIntervalSeconds, durationSeconds / maxFrames);
+
+    await this.sendOverlay(
+      tabId,
+      {
+        label: 'Watching video',
+        note: `${durationSeconds}s at ${effectiveInterval.toFixed(1)}s intervals`,
+        durationMs: (durationSeconds + 3) * 1000,
+      },
+      1,
+    );
+
+    // First check video exists and get basic info
+    const videoCheck = await this.runInTab(
+      tabId,
+      (sel: string) => {
+        const video = sel
+          ? document.querySelector<HTMLVideoElement>(sel)
+          : document.querySelector<HTMLVideoElement>('video');
+
+        if (!video) {
+          return {
+            success: false,
+            error: 'No video element found on the page.',
+            hint: 'Make sure the page has a <video> element, or provide a specific selector.',
+          };
+        }
+
+        if (video.readyState < 2) {
+          return {
+            success: false,
+            error: 'Video has not loaded enough data.',
+            readyState: video.readyState,
+            hint: 'Wait for the video to load before analyzing.',
+          };
+        }
+
+        return {
+          success: true,
+          video: {
+            src: video.currentSrc || video.src || null,
+            duration: video.duration || 0,
+            currentTime: video.currentTime || 0,
+            paused: video.paused,
+            videoWidth: video.videoWidth || 640,
+            videoHeight: video.videoHeight || 480,
+          },
+        };
+      },
+      [selector],
+    );
+
+    if (!videoCheck?.success) {
+      return videoCheck || { success: false, error: 'Failed to check video.' };
+    }
+
+    // Capture frames with proper async waiting for seek
+    const frames: Array<{ time: number; timeFormatted: string; dataUrl: string }> = [];
+    const startTime = Math.max(0, videoCheck.video.currentTime);
+    const endTime = Math.min(videoCheck.video.duration || startTime + durationSeconds, startTime + durationSeconds);
+
+    for (
+      let currentTime = startTime;
+      currentTime <= endTime && frames.length < maxFrames;
+      currentTime += effectiveInterval
+    ) {
+      // Use a script that returns a promise to properly wait for seek
+      const frameResult = await new Promise<{
+        success: boolean;
+        time?: number;
+        timeFormatted?: string;
+        dataUrl?: string;
+        error?: string;
+      }>((resolve) => {
+        chrome.scripting.executeScript(
+          {
+            target: { tabId },
+            func: (sel: string, targetTime: number, seekTimeoutMs: number) => {
+              return new Promise((res) => {
+                const video = sel
+                  ? document.querySelector<HTMLVideoElement>(sel)
+                  : document.querySelector<HTMLVideoElement>('video');
+
+                if (!video) {
+                  res({ success: false, error: 'Video element not found.' });
+                  return;
+                }
+
+                // Check for cross-origin (tainted) video
+                try {
+                  const testCanvas = document.createElement('canvas');
+                  testCanvas.width = 1;
+                  testCanvas.height = 1;
+                  const testCtx = testCanvas.getContext('2d');
+                  testCtx?.drawImage(video, 0, 0, 1, 1);
+                  testCtx?.getImageData(0, 0, 1, 1);
+                } catch (corsError) {
+                  res({
+                    success: false,
+                    error:
+                      'Video is cross-origin and cannot be captured. The video source must be same-origin or have CORS headers.',
+                  });
+                  return;
+                }
+
+                const captureFrame = () => {
+                  const canvas = document.createElement('canvas');
+                  const maxDim = 512;
+                  let width = video.videoWidth || 640;
+                  let height = video.videoHeight || 480;
+
+                  if (width > maxDim || height > maxDim) {
+                    const scale = maxDim / Math.max(width, height);
+                    width = Math.round(width * scale);
+                    height = Math.round(height * scale);
+                  }
+
+                  canvas.width = width;
+                  canvas.height = height;
+
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx) {
+                    res({ success: false, error: 'Failed to create canvas.' });
+                    return;
+                  }
+
+                  try {
+                    ctx.drawImage(video, 0, 0, width, height);
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                    const mins = Math.floor(targetTime / 60);
+                    const secs = Math.floor(targetTime % 60);
+                    const timeFormatted = `${mins}:${secs.toString().padStart(2, '0')}`;
+                    res({ success: true, time: targetTime, timeFormatted, dataUrl });
+                  } catch (e: any) {
+                    res({ success: false, error: e?.message || 'Failed to capture frame.' });
+                  }
+                };
+
+                // If already at the right time, capture immediately
+                if (Math.abs(video.currentTime - targetTime) < 0.1) {
+                  captureFrame();
+                  return;
+                }
+
+                // Set up seek listener
+                const onSeeked = () => {
+                  video.removeEventListener('seeked', onSeeked);
+                  clearTimeout(timeout);
+                  // Small delay to ensure frame is rendered
+                  setTimeout(captureFrame, 50);
+                };
+
+                const timeout = setTimeout(() => {
+                  video.removeEventListener('seeked', onSeeked);
+                  res({ success: false, error: 'Seek timed out.' });
+                }, seekTimeoutMs);
+
+                video.addEventListener('seeked', onSeeked);
+
+                try {
+                  video.currentTime = targetTime;
+                } catch (seekError: any) {
+                  video.removeEventListener('seeked', onSeeked);
+                  clearTimeout(timeout);
+                  res({ success: false, error: `Seek failed: ${seekError?.message || 'Unknown error'}` });
+                }
+              });
+            },
+            args: [selector, currentTime, 2000],
+          },
+          (results) => {
+            if (results?.[0]?.result) {
+              resolve(results[0].result as any);
+            } else {
+              resolve({ success: false, error: 'Script execution failed.' });
+            }
+          },
+        );
+      });
+
+      if (frameResult?.success && frameResult.dataUrl) {
+        frames.push({
+          time: frameResult.time!,
+          timeFormatted: frameResult.timeFormatted!,
+          dataUrl: frameResult.dataUrl,
+        });
+      } else if (frameResult?.error) {
+        console.warn(`Frame capture at ${currentTime}s failed:`, frameResult.error);
+      }
+
+      // Small delay between frames
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+
+    if (frames.length === 0) {
+      return {
+        success: false,
+        error: 'Failed to capture any frames from the video.',
+        hint: 'The video may be protected (DRM), cross-origin, or not loaded properly.',
+      };
+    }
+
+    return {
+      success: true,
+      video: videoCheck.video,
+      frameCount: frames.length,
+      frameIntervalSeconds: effectiveInterval,
+      frames,
+      question,
+      note: `Captured ${frames.length} frames from video. These frames can be analyzed with a vision-capable model.`,
+    };
   }
 }

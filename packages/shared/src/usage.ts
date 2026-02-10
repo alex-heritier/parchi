@@ -9,6 +9,3 @@ export type Usage = {
   outputTokens: number;
   totalTokens: number;
 };
-
-export type UsageStats = Usage;
-

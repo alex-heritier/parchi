@@ -1,6 +1,9 @@
 import { APICallError } from '@ai-sdk/provider';
-import { classifyApiError } from '../ai/error-classifier.js';
 import { generateText, stepCountIs, streamText } from 'ai';
+import { buildRunPlan } from '../../shared/src/plan.js';
+import type { RunPlan } from '../../shared/src/plan.js';
+import { RUNTIME_MESSAGE_SCHEMA_VERSION } from '../../shared/src/runtime-messages.js';
+import { PARCHI_STORAGE_KEYS } from '../../shared/src/settings.js';
 import {
   DEFAULT_COMPACTION_SETTINGS,
   SUMMARIZATION_PROMPT,
@@ -13,19 +16,16 @@ import {
   serializeConversation,
   shouldCompact,
 } from '../ai/compaction.js';
+import { classifyApiError } from '../ai/error-classifier.js';
 import { normalizeConversationHistory } from '../ai/message-schema.js';
 import type { Message, ToolCall } from '../ai/message-schema.js';
 import { extractTextFromResponseMessages } from '../ai/message-utils.js';
 import { toModelMessages } from '../ai/model-convert.js';
 import { isValidFinalResponse } from '../ai/retry-engine.js';
 import { buildToolSet, describeImageWithModel, resolveLanguageModel } from '../ai/sdk-client.js';
-import { BrowserTools } from '../tools/browser-tools.js';
 import { RelayBridge } from '../relay/relay-bridge.js';
-import { buildRunPlan } from '../../shared/src/plan.js';
-import type { RunPlan } from '../../shared/src/plan.js';
-import { RUNTIME_MESSAGE_SCHEMA_VERSION } from '../../shared/src/runtime-messages.js';
+import { BrowserTools } from '../tools/browser-tools.js';
 import { getActiveTab } from '../utils/active-tab.js';
-import { PARCHI_STORAGE_KEYS } from '../../shared/src/settings.js';
 
 type RunMeta = {
   runId: string;
@@ -272,7 +272,8 @@ export class BackgroundService {
 
       case 'settings.set': {
         const data = (params as any)?.data;
-        if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('settings.set: data must be an object');
+        if (!data || typeof data !== 'object' || Array.isArray(data))
+          throw new Error('settings.set: data must be an object');
         await chrome.storage.local.set(data);
         return { ok: true };
       }
@@ -281,7 +282,8 @@ export class BackgroundService {
         const prompt = typeof (params as any)?.prompt === 'string' ? String((params as any).prompt) : '';
         if (!prompt.trim()) throw new Error('agent.run: missing prompt');
         const selectedTabIds = Array.isArray((params as any)?.selectedTabIds) ? (params as any).selectedTabIds : null;
-        const sessionId = typeof (params as any)?.sessionId === 'string' ? (params as any).sessionId : `session-${Date.now()}`;
+        const sessionId =
+          typeof (params as any)?.sessionId === 'string' ? (params as any).sessionId : `session-${Date.now()}`;
         const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const turnId = `turn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
@@ -343,7 +345,8 @@ export class BackgroundService {
             return;
           }
           // Use void + then to ensure we respond
-          this.browserTools.configureSessionTabs(tabs, { title: 'Test Session', color: 'blue' })
+          this.browserTools
+            .configureSessionTabs(tabs, { title: 'Test Session', color: 'blue' })
             .then(() => {
               console.log('[test] session tabs configured successfully');
               sendResponse({ success: true });
@@ -390,8 +393,14 @@ export class BackgroundService {
     meta?: Partial<RunMeta> & { origin?: 'sidepanel' | 'relay' },
   ) {
     const runMeta: RunMeta = {
-      runId: typeof meta?.runId === 'string' && meta.runId ? meta.runId : `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      turnId: typeof meta?.turnId === 'string' && meta.turnId ? meta.turnId : `turn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      runId:
+        typeof meta?.runId === 'string' && meta.runId
+          ? meta.runId
+          : `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      turnId:
+        typeof meta?.turnId === 'string' && meta.turnId
+          ? meta.turnId
+          : `turn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       sessionId,
     };
     const origin = meta?.origin || 'sidepanel';
@@ -666,7 +675,10 @@ export class BackgroundService {
                 anthropic: {
                   thinking: {
                     type: 'enabled',
-                    budgetTokens: Math.min(Math.max(1024, Math.floor((orchestratorProfile.maxTokens ?? 4096) * 0.5)), 16384),
+                    budgetTokens: Math.min(
+                      Math.max(1024, Math.floor((orchestratorProfile.maxTokens ?? 4096) * 0.5)),
+                      16384,
+                    ),
                   },
                 },
               }
@@ -810,10 +822,7 @@ export class BackgroundService {
             thinking: passResult.reasoningText || null,
             toolCalls: xmlToolCallEntries,
           };
-          currentHistory = normalizeConversationHistory([
-            ...currentHistory,
-            xmlAssistantMsg,
-          ]);
+          currentHistory = normalizeConversationHistory([...currentHistory, xmlAssistantMsg]);
 
           currentHistory = normalizeConversationHistory([
             ...currentHistory,
@@ -887,7 +896,8 @@ export class BackgroundService {
               finalText = candidate;
               totalUsage = {
                 inputTokens: (totalUsage.inputTokens || 0) + Number((finalizeResult as any)?.usage?.inputTokens || 0),
-                outputTokens: (totalUsage.outputTokens || 0) + Number((finalizeResult as any)?.usage?.outputTokens || 0),
+                outputTokens:
+                  (totalUsage.outputTokens || 0) + Number((finalizeResult as any)?.usage?.outputTokens || 0),
                 totalTokens: (totalUsage.totalTokens || 0) + Number((finalizeResult as any)?.usage?.totalTokens || 0),
               };
               break;
@@ -1304,6 +1314,77 @@ export class BackgroundService {
       } catch (visionError) {
         finalResult.visionError = visionError.message;
       }
+    }
+
+    // Handle video frame analysis with vision model
+    if (
+      toolName === 'watchVideo' &&
+      finalResult?.success &&
+      finalResult.frames &&
+      finalResult.frames.length > 0 &&
+      this.currentSettings?.visionBridge &&
+      options.visionProfile?.apiKey
+    ) {
+      try {
+        const frames = finalResult.frames as Array<{ time: number; timeFormatted: string; dataUrl: string }>;
+        const question =
+          finalResult.question ||
+          'What is happening in this video? Describe the content, actions, and any important details.';
+
+        // Build multi-frame analysis prompt
+        const frameDescriptions: string[] = [];
+
+        // Process frames (limit to avoid token limits)
+        const maxFrames = Math.min(frames.length, 8);
+        const step = frames.length > maxFrames ? Math.floor(frames.length / maxFrames) : 1;
+
+        for (let i = 0; i < frames.length && frameDescriptions.length < maxFrames; i += step) {
+          const frame = frames[i];
+          try {
+            const description = await describeImageWithModel({
+              settings: {
+                provider: options.visionProfile.provider,
+                apiKey: options.visionProfile.apiKey,
+                model: options.visionProfile.model,
+                customEndpoint: options.visionProfile.customEndpoint,
+              },
+              dataUrl: frame.dataUrl,
+              prompt: `At timestamp ${frame.timeFormatted}: Describe what you see in this video frame. Be specific about visual content, people, objects, text, actions, and scene changes.`,
+              maxTokens: 256,
+            });
+            frameDescriptions.push(`[${frame.timeFormatted}] ${description}`);
+          } catch (frameError) {
+            frameDescriptions.push(`[${frame.timeFormatted}] (Failed to analyze frame: ${frameError.message})`);
+          }
+        }
+
+        // Now summarize the entire video based on frame descriptions
+        const fullDescription = await describeImageWithModel({
+          settings: {
+            provider: options.visionProfile.provider,
+            apiKey: options.visionProfile.apiKey,
+            model: options.visionProfile.model,
+            customEndpoint: options.visionProfile.customEndpoint,
+          },
+          dataUrl: frames[0].dataUrl, // Use first frame as reference
+          prompt: `Based on these frame-by-frame descriptions from a video:\n\n${frameDescriptions.join('\n\n')}\n\n${question}\n\nProvide a coherent summary of what happens in the video.`,
+          maxTokens: 1024,
+        });
+
+        finalResult.analysis = fullDescription;
+        finalResult.frameDescriptions = frameDescriptions;
+        finalResult.analyzedFrameCount = frameDescriptions.length;
+        finalResult.message = `Analyzed ${frameDescriptions.length} frames from video.`;
+
+        // Remove raw frame data to reduce response size
+        delete finalResult.frames;
+      } catch (visionError) {
+        finalResult.visionError = visionError.message;
+        finalResult.message = `Video frames captured but analysis failed: ${visionError.message}`;
+      }
+    } else if (toolName === 'watchVideo' && finalResult?.success && finalResult.frames) {
+      // No vision profile configured - keep frames but note limitation
+      finalResult.message = `Captured ${finalResult.frames.length} video frames. Configure a vision profile to enable automatic analysis.`;
     }
 
     const enrichedResult = this.attachPlanToResult(finalResult, toolName);

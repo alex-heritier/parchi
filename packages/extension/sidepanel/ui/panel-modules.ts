@@ -2,6 +2,7 @@ import './agents/panel-agents.js';
 import './chat/panel-chat.js';
 import './chat/panel-context.js';
 import './core/panel-core.js';
+import './chat/panel-export.js';
 import './core/panel-helpers.js';
 import './history/panel-history.js';
 import './chat/panel-markdown.js';

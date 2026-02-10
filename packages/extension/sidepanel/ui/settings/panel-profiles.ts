@@ -7,9 +7,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error('Headers must be a JSON object');
   }
-  return Object.fromEntries(
-    Object.entries(parsed).map(([key, value]) => [key, value == null ? '' : String(value)]),
-  );
+  return Object.fromEntries(Object.entries(parsed).map(([key, value]) => [key, value == null ? '' : String(value)]));
 };
 
 const formatHeadersJson = (headers: Record<string, any> | undefined) => {

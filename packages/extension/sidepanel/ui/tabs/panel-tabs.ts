@@ -1,5 +1,5 @@
-import { SidePanelUI } from '../core/panel-ui.js';
 import { getActiveTab } from '../../../utils/active-tab.js';
+import { SidePanelUI } from '../core/panel-ui.js';
 
 (SidePanelUI.prototype as any).handleFileSelection = async function handleFileSelection(event: Event) {
   const input = event.target as HTMLInputElement | null;

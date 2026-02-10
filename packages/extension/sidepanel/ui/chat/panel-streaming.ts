@@ -1,5 +1,5 @@
-import { dedupeThinking, extractThinking } from '../../../ai/message-utils.js';
 import type { RunPlan } from '../../../../shared/src/plan.js';
+import { dedupeThinking, extractThinking } from '../../../ai/message-utils.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 
 const formatElapsed = (elapsedMs: number) => {
@@ -223,9 +223,7 @@ const formatElapsed = (elapsedMs: number) => {
       targetContainer.prepend(reasoningEvent);
     }
 
-    reasoningContentEl = reasoningEvent.querySelector(
-      '.stream-reasoning-content',
-    ) as HTMLElement | null;
+    reasoningContentEl = reasoningEvent.querySelector('.stream-reasoning-content') as HTMLElement | null;
     this.streamingState.reasoningEventEl = reasoningContentEl;
     this.streamingState.reasoningBuffer = '';
 

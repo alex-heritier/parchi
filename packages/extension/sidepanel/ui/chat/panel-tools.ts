@@ -86,7 +86,8 @@ const toolIcons: Record<string, string> = {
     if (this.streamingState?.eventsEl) {
       const toolEl = this.createToolElement(entry);
       entry.element = toolEl;
-      const activeIndex = typeof this.stepTimeline?.activeStepIndex === 'number' ? this.stepTimeline.activeStepIndex : null;
+      const activeIndex =
+        typeof this.stepTimeline?.activeStepIndex === 'number' ? this.stepTimeline.activeStepIndex : null;
       const activeStep = activeIndex !== null ? this.stepTimeline.steps.get(activeIndex) : null;
       const target = activeStep?.toolsEl || this.stepTimeline?.activeStepBody || this.streamingState.eventsEl;
       target.appendChild(toolEl);
@@ -169,8 +170,7 @@ const toolIcons: Record<string, string> = {
   entry.endTime = Date.now();
   const isError = result && (result.error || result.success === false);
   const duration = entry.endTime - entry.startTime;
-  const isNoopScroll =
-    entry.fullToolName === 'scroll' && result && result.success === true && result.moved === false;
+  const isNoopScroll = entry.fullToolName === 'scroll' && result && result.success === true && result.moved === false;
 
   // Update visual state - subtle, no red/green
   entry.element.classList.remove('running');
@@ -258,7 +258,12 @@ const toolIcons: Record<string, string> = {
   const tokens: string[] = [];
 
   if (args.tabId) tokens.push(`tab ${args.tabId}`);
-  if (args.url) tokens.push(String(args.url).replace(/^https?:\/\//, '').substring(0, 36));
+  if (args.url)
+    tokens.push(
+      String(args.url)
+        .replace(/^https?:\/\//, '')
+        .substring(0, 36),
+    );
   if (args.path) tokens.push(String(args.path).substring(0, 36));
   if (args.selector) tokens.push(String(args.selector).substring(0, 40));
   if (args.text) {
@@ -294,12 +299,9 @@ const toolIcons: Record<string, string> = {
   // Remove any existing error banners to prevent stacking
   document.querySelectorAll('.error-banner').forEach((el) => el.remove());
 
-  const actionHtml =
-    opts?.action ? `<span class="error-action">${this.escapeHtml(opts.action)}</span>` : '';
+  const actionHtml = opts?.action ? `<span class="error-action">${this.escapeHtml(opts.action)}</span>` : '';
   const settingsBtnHtml =
-    opts?.category === 'auth'
-      ? `<button class="error-settings-btn" title="Open Settings">Settings</button>`
-      : '';
+    opts?.category === 'auth' ? `<button class="error-settings-btn" title="Open Settings">Settings</button>` : '';
 
   const banner = document.createElement('div');
   banner.className = 'error-banner';

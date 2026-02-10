@@ -1,6 +1,6 @@
-import { SidePanelUI } from '../core/panel-ui.js';
-import { PARCHI_STORAGE_KEYS } from '../../../../shared/src/settings.js';
 import { DEFAULT_AGENT_SYSTEM_PROMPT } from '../../../../shared/src/prompts.js';
+import { PARCHI_STORAGE_KEYS } from '../../../../shared/src/settings.js';
+import { SidePanelUI } from '../core/panel-ui.js';
 
 const parseHeadersJson = (raw: string): Record<string, string> => {
   const trimmed = raw.trim();
@@ -9,9 +9,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error('Headers must be a JSON object');
   }
-  return Object.fromEntries(
-    Object.entries(parsed).map(([key, value]) => [key, value == null ? '' : String(value)]),
-  );
+  return Object.fromEntries(Object.entries(parsed).map(([key, value]) => [key, value == null ? '' : String(value)]));
 };
 
 (SidePanelUI.prototype as any).applyUiZoom = function applyUiZoom(value: number, { persist = true } = {}) {
@@ -415,8 +413,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   try {
     const activeProfile = this.configs[this.currentConfig] || {};
     const rawRelayUrl = (this.elements.relayUrl?.value || '').trim();
-    const normalizedRelayUrl =
-      rawRelayUrl && !rawRelayUrl.includes('://') ? `http://${rawRelayUrl}` : rawRelayUrl;
+    const normalizedRelayUrl = rawRelayUrl && !rawRelayUrl.includes('://') ? `http://${rawRelayUrl}` : rawRelayUrl;
     const payload = {
       provider: activeProfile.provider || 'openai',
       apiKey: activeProfile.apiKey || '',

@@ -2,6 +2,9 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { generateText, jsonSchema, tool } from 'ai';
+import type { ToolDefinition } from '../../shared/src/tools.js';
+
+export type { ToolDefinition };
 
 export type SDKModelSettings = {
   provider: string;
@@ -9,16 +12,6 @@ export type SDKModelSettings = {
   model: string;
   customEndpoint?: string;
   extraHeaders?: Record<string, string>;
-};
-
-export type ToolDefinition = {
-  name: string;
-  description?: string;
-  input_schema?: {
-    type: 'object';
-    properties: Record<string, unknown>;
-    required?: string[];
-  };
 };
 
 export function resolveLanguageModel(settings: SDKModelSettings) {

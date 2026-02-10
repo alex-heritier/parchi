@@ -1,15 +1,15 @@
-import http from 'node:http';
 import crypto from 'node:crypto';
-import { URL } from 'node:url';
+import http from 'node:http';
 import type { IncomingMessage } from 'node:http';
-import { WebSocketServer, WebSocket } from 'ws';
+import { URL } from 'node:url';
+import { type WebSocket, WebSocketServer } from 'ws';
 import {
-  isJsonRpcNotification,
-  isJsonRpcRequest,
-  isJsonRpcResponse,
   type JsonRpcId,
   type JsonRpcRequest,
   type JsonRpcResponse,
+  isJsonRpcNotification,
+  isJsonRpcRequest,
+  isJsonRpcResponse,
 } from './protocol.js';
 
 type AgentHello = {
@@ -46,13 +46,11 @@ type RunRecord = {
   createdAt: number;
   updatedAt: number;
   events: unknown[];
-  done:
-    | null
-    | {
-        status: 'completed' | 'failed' | 'stopped';
-        final?: unknown;
-        error?: unknown;
-      };
+  done: null | {
+    status: 'completed' | 'failed' | 'stopped';
+    final?: unknown;
+    error?: unknown;
+  };
   waiters: Array<(value: RunRecord) => void>;
 };
 
@@ -436,4 +434,3 @@ if (!token) {
 }
 
 await new RelayDaemon({ token, host, port }).start();
-

@@ -28,6 +28,7 @@ export const getSidePanelElements = (): SidePanelElements => ({
   agentNav: byId<HTMLElement>('agentNav'),
 
   tabSelectorBtn: byId<HTMLButtonElement>('tabSelectorBtn'),
+  exportBtn: byId<HTMLButtonElement>('exportBtn'),
   tabSelector: byId<HTMLElement>('tabSelector'),
   tabSelectorSummary: byId<HTMLElement>('tabSelectorSummary'),
   tabSelectorAddActive: byId<HTMLButtonElement>('tabSelectorAddActive'),

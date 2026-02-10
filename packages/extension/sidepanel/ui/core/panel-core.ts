@@ -1,6 +1,6 @@
+import { isRuntimeMessage } from '../../../../shared/src/runtime-messages.js';
 import { createMessage, normalizeConversationHistory } from '../../../ai/message-schema.js';
 import type { Message } from '../../../ai/message-schema.js';
-import { isRuntimeMessage } from '../../../../shared/src/runtime-messages.js';
 import { bindSidebarNavigation, setSidebarOpen } from './panel-navigation.js';
 import { SidePanelUI } from './panel-ui.js';
 
@@ -200,6 +200,9 @@ export PARCHI_RELAY_PORT="${port}"`;
   this.elements.tabSelectorClear?.addEventListener('click', () => this.clearSelectedTabs());
   const tabBackdrop = this.elements.tabSelector?.querySelector('.modal-backdrop');
   tabBackdrop?.addEventListener('click', () => this.closeTabSelector());
+
+  // Export button
+  this.elements.exportBtn?.addEventListener('click', () => this.showExportMenu());
 
   this.elements.chatMessages?.addEventListener('scroll', () => this.handleChatScroll());
   this.elements.scrollToLatestBtn?.addEventListener('click', () => this.scrollToBottom({ force: true }));
@@ -490,7 +493,10 @@ export PARCHI_RELAY_PORT="${port}"`;
     this.activeToolName = null;
     this.updateActivityState();
     this.finishStreamingMessage();
-    this.showErrorBanner(message.message, { category: (message as any).errorCategory, action: (message as any).action });
+    this.showErrorBanner(message.message, {
+      category: (message as any).errorCategory,
+      action: (message as any).action,
+    });
     this.updateStatus('Error', 'error');
     return;
   }
@@ -504,7 +510,13 @@ export PARCHI_RELAY_PORT="${port}"`;
     return;
   }
   if (message.type === 'subagent_complete') {
-    this.updateSubagentStatus(message.id, message.success ? 'completed' : 'error');
+    const status = message.success ? 'completed' : 'error';
+    this.updateSubagentStatus(message.id, status, message.summary);
+    if (message.success) {
+      this.updateStatus(`Sub-agent "${message.name || message.id}" completed`, 'success');
+    } else {
+      this.updateStatus(`Sub-agent "${message.name || message.id}" failed`, 'error');
+    }
     return;
   }
 };

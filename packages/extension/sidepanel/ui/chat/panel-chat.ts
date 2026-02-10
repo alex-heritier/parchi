@@ -1,9 +1,9 @@
 import { createMessage } from '../../../ai/message-schema.js';
 import type { Message } from '../../../ai/message-schema.js';
 import { dedupeThinking, extractThinking } from '../../../ai/message-utils.js';
-import type { UsagePayload } from '../types/panel-types.js';
-import { SidePanelUI } from '../core/panel-ui.js';
 import { getActiveTab } from '../../../utils/active-tab.js';
+import { SidePanelUI } from '../core/panel-ui.js';
+import type { UsagePayload } from '../types/panel-types.js';
 
 const truncate = (value: string, max = 12000) => {
   const text = String(value || '');

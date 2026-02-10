@@ -1,5 +1,4 @@
 import type { MessageContent } from './message-schema.js';
-import { safeJsonStringify as safeJsonStringifyShared } from '../../shared/src/utils/json.js';
 
 export type ExtractThinkingResult = {
   content: string;
@@ -124,9 +123,4 @@ export function estimateTokensFromContent(content: MessageContent): number {
   } catch {
     return Math.ceil(String(content).length / 4);
   }
-}
-
-export function safeJsonStringify(value: unknown): string {
-  // Keep this export stable to avoid churn in imports.
-  return safeJsonStringifyShared(value);
 }

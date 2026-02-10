@@ -19,23 +19,16 @@ export const loadPanelLayout = async () => {
   const appRoot = document.getElementById('appRoot');
   if (!appRoot) return;
 
-  const [
-    sidebarShell,
-    mainContent,
-    historyPanel,
-    settingsPanel,
-    settingsGeneral,
-    settingsProfiles,
-    tabSelector,
-  ] = await Promise.all([
-    loadTemplate('sidebar-shell.html'),
-    loadTemplate('main.html'),
-    loadTemplate('panels/history.html'),
-    loadTemplate('panels/settings.html'),
-    loadTemplate('panels/settings-general.html'),
-    loadTemplate('panels/settings-profiles.html'),
-    loadTemplate('tab-selector.html'),
-  ]);
+  const [sidebarShell, mainContent, historyPanel, settingsPanel, settingsGeneral, settingsProfiles, tabSelector] =
+    await Promise.all([
+      loadTemplate('sidebar-shell.html'),
+      loadTemplate('main.html'),
+      loadTemplate('panels/history.html'),
+      loadTemplate('panels/settings.html'),
+      loadTemplate('panels/settings-general.html'),
+      loadTemplate('panels/settings-profiles.html'),
+      loadTemplate('tab-selector.html'),
+    ]);
 
   appRoot.className = 'app-container';
   appRoot.innerHTML = '';

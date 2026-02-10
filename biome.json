@@ -11,7 +11,7 @@
         "noDelete": "off"
       },
       "suspicious": {
-        "noExplicitAny": "off",
+        "noExplicitAny": "warn",
         "noAssignInExpressions": "off",
         "noImplicitAnyLet": "off",
         "noShadowRestrictedNames": "off"
@@ -47,6 +47,14 @@
     }
   },
   "files": {
-    "ignore": ["dist/**", "node_modules/**", "server/node_modules/**", "*.json", "*.md"]
+    "ignore": [
+      "dist/**",
+      "dist-relay/**",
+      "dist-firefox/**",
+      "node_modules/**",
+      "server/node_modules/**",
+      "*.json",
+      "*.md"
+    ]
   }
 }

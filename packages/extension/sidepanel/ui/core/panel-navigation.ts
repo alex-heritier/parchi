@@ -19,7 +19,7 @@ export const showRightPanel = (elements: SidePanelElements, panelName: RightPane
   if (!container) return;
 
   const panels = container.querySelectorAll(PANEL_SELECTOR);
-  panels.forEach((panel) => (panel as HTMLElement).classList.add('hidden'));
+  panels.forEach((panel: unknown) => (panel as HTMLElement).classList.add('hidden'));
 
   if (!panelName) {
     document.body.removeAttribute('data-right-panel');

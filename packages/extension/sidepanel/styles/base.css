@@ -4,12 +4,12 @@
 
 :root {
   /* Rich charcoal base — warm, never cold */
-  --background: hsl(30, 5%, 10.5%);       /* #1b1b1b */
-  --foreground: hsl(40, 20%, 92%);         /* warm off-white */
+  --background: hsl(30, 5%, 10.5%); /* #1b1b1b */
+  --foreground: hsl(40, 20%, 92%); /* warm off-white */
   --muted: hsl(35, 10%, 55%);
   --muted-dim: hsl(35, 8%, 40%);
   --border: hsl(30, 5%, 17%);
-  --card: hsl(30, 5%, 12%);               /* #1e1e1e */
+  --card: hsl(30, 5%, 12%); /* #1e1e1e */
   --card-hover: hsl(30, 5%, 14%);
 
   /* Warm accent — like aged brass */
@@ -25,7 +25,7 @@
 
   /* Ink system — paper-like layering */
   --ink-1: hsla(35, 10%, 100%, 0.06);
-  --ink-2: hsla(35, 10%, 100%, 0.10);
+  --ink-2: hsla(35, 10%, 100%, 0.1);
   --ink-3: hsla(35, 10%, 100%, 0.18);
 
   /* Sidebar overlay width is responsive and varies by active right panel (see layout.css). */

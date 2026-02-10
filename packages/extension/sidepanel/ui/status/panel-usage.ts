@@ -1,5 +1,5 @@
-import type { UsagePayload, UsageStats } from '../types/panel-types.js';
 import { SidePanelUI } from '../core/panel-ui.js';
+import type { UsagePayload, UsageStats } from '../types/panel-types.js';
 
 (SidePanelUI.prototype as any).formatCurrency = function formatCurrency(amount: number, currency = 'usd') {
   if (amount === null || amount === undefined) return '';

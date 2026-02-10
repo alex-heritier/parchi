@@ -6,4 +6,3 @@ export const safeJsonStringify = (value: unknown): string => {
     return String(value);
   }
 };
-

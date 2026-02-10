@@ -308,7 +308,8 @@ class ContentScriptHandler {
     const labelLeft = Math.min(window.innerWidth - 280, Math.max(12, rect.left));
     label.style.top = `${labelTop < 10 ? rect.bottom + 8 : labelTop}px`;
     label.style.left = `${labelLeft}px`;
-    label.textContent = element.getAttribute('aria-label') || element.getAttribute('name') || element.tagName.toLowerCase();
+    label.textContent =
+      element.getAttribute('aria-label') || element.getAttribute('name') || element.tagName.toLowerCase();
 
     if (this.overlay.rafId) {
       window.cancelAnimationFrame(this.overlay.rafId);

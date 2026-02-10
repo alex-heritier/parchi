@@ -1,29 +1,11 @@
-type JsonRpcId = string | number;
+import {
+  type JsonRpcNotification,
+  type JsonRpcRequest,
+  type JsonRpcResponse,
+  isJsonRpcRequest,
+} from '../../shared/src/json-rpc.js';
 
-export type JsonRpcRequest = {
-  jsonrpc: '2.0';
-  id: JsonRpcId;
-  method: string;
-  params?: unknown;
-};
-
-export type JsonRpcResponse =
-  | { jsonrpc: '2.0'; id: JsonRpcId; result: unknown }
-  | { jsonrpc: '2.0'; id: JsonRpcId; error: { code: number; message: string; data?: unknown } };
-
-export type JsonRpcNotification = {
-  jsonrpc: '2.0';
-  method: string;
-  params?: unknown;
-};
-
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
-
-const isRequest = (value: unknown): value is JsonRpcRequest => {
-  if (!isObject(value)) return false;
-  return value.jsonrpc === '2.0' && (typeof value.id === 'string' || typeof value.id === 'number') && typeof value.method === 'string';
-};
+export type { JsonRpcRequest, JsonRpcResponse, JsonRpcNotification };
 
 export class RelayBridge {
   private ws: WebSocket | null;
@@ -165,7 +147,7 @@ export class RelayBridge {
       } catch {
         return;
       }
-      if (!isRequest(parsed)) return;
+      if (!isJsonRpcRequest(parsed)) return;
       void this.handleRequest(ws, parsed);
     };
   }

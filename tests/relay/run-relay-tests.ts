@@ -11,8 +11,8 @@
  */
 
 import { spawn } from 'child_process';
-import net from 'net';
 import crypto from 'crypto';
+import net from 'net';
 import { WebSocket } from 'ws';
 
 // Tests run from the repo root (npm scripts). In the built output under dist/,
@@ -225,7 +225,13 @@ const main = async () => {
         throw new Error(`unexpected tools.list result: ${JSON.stringify(toolsRes.data)}`);
       }
 
-      const toolCallRes = await rpc({ host, port, token, method: 'tool.call', params: { tool: 'navigate', args: { url: 'https://example.com' } } });
+      const toolCallRes = await rpc({
+        host,
+        port,
+        token,
+        method: 'tool.call',
+        params: { tool: 'navigate', args: { url: 'https://example.com' } },
+      });
       if (!toolCallRes.data?.result?.ok) {
         throw new Error(`unexpected tool.call result: ${JSON.stringify(toolCallRes.data)}`);
       }
@@ -249,11 +255,24 @@ const main = async () => {
       });
 
       ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'agent.hello', params: { agentId } }));
-      ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'run.event', params: { runId, event: { type: 'run_status', phase: 'executing' } } }));
-      ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'run.done', params: { runId, status: 'completed', final: { type: 'assistant_final', content: 'ok' } } }));
+      ws.send(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'run.event',
+          params: { runId, event: { type: 'run_status', phase: 'executing' } },
+        }),
+      );
+      ws.send(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'run.done',
+          params: { runId, status: 'completed', final: { type: 'assistant_final', content: 'ok' } },
+        }),
+      );
 
       const waited = await rpc({ host, port, token, method: 'run.wait', params: { runId, timeoutMs: 2000 } });
-      if (waited.data?.result?.done?.status !== 'completed') throw new Error(`unexpected: ${JSON.stringify(waited.data)}`);
+      if (waited.data?.result?.done?.status !== 'completed')
+        throw new Error(`unexpected: ${JSON.stringify(waited.data)}`);
 
       const events = await rpc({ host, port, token, method: 'run.events', params: { runId } });
       if (!Array.isArray(events.data?.result?.events) || events.data.result.events.length < 1) {

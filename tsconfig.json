@@ -12,6 +12,7 @@
     "noUnusedParameters": true,
     "strictPropertyInitialization": false,
     "useUnknownInCatchVariables": false,
+    "noUncheckedIndexedAccess": false,
     "types": ["chrome", "node"],
     "lib": ["ES2022", "DOM"],
     "skipLibCheck": true

@@ -1,14 +1,8 @@
+import { escapeAttribute, escapeHtml, escapeHtmlBasic } from '../../../../shared/src/utils/html.js';
+import { safeJsonStringify as safeJsonStringifyFn } from '../../../../shared/src/utils/json.js';
 import { SidePanelUI } from './panel-ui.js';
-import { safeJsonStringify as safeJsonStringifyShared } from '../../../../shared/src/utils/json.js';
-import {
-  escapeAttribute as escapeAttributeShared,
-  escapeHtml as escapeHtmlShared,
-  escapeHtmlBasic as escapeHtmlBasicShared,
-} from '../../../../shared/src/utils/html.js';
 
-(SidePanelUI.prototype as any).safeJsonStringify = function safeJsonStringify(value: any) {
-  return safeJsonStringifyShared(value);
-};
+(SidePanelUI.prototype as any).safeJsonStringify = (value: unknown) => safeJsonStringifyFn(value);
 
 (SidePanelUI.prototype as any).truncateText = function truncateText(text: string, limit = 1200) {
   if (!text) return '';
@@ -16,17 +10,11 @@ import {
   return `${text.slice(0, limit)}...`;
 };
 
-(SidePanelUI.prototype as any).escapeHtmlBasic = function escapeHtmlBasic(text: string) {
-  return escapeHtmlBasicShared(text);
-};
+(SidePanelUI.prototype as any).escapeHtmlBasic = (text: string) => escapeHtmlBasic(text);
 
-(SidePanelUI.prototype as any).escapeHtml = function escapeHtml(text: string) {
-  return escapeHtmlShared(text);
-};
+(SidePanelUI.prototype as any).escapeHtml = (text: string) => escapeHtml(text);
 
-(SidePanelUI.prototype as any).escapeAttribute = function escapeAttribute(value: string) {
-  return escapeAttributeShared(value);
-};
+(SidePanelUI.prototype as any).escapeAttribute = (value: string) => escapeAttribute(value);
 
 (SidePanelUI.prototype as any).createStepContainer = function createStepContainer(stepIndex: number, title: string) {
   const el = document.createElement('div');
@@ -59,7 +47,10 @@ import {
   };
 };
 
-(SidePanelUI.prototype as any).ensureStepContainer = function ensureStepContainer(stepIndex: number, stepTitle?: string) {
+(SidePanelUI.prototype as any).ensureStepContainer = function ensureStepContainer(
+  stepIndex: number,
+  stepTitle?: string,
+) {
   if (!this.streamingState?.eventsEl) return null;
 
   const normalizedIndex = Number.isFinite(stepIndex) ? stepIndex : 0;

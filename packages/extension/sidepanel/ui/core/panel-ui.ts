@@ -1,7 +1,7 @@
-import type { Message } from '../../../ai/message-schema.js';
 import type { RunPlan } from '../../../../shared/src/plan.js';
-import { getSidePanelElements } from './panel-elements.js';
+import type { Message } from '../../../ai/message-schema.js';
 import type { UsageStats } from '../types/panel-types.js';
+import { getSidePanelElements } from './panel-elements.js';
 
 export class SidePanelUI {
   elements: Record<string, any>;
@@ -26,7 +26,7 @@ export class SidePanelUI {
   streamingState: {
     container: HTMLElement;
     eventsEl: HTMLElement | null;
-    lastEventType?: "text" | "reasoning" | "tool" | "plan";
+    lastEventType?: 'text' | 'reasoning' | 'tool' | 'plan';
     textEventEl?: HTMLElement | null;
     reasoningEventEl?: HTMLElement | null;
     textBuffer?: string;
@@ -58,10 +58,7 @@ export class SidePanelUI {
   currentView: 'chat' | 'history';
   currentSettingsTab: 'general' | 'profiles';
   profileEditorTarget: string;
-  subagents: Map<
-    string,
-    { name: string; status: string; messages: any[]; tasks?: string[] }
-  >;
+  subagents: Map<string, { name: string; status: string; messages: any[]; tasks?: string[] }>;
   activeAgent: string;
   activityPanelOpen: boolean;
   latestThinking: string | null;
@@ -69,10 +66,7 @@ export class SidePanelUI {
   streamingReasoning: string;
   currentPlan: RunPlan | null;
   stepTimeline: {
-    steps: Map<
-      number,
-      { el: HTMLElement; toolsEl: HTMLElement; bodyEl: HTMLElement }
-    >;
+    steps: Map<number, { el: HTMLElement; toolsEl: HTMLElement; bodyEl: HTMLElement }>;
     activeStepIndex: number | null;
     activeStepBody: HTMLElement | null;
   };
@@ -110,8 +104,8 @@ export class SidePanelUI {
     this.contextHistory = [];
     this.sessionId = `session-${Date.now()}`;
     this.sessionStartedAt = Date.now();
-    this.firstUserMessage = "";
-    this.currentConfig = "default";
+    this.firstUserMessage = '';
+    this.currentConfig = 'default';
     this.configs = { default: {} };
     this.toolCallViews = new Map();
     this.lastChatTurn = null;
@@ -157,7 +151,7 @@ export class SidePanelUI {
     this.activityPanelOpen = false;
     this.latestThinking = null;
     this.activeToolName = null;
-    this.streamingReasoning = "";
+    this.streamingReasoning = '';
     this.currentPlan = null;
     this.stepTimeline = {
       steps: new Map(),

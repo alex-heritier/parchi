@@ -81,15 +81,19 @@ const main = async () => {
   if (!cmd || cmd === 'help' || cmd === '--help') {
     print({
       usage: [
-        'parchi-relay rpc <method> [--params=\'{...}\'] [--agentId=...]',
+        "parchi-relay rpc <method> [--params='{...}'] [--agentId=...]",
         'parchi-relay doctor [--agentId=...] [--skipTool=true]',
         'parchi-relay agents',
         'parchi-relay default-agent get|set <agentId>',
         'parchi-relay tools [--agentId=...]',
-        'parchi-relay tool <toolName> [--args=\'{...}\'] [--agentId=...]',
+        "parchi-relay tool <toolName> [--args='{...}'] [--agentId=...]",
         'parchi-relay run <prompt> [--tabs=active|1,2,3] [--timeoutMs=600000] [--agentId=...]',
       ],
-      env: ['PARCHI_RELAY_TOKEN (required)', 'PARCHI_RELAY_HOST (default 127.0.0.1)', 'PARCHI_RELAY_PORT (default 17373)'],
+      env: [
+        'PARCHI_RELAY_TOKEN (required)',
+        'PARCHI_RELAY_HOST (default 127.0.0.1)',
+        'PARCHI_RELAY_PORT (default 17373)',
+      ],
     });
     return;
   }

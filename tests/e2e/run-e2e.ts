@@ -448,7 +448,9 @@ test('Live API smoke test via background (optional)', async ({ worker }) => {
     });
 
     assert(response && response.success, `${spec.label} API smoke test failed to return success.`);
-    const resolvedText = String(response?.result?.resolvedText || '').trim().toLowerCase();
+    const resolvedText = String(response?.result?.resolvedText || '')
+      .trim()
+      .toLowerCase();
     assert(resolvedText.includes('pong'), `${spec.label} returned unexpected response: ${resolvedText}`);
 
     const usedFallback = !response?.result?.rawText && response?.result?.fallbackText;

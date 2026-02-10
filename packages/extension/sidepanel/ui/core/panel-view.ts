@@ -17,15 +17,11 @@ import { SidePanelUI } from './panel-ui.js';
   setSidebarOpen(this.elements, false);
 };
 
-(SidePanelUI.prototype as any).showRightPanel = function showRightPanel(
-  panelName: 'history' | 'settings' | null,
-) {
+(SidePanelUI.prototype as any).showRightPanel = function showRightPanel(panelName: 'history' | 'settings' | null) {
   showRightPanelContent(this.elements, panelName);
 };
 
-(SidePanelUI.prototype as any).setNavActive = function setNavActive(
-  navName: 'chat' | 'history' | 'settings',
-) {
+(SidePanelUI.prototype as any).setNavActive = function setNavActive(navName: 'chat' | 'history' | 'settings') {
   updateNavActive(this.elements, navName);
 };
 

@@ -129,4 +129,3 @@ After ALL steps are marked done:
 **Result:** [What you found, with quotes from getContent]
 **Sources:** [URLs you visited]
 </output_format>`;
-

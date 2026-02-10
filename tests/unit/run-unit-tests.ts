@@ -12,7 +12,11 @@ import {
   estimateContextTokens,
   shouldCompact,
 } from '../../packages/extension/ai/compaction.js';
-import { createMessage, normalizeConversationHistory, toProviderMessages } from '../../packages/extension/ai/message-schema.js';
+import {
+  createMessage,
+  normalizeConversationHistory,
+  toProviderMessages,
+} from '../../packages/extension/ai/message-schema.js';
 import type { Message } from '../../packages/extension/ai/message-schema.js';
 import { extractThinking } from '../../packages/extension/ai/message-utils.js';
 import { createExponentialBackoff, isValidFinalResponse } from '../../packages/extension/ai/retry-engine.js';

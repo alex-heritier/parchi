@@ -19,4 +19,3 @@ export const escapeAttribute = (value: unknown): string => {
   // escapeHtmlBasic already handles quotes.
   return escapeHtmlBasic(value);
 };
-
