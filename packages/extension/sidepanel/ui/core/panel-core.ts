@@ -208,7 +208,12 @@ export PARCHI_RELAY_PORT="${port}"`;
   this.elements.scrollToLatestBtn?.addEventListener('click', () => this.scrollToBottom({ force: true }));
 
   // Stop/reset button
-  this.elements.stopRunBtn?.addEventListener('click', () => this.recoverFromStuckState());
+  this.elements.stopRunBtn?.addEventListener('click', () => {
+    try {
+      void chrome.runtime.sendMessage({ type: 'stop_run', sessionId: this.sessionId });
+    } catch {}
+    this.recoverFromStuckState();
+  });
 
   // Profile editor controls
   this.elements.profileEditorProvider?.addEventListener('change', () => this.toggleProfileEditorEndpoint());
@@ -297,6 +302,12 @@ export PARCHI_RELAY_PORT="${port}"`;
 
 (SidePanelUI.prototype as any).handleRuntimeMessage = function handleRuntimeMessage(message: any) {
   this._lastRuntimeMessageAt = Date.now();
+  // Runtime messages are broadcast to all extension views. Only render events
+  // that belong to the currently active session to avoid spilling output across
+  // New Chat / history-loaded sessions.
+  if (message?.sessionId && typeof message.sessionId === 'string' && message.sessionId !== this.sessionId) {
+    return;
+  }
   if (message.type === 'assistant_stream_start') {
     this.streamingReasoning = '';
     this.handleAssistantStream({ status: 'start' });
@@ -323,6 +334,33 @@ export PARCHI_RELAY_PORT="${port}"`;
   }
   if (message.type === 'assistant_stream_stop') {
     this.handleAssistantStream({ status: 'stop' });
+    return;
+  }
+
+  if (message.type === 'run_status') {
+    const phase = typeof message.phase === 'string' ? message.phase : '';
+    if (phase === 'stopped' || phase === 'failed' || phase === 'completed') {
+      this.stopWatchdog?.();
+      this.stopThinkingTimer?.();
+      this.stopRunTimer?.();
+      this.elements.composer?.classList.remove('running');
+      this.pendingTurnDraft = null;
+      this.pendingToolCount = 0;
+      this.isStreaming = false;
+      this.activeToolName = null;
+      this.updateActivityState();
+      this.finishStreamingMessage();
+    }
+
+    if (phase === 'stopped') {
+      this.updateStatus(message.note || 'Stopped', 'warning');
+    } else if (phase === 'failed') {
+      this.updateStatus(message.note || 'Failed', 'error');
+    } else if (phase === 'completed') {
+      this.updateStatus(message.note || 'Ready', 'success');
+    } else if (phase) {
+      this.updateStatus(message.note || phase, 'active');
+    }
     return;
   }
 

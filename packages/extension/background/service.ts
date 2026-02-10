@@ -51,6 +51,20 @@ export class BackgroundService {
   kimiHeaderRuleOk: boolean;
   kimiWarningSent: boolean;
 
+  // Run coordination: background messages are global, so we keep explicit run
+  // state to support stopping/cancelling in-flight runs and preventing output
+  // from "spilling" into new sessions.
+  private activeRuns: Map<
+    string,
+    {
+      runMeta: RunMeta;
+      origin: 'sidepanel' | 'relay';
+      controller: AbortController;
+    }
+  >;
+  private activeRunIdBySessionId: Map<string, string>;
+  private cancelledRunIds: Set<string>;
+
   constructor() {
     this.browserTools = new BrowserTools();
     this.currentSettings = null;
@@ -60,6 +74,9 @@ export class BackgroundService {
     this.subAgentProfileCursor = 0;
     this.relayActiveRunIds = new Set();
     this.relayKeepalivePorts = new Set();
+    this.activeRuns = new Map();
+    this.activeRunIdBySessionId = new Map();
+    this.cancelledRunIds = new Set();
     // State tracking for enforcement
     this.lastBrowserAction = null;
     this.awaitingVerification = false;
@@ -331,6 +348,15 @@ export class BackgroundService {
           break;
         }
 
+        case 'stop_run': {
+          const sessionId = typeof message.sessionId === 'string' ? message.sessionId : '';
+          if (sessionId) {
+            this.stopRunBySession(sessionId, 'Stopped');
+          }
+          sendResponse({ success: true });
+          break;
+        }
+
         case 'execute_tool': {
           const result = await this.browserTools.executeTool(message.tool, message.args);
           sendResponse({ success: true, result });
@@ -405,6 +431,8 @@ export class BackgroundService {
     };
     const origin = meta?.origin || 'sidepanel';
     if (origin === 'relay') this.relayActiveRunIds.add(runMeta.runId);
+    const controller = this.registerActiveRun(runMeta, origin);
+    const abortSignal = controller.signal;
 
     // Reset enforcement state at the start of every turn so stale verification
     // requirements from the previous turn don't pollute the system prompt.
@@ -653,6 +681,7 @@ export class BackgroundService {
           const maxChunks = 120;
           const chunkSize = Math.max(24, Math.ceil(text.length / maxChunks));
           for (let i = 0; i < text.length; i += chunkSize) {
+            if (abortSignal.aborted) return;
             sendTextDelta(text.slice(i, i + chunkSize));
             await new Promise((resolve) => setTimeout(resolve, 8));
           }
@@ -667,6 +696,7 @@ export class BackgroundService {
           system: this.enhanceSystemPrompt(orchestratorProfile.systemPrompt || '', context),
           messages: modelMessages,
           tools: toolSet,
+          abortSignal,
           temperature: orchestratorProfile.temperature ?? 0.7,
           maxOutputTokens: orchestratorProfile.maxTokens ?? 4096,
           stopWhen: stepCountIs(48),
@@ -761,6 +791,9 @@ export class BackgroundService {
           };
         } catch (error) {
           sendStreamStop();
+          if (abortSignal.aborted) {
+            throw error;
+          }
           console.error('[runModelPass] Error:', error);
           // Return empty result instead of throwing to prevent crash
           return {
@@ -773,6 +806,7 @@ export class BackgroundService {
       };
 
       while (true) {
+        if (abortSignal.aborted) return;
         const passResult = await runModelPass(currentHistory);
         const xmlToolCalls = this.extractXmlToolCalls(passResult.text);
         toolResults = passResult.toolResults || [];
@@ -787,6 +821,7 @@ export class BackgroundService {
           const toolMessages: Message[] = [];
           const xmlToolCallEntries: ToolCall[] = [];
           for (const call of xmlToolCalls) {
+            if (abortSignal.aborted) return;
             const toolCallId = `xml_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
             xmlToolCallEntries.push({ id: toolCallId, name: call.name, args: call.args });
             const output = await this.executeToolByName(
@@ -887,6 +922,7 @@ export class BackgroundService {
                   content: finalizePromptParts.join('\n'),
                 },
               ],
+              abortSignal,
               temperature: 0.2,
               maxOutputTokens: Math.min(2048, orchestratorProfile.maxTokens ?? 4096),
             });
@@ -1009,6 +1045,7 @@ export class BackgroundService {
                 content: promptText,
               },
             ],
+            abortSignal,
             temperature: 0.2,
             maxOutputTokens: Math.floor(0.8 * compactionSettings.reserveTokens),
           });
@@ -1037,6 +1074,9 @@ export class BackgroundService {
         }
       }
     } catch (error) {
+      if (abortSignal.aborted || this.isRunCancelled(runMeta.runId)) {
+        return;
+      }
       console.error('Error processing user message:', error);
       const classified = classifyApiError(error);
       let message = classified.message;
@@ -1053,6 +1093,7 @@ export class BackgroundService {
         recoverable: classified.recoverable,
       });
     } finally {
+      this.cleanupRun(runMeta, origin);
       if (origin === 'relay') this.relayActiveRunIds.delete(runMeta.runId);
     }
   }
@@ -1124,6 +1165,9 @@ export class BackgroundService {
     toolCallId?: string,
   ) {
     const callId = toolCallId || `tool_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    if (this.isRunCancelled(options.runMeta.runId)) {
+      return { success: false, error: 'Run stopped.' };
+    }
     const computeCurrentStepMeta = () => {
       const steps = this.currentPlan?.steps || [];
       const currentIndex = steps.findIndex((step) => step.status !== 'done');
@@ -1604,7 +1648,75 @@ export class BackgroundService {
     return { allowed: true };
   }
 
+  private isRunCancelled(runId: string) {
+    return this.cancelledRunIds.has(runId);
+  }
+
+  private stopRun(runId: string, note = 'Stopped') {
+    const active = this.activeRuns.get(runId);
+    if (!active) return;
+
+    // Tell the UI to stop "running" state without showing an error banner.
+    this.sendRuntime(active.runMeta, {
+      type: 'run_status',
+      phase: 'stopped',
+      attempts: { api: 0, tool: 0, finalize: 0 },
+      maxRetries: { api: 0, tool: 0, finalize: 0 },
+      note,
+    });
+
+    // From here on, suppress any further runtime events for this run.
+    this.cancelledRunIds.add(runId);
+
+    try {
+      active.controller.abort(note);
+    } catch {}
+
+    if (active.origin === 'relay') {
+      this.relayActiveRunIds.delete(runId);
+      if (this.relay.isConnected()) {
+        this.relay.notify('run.done', { runId, status: 'stopped', note });
+      }
+    }
+  }
+
+  private stopRunBySession(sessionId: string, note = 'Stopped') {
+    const runId = this.activeRunIdBySessionId.get(sessionId);
+    if (runId) this.stopRun(runId, note);
+  }
+
+  private stopAllRuns(note = 'Stopped') {
+    for (const runId of Array.from(this.activeRuns.keys())) {
+      this.stopRun(runId, note);
+    }
+  }
+
+  private registerActiveRun(runMeta: RunMeta, origin: 'sidepanel' | 'relay') {
+    // Only one active run at a time is supported safely with the current
+    // global/session-wide state. Cancel any in-flight runs to prevent UI and
+    // state from interleaving across sessions.
+    this.stopAllRuns('Superseded by a new message');
+
+    const controller = new AbortController();
+    this.activeRuns.set(runMeta.runId, { runMeta, origin, controller });
+    this.activeRunIdBySessionId.set(runMeta.sessionId, runMeta.runId);
+    return controller;
+  }
+
+  private cleanupRun(runMeta: RunMeta, origin: 'sidepanel' | 'relay') {
+    const active = this.activeRuns.get(runMeta.runId);
+    if (active && active.origin === origin) {
+      this.activeRuns.delete(runMeta.runId);
+    }
+    const mapped = this.activeRunIdBySessionId.get(runMeta.sessionId);
+    if (mapped === runMeta.runId) {
+      this.activeRunIdBySessionId.delete(runMeta.sessionId);
+    }
+    this.cancelledRunIds.delete(runMeta.runId);
+  }
+
   sendRuntime(runMeta: RunMeta, payload: Record<string, unknown>) {
+    if (this.isRunCancelled(runMeta.runId)) return;
     const message = {
       schemaVersion: RUNTIME_MESSAGE_SCHEMA_VERSION,
       runId: runMeta.runId,
