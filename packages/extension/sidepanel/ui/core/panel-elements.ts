@@ -10,9 +10,9 @@ export type SidePanelElements = Record<string, any>;
 export const getSidePanelElements = (): SidePanelElements => ({
   // Sidebar elements
   sidebar: byId<HTMLElement>('sidebar'),
+  sidebarScrim: byId<HTMLElement>('sidebarScrim'),
   openSidebarBtn: byId<HTMLButtonElement>('openSidebarBtn'),
   closeSidebarBtn: byId<HTMLButtonElement>('closeSidebarBtn'),
-  navChatBtn: byId<HTMLButtonElement>('navChatBtn'),
   navHistoryBtn: byId<HTMLButtonElement>('navHistoryBtn'),
   navSettingsBtn: byId<HTMLButtonElement>('navSettingsBtn'),
   rightPanel: byId<HTMLElement>('rightPanel'),
@@ -42,13 +42,18 @@ export const getSidePanelElements = (): SidePanelElements => ({
   historyItems: byId<HTMLElement>('historyItems'),
   clearHistoryBtn: byId<HTMLButtonElement>('clearHistoryBtn'),
   startNewSessionBtn: byId<HTMLButtonElement>('startNewSessionBtn'),
-  settingsTabGeneralBtn: byId<HTMLButtonElement>('settingsTabGeneralBtn'),
+  settingsTabSetupBtn: byId<HTMLButtonElement>('settingsTabSetupBtn'),
+  settingsTabModelBtn: byId<HTMLButtonElement>('settingsTabModelBtn'),
+  settingsTabBrowserBtn: byId<HTMLButtonElement>('settingsTabBrowserBtn'),
+  settingsTabNetworkBtn: byId<HTMLButtonElement>('settingsTabNetworkBtn'),
   settingsTabProfilesBtn: byId<HTMLButtonElement>('settingsTabProfilesBtn'),
-  settingsTabGeneral: byId<HTMLElement>('settingsTabGeneral'),
+  settingsTabSetup: byId<HTMLElement>('settingsTabSetup'),
+  settingsTabModel: byId<HTMLElement>('settingsTabModel'),
+  settingsTabBrowser: byId<HTMLElement>('settingsTabBrowser'),
+  settingsTabNetwork: byId<HTMLElement>('settingsTabNetwork'),
   settingsTabProfiles: byId<HTMLElement>('settingsTabProfiles'),
   newProfileNameInput: byId<HTMLInputElement>('newProfileNameInput'),
   createProfileBtn: byId<HTMLButtonElement>('createProfileBtn'),
-  openGeneralBtn: byId<HTMLButtonElement>('openGeneralBtn'),
   profileEditorTitle: byId<HTMLElement>('profileEditorTitle'),
   profileEditorName: byId<HTMLInputElement>('profileEditorName'),
   profileEditorProvider: byId<HTMLSelectElement>('profileEditorProvider'),
@@ -86,7 +91,6 @@ export const getSidePanelElements = (): SidePanelElements => ({
   importSettingsBtn: byId<HTMLButtonElement>('importSettingsBtn'),
   importSettingsInput: byId<HTMLInputElement>('importSettingsInput'),
 
-  openProfilesTabFromGeneralBtn: byId<HTMLButtonElement>('openProfilesTabFromGeneralBtn'),
 
   // Relay
   relayEnabled: byId<HTMLSelectElement>('relayEnabled'),
@@ -167,5 +171,5 @@ export const getSidePanelElements = (): SidePanelElements => ({
   planChecklist: byId<HTMLOListElement>('planChecklist'),
   planStepCount: byId<HTMLElement>('planStepCount'),
   planClearBtn: byId<HTMLButtonElement>('planClearBtn'),
-  stopRunBtn: byId<HTMLButtonElement>('stopRunBtn'),
+  stopRunBtn: byId<HTMLButtonElement>('stopRunBtn'), // legacy, stop is now handled by sendBtn
 });

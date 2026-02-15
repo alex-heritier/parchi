@@ -1,9 +1,23 @@
 /* ============================================================================
-   Layout — Warm Paper Design System
+   Layout — Modern Void Design System
    ============================================================================ */
 
+/* Sidebar scrim — clickable overlay that closes the sidebar */
 .sidebar-scrim {
-  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: 70;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-normal) var(--ease-out-expo);
+  cursor: pointer;
+}
+
+body.sidebar-open .sidebar-scrim {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* Sidebar sizing: vary by active right panel for better ergonomics. */
@@ -19,22 +33,6 @@ body[data-right-panel="history"] {
   body.sidebar-open {
     --sidebar-width: 92vw;
   }
-}
-
-/* Dim the chat while the overlay is open so it reads as a modal drawer, not a squeeze. */
-body.sidebar-open::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background: radial-gradient(1200px 600px at 30% 30%, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.55));
-  opacity: 0.85;
-  z-index: 70;
-  pointer-events: none;
-  transition: opacity var(--duration-normal) var(--ease-out-expo);
-}
-
-body:not(.sidebar-open)::before {
-  opacity: 0;
 }
 
 .content-column {
@@ -157,7 +155,7 @@ body:not(.sidebar-open)::before {
 
 .mascot:hover {
   border-color: var(--accent);
-  box-shadow: 0 0 12px hsla(35, 45%, 55%, 0.25);
+  box-shadow: 0 0 12px rgb(var(--accent-rgb) / 0.25);
   transform: scale(1.05);
 }
 
@@ -296,15 +294,12 @@ body:not(.sidebar-open)::before {
    ============================================================================ */
 
 .mascot-corner {
-  position: fixed;
-  top: 12px;
-  left: 12px;
-  width: 36px;
-  height: 36px;
-  z-index: 1000;
-  pointer-events: none;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
   opacity: 0.7;
   transition: opacity var(--duration-fast) ease;
+  cursor: default;
 }
 
 .mascot-corner:hover {
@@ -384,7 +379,7 @@ body:not(.sidebar-open)::before {
 
 .mascot-corner.thinking .mascot-blob-body {
   border-color: var(--accent);
-  box-shadow: 0 2px 12px hsla(35, 45%, 55%, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: 0 2px 12px rgb(var(--accent-rgb) / 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .mascot-corner.thinking .mascot-eye {

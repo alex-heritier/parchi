@@ -1,17 +1,5 @@
             <main class="main-content">
 
-                <!-- Mascot — top-left companion -->
-                <div id="mascotCorner" class="mascot-corner" title="Your AI companion">
-                    <div class="mascot-blob">
-                        <div class="mascot-blob-body"></div>
-                        <div class="mascot-eyes">
-                            <div class="mascot-eye"></div>
-                            <div class="mascot-eye"></div>
-                        </div>
-                        <div class="mascot-smile"></div>
-                    </div>
-                </div>
-
                 <!-- Chat Interface -->
                 <div id="chatInterface" class="chat-area">
                     <!-- Agent Nav (when subagents active) -->
@@ -77,30 +65,16 @@
                             ></textarea>
                             <div class="composer-toolbar">
                                 <div class="composer-toolbar-left">
-                                    <button id="stopRunBtn" class="icon-btn stop-run-btn" title="Stop &amp; reset">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                                        </svg>
-                                    </button>
-                                    <button
-                                        id="openSidebarBtn"
-                                        class="icon-btn"
-                                        title="Open menu"
-                                    >
-                                        <svg
-                                            width="16"
-                                            height="16"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="2"
-                                        >
-                                            <line x1="3" y1="12" x2="21" y2="12" />
-                                            <line x1="3" y1="6" x2="21" y2="6" />
-                                            <line x1="3" y1="18" x2="21" y2="18" />
-                                        </svg>
-                                    </button>
+                                    <div id="mascotCorner" class="mascot-corner" title="Your AI companion">
+                                        <div class="mascot-blob">
+                                            <div class="mascot-blob-body"></div>
+                                            <div class="mascot-eyes">
+                                                <div class="mascot-eye"></div>
+                                                <div class="mascot-eye"></div>
+                                            </div>
+                                            <div class="mascot-smile"></div>
+                                        </div>
+                                    </div>
                                     <div id="statusBar" class="composer-status">
                                         <span id="statusDot" class="status-dot"></span>
                                         <span id="statusText">Ready</span>
@@ -114,12 +88,12 @@
                                         title="Attach file"
                                     >
                                         <svg
-                                            width="16"
-                                            height="16"
+                                            width="15"
+                                            height="15"
                                             viewBox="0 0 24 24"
                                             fill="none"
                                             stroke="currentColor"
-                                            stroke-width="2"
+                                            stroke-width="1.75"
                                         >
                                             <path
                                                 d="M21.44 11.05 12.36 20.12a5 5 0 0 1-7.07-7.07l8.49-8.49a3 3 0 0 1 4.24 4.24L9.76 17.12a1 1 0 0 1-1.41-1.41l7.07-7.07"
@@ -139,12 +113,12 @@
                                         title="Select tabs"
                                     >
                                         <svg
-                                            width="16"
-                                            height="16"
+                                            width="15"
+                                            height="15"
                                             viewBox="0 0 24 24"
                                             fill="none"
                                             stroke="currentColor"
-                                            stroke-width="2"
+                                            stroke-width="1.75"
                                         >
                                             <rect
                                                 x="3"
@@ -205,6 +179,23 @@
                                             A+
                                         </button>
                                     </div>
+                                    <button
+                                        id="openSidebarBtn"
+                                        class="icon-btn"
+                                        title="Settings"
+                                    >
+                                        <svg
+                                            width="15"
+                                            height="15"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="1.75"
+                                        >
+                                            <circle cx="12" cy="12" r="3" />
+                                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                                        </svg>
+                                    </button>
                                     <div class="model-selector" title="Switch profile">
                                         <select id="modelSelect">
                                             <option value="">
@@ -228,23 +219,12 @@
                                         class="send-btn"
                                         title="Send"
                                     >
-                                        <svg
-                                            width="16"
-                                            height="16"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="2.5"
-                                        >
-                                            <line
-                                                x1="22"
-                                                y1="2"
-                                                x2="11"
-                                                y2="13"
-                                            />
-                                            <polygon
-                                                points="22 2 15 22 11 13 2 9 22 2"
-                                            />
+                                        <svg class="send-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                            <line x1="12" y1="19" x2="12" y2="5"/>
+                                            <polyline points="5 12 12 5 19 12"/>
+                                        </svg>
+                                        <svg class="stop-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                                            <rect x="4" y="4" width="16" height="16" rx="2" />
                                         </svg>
                                     </button>
                                 </div>

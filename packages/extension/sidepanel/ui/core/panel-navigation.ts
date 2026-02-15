@@ -1,7 +1,7 @@
 import type { SidePanelElements } from './panel-elements.js';
 
 export type RightPanelName = 'history' | 'settings' | null;
-export type NavName = 'chat' | 'history' | 'settings';
+export type NavName = 'history' | 'settings';
 
 const PANEL_SELECTOR = '.right-panel-content';
 
@@ -32,14 +32,10 @@ export const showRightPanel = (elements: SidePanelElements, panelName: RightPane
 };
 
 export const updateNavActive = (elements: SidePanelElements, navName: NavName) => {
-  elements.navChatBtn?.classList.remove('active');
   elements.navHistoryBtn?.classList.remove('active');
   elements.navSettingsBtn?.classList.remove('active');
 
   switch (navName) {
-    case 'chat':
-      elements.navChatBtn?.classList.add('active');
-      break;
     case 'history':
       elements.navHistoryBtn?.classList.add('active');
       break;
@@ -52,7 +48,6 @@ export const updateNavActive = (elements: SidePanelElements, navName: NavName) =
 type NavigationHandlers = {
   onOpen: () => void;
   onClose: () => void;
-  onChat: () => void;
   onHistory: () => void;
   onSettings: () => void;
 };
@@ -73,7 +68,9 @@ export const bindSidebarNavigation = (elements: SidePanelElements, handlers: Nav
 
   elements.closeSidebarBtn?.addEventListener('click', handlers.onClose);
 
-  elements.navChatBtn?.addEventListener('click', handlers.onChat);
+  // Scrim click closes sidebar
+  elements.sidebarScrim?.addEventListener('click', handlers.onClose);
+
   elements.navHistoryBtn?.addEventListener('click', handlers.onHistory);
   elements.navSettingsBtn?.addEventListener('click', handlers.onSettings);
 };

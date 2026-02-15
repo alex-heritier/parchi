@@ -1,19 +1,10 @@
-<!-- Active Profile Card - Always visible, most important -->
-<div class="settings-quick-setup">
-    <div class="setup-header">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-            <path d="M2 17l10 5 10-5"/>
-            <path d="M2 12l10 5 10-5"/>
-        </svg>
-        <h3 class="setup-title">Active Profile</h3>
-    </div>
+<!-- ===== SETUP TAB ===== -->
+<div class="settings-tab-pane" data-pane="setup">
     <div class="form-group">
-        <label for="activeConfig">Profile</label>
+        <label for="activeConfig">Active Profile</label>
         <select id="activeConfig">
             <option value="default">Default</option>
         </select>
-        <small>Switch profiles here, or manage profiles in the Profiles tab.</small>
     </div>
     <div class="form-group">
         <label for="provider">Provider</label>
@@ -27,7 +18,7 @@
     <div class="form-group">
         <label for="apiKey">API Key</label>
         <input type="password" id="apiKey" placeholder="Enter your API key..." />
-        <small>Your key is stored locally and never sent to our servers.</small>
+        <small>Stored locally. Never sent to our servers.</small>
     </div>
     <div class="form-group">
         <label for="model">Model</label>
@@ -35,206 +26,159 @@
         <small id="modelHint">Recommended: claude-sonnet-4-20250514</small>
     </div>
     <div class="form-group" id="customEndpointGroup">
-        <label for="customEndpoint">API URL <span class="optional-badge">(optional)</span></label>
+        <label for="customEndpoint">API URL <span class="optional-badge">optional</span></label>
         <input type="text" id="customEndpoint" placeholder="https://openrouter.ai/api/v1" />
-        <small>Override the default API endpoint. Required for OpenRouter/custom providers.</small>
     </div>
     <div class="form-group" id="customHeadersGroup">
-        <label for="customHeaders">Extra Headers (JSON)</label>
-        <textarea id="customHeaders" rows="3" placeholder='{"HTTP-Referer":"https://your.app","X-Title":"Parchi"}'></textarea>
-        <small>Optional. JSON object merged into request headers.</small>
+        <label for="customHeaders">Extra Headers <span class="optional-badge">JSON</span></label>
+        <textarea id="customHeaders" rows="2" placeholder='{"HTTP-Referer":"https://your.app"}'></textarea>
     </div>
-    <button id="saveSettingsBtn" class="btn btn-primary" style="width: 100%; margin-top: 8px;">
+    <button id="saveSettingsBtn" class="btn btn-primary" style="width: 100%; margin-top: 4px;">
         Save Settings
-    </button>
-    <button id="openProfilesTabFromGeneralBtn" class="btn btn-secondary" style="width: 100%; margin-top: 6px;">
-        Manage Profiles
     </button>
 </div>
 
-<!-- Relay (local daemon + CLI) -->
-<details class="settings-section" open>
-    <summary>Relay</summary>
-    <div class="settings-body">
-        <div class="form-group">
-            <label for="relayEnabled">Enable Relay</label>
-            <select id="relayEnabled">
-                <option value="false">Disabled</option>
-                <option value="true">Enabled</option>
-            </select>
-            <small>When enabled, this extension connects to a local relay daemon over WebSocket.</small>
-        </div>
-        <div class="form-group">
-            <label for="relayUrl">Relay URL</label>
-            <input type="text" id="relayUrl" placeholder="http://127.0.0.1:17373" />
-            <small>Base URL for the relay daemon. WebSocket will use the same host/port.</small>
-        </div>
-        <div class="form-group">
-            <label for="relayToken">Relay Token</label>
-            <input type="password" id="relayToken" placeholder="PARCHI_RELAY_TOKEN" />
-            <small>Shared secret used by both the daemon and the extension.</small>
-        </div>
-        <div class="form-group">
-            <label>Connection</label>
-            <div class="relay-status-row">
-                <span id="relayConnectedBadge" class="status-pill">Disconnected</span>
-                <span id="relayLastErrorText" class="relay-last-error"></span>
-            </div>
-            <small>Start the daemon, then Apply. The extension will reconnect automatically.</small>
-        </div>
-        <button id="saveRelayBtn" class="btn btn-primary" style="width: 100%; margin-top: 4px;">
-            Apply Relay Settings
-        </button>
-        <button id="copyRelayEnvBtn" class="btn btn-secondary" style="width: 100%; margin-top: 6px;">
-            Copy Relay Env Vars
-        </button>
+<!-- ===== MODEL TAB ===== -->
+<div class="settings-tab-pane" data-pane="model">
+    <div class="form-group">
+        <label for="temperature">Temperature <span class="form-value" id="temperatureValue">0.7</span></label>
+        <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7" />
+        <small>Lower = focused, Higher = creative</small>
     </div>
-</details>
+    <div class="form-group">
+        <label for="maxTokens">Max Output Tokens</label>
+        <input type="number" id="maxTokens" value="4096" min="256" max="32000" />
+    </div>
+    <div class="form-group">
+        <label for="contextLimit">Context Limit</label>
+        <input type="number" id="contextLimit" value="200000" min="4000" max="2000000" />
+    </div>
+    <div class="settings-divider"></div>
+    <div class="form-group">
+        <label for="streamResponses">Stream Responses</label>
+        <select id="streamResponses">
+            <option value="true">Enabled</option>
+            <option value="false">Disabled</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="showThinking">Show Reasoning</label>
+        <select id="showThinking">
+            <option value="true">Show</option>
+            <option value="false">Hide</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="saveHistory">Save History</label>
+        <select id="saveHistory">
+            <option value="true">Enabled</option>
+            <option value="false">Disabled</option>
+        </select>
+    </div>
+    <div class="settings-divider"></div>
+    <div class="form-group">
+        <label for="uiZoom">Text Size <span class="form-value" id="uiZoomValue">100%</span></label>
+        <input type="range" id="uiZoom" min="0.85" max="1.25" step="0.05" value="1" />
+    </div>
+</div>
 
-<!-- Model Parameters -->
-<details class="settings-section">
-    <summary>Model Parameters</summary>
-    <div class="settings-body">
-        <div class="form-group">
-            <label for="temperature">Temperature: <span id="temperatureValue">0.7</span></label>
-            <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7" />
-            <small>Lower = more focused, Higher = more creative</small>
-        </div>
-        <div class="form-group">
-            <label for="maxTokens">Max Output Tokens</label>
-            <input type="number" id="maxTokens" value="4096" min="256" max="32000" />
-        </div>
-        <div class="form-group">
-            <label for="contextLimit">Context Limit</label>
-            <input type="number" id="contextLimit" value="200000" min="4000" max="2000000" />
-        </div>
+<!-- ===== BROWSER TAB ===== -->
+<div class="settings-tab-pane" data-pane="browser">
+    <div class="form-group">
+        <label for="enableScreenshots">Screenshots</label>
+        <select id="enableScreenshots">
+            <option value="true">Enabled</option>
+            <option value="false">Disabled</option>
+        </select>
     </div>
-</details>
+    <div class="form-group">
+        <label for="sendScreenshotsAsImages">Send Screenshots as</label>
+        <select id="sendScreenshotsAsImages">
+            <option value="true">Images (vision models)</option>
+            <option value="false">Text description</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="allowedDomains">Allowed Domains</label>
+        <input type="text" id="allowedDomains" placeholder="Leave empty for all domains" />
+        <small>Comma-separated, e.g.: google.com, github.com</small>
+    </div>
+    <div class="settings-divider"></div>
+    <div class="form-group">
+        <label for="visionProfile">Vision Profile</label>
+        <select id="visionProfile">
+            <option value="">Same as main</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="visionBridge">Vision Bridge</label>
+        <select id="visionBridge">
+            <option value="true">Enabled</option>
+            <option value="false">Disabled</option>
+        </select>
+        <small>Describe screenshots for non-vision models</small>
+    </div>
+</div>
 
-<!-- Browser Settings -->
-<details class="settings-section">
-    <summary>Browser Controls</summary>
-    <div class="settings-body">
-        <div class="form-group">
-            <label for="enableScreenshots">Screenshots</label>
-            <select id="enableScreenshots">
-                <option value="true">Enabled</option>
-                <option value="false">Disabled</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="sendScreenshotsAsImages">Send Screenshots as Images</label>
-            <select id="sendScreenshotsAsImages">
-                <option value="true">Yes (for vision models)</option>
-                <option value="false">No (text description only)</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="allowedDomains">Allowed Domains</label>
-            <input type="text" id="allowedDomains" placeholder="Leave empty for all domains" />
-            <small>Comma-separated list, e.g.: google.com, github.com</small>
+<!-- ===== NETWORK TAB ===== -->
+<div class="settings-tab-pane" data-pane="network">
+    <div class="settings-section-label">Relay</div>
+    <div class="form-group">
+        <label for="relayEnabled">Enable Relay</label>
+        <select id="relayEnabled">
+            <option value="false">Disabled</option>
+            <option value="true">Enabled</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="relayUrl">Relay URL</label>
+        <input type="text" id="relayUrl" placeholder="http://127.0.0.1:17373" />
+    </div>
+    <div class="form-group">
+        <label for="relayToken">Relay Token</label>
+        <input type="password" id="relayToken" placeholder="PARCHI_RELAY_TOKEN" />
+    </div>
+    <div class="form-group">
+        <label>Connection</label>
+        <div class="relay-status-row">
+            <span id="relayConnectedBadge" class="status-pill">Disconnected</span>
+            <span id="relayLastErrorText" class="relay-last-error"></span>
         </div>
     </div>
-</details>
+    <div class="form-row">
+        <button id="saveRelayBtn" class="btn btn-primary" style="flex: 1;">Apply</button>
+        <button id="copyRelayEnvBtn" class="btn btn-secondary" style="flex: 1;">Copy Env Vars</button>
+    </div>
 
-<!-- Appearance -->
-<details class="settings-section">
-    <summary>Appearance</summary>
-    <div class="settings-body">
-        <div class="form-group">
-            <label for="uiZoom">Text Size: <span id="uiZoomValue">100%</span></label>
-            <input type="range" id="uiZoom" min="0.85" max="1.25" step="0.05" value="1" />
-            <small>Adjusts UI scale for readability.</small>
-        </div>
+    <div class="settings-divider"></div>
+    <div class="settings-section-label">Orchestrator</div>
+    <div class="form-group">
+        <label for="orchestratorToggle">Orchestrator Mode</label>
+        <select id="orchestratorToggle">
+            <option value="false">Disabled</option>
+            <option value="true">Enabled</option>
+        </select>
     </div>
-</details>
+    <div class="form-group">
+        <label for="orchestratorProfile">Orchestrator Profile</label>
+        <select id="orchestratorProfile">
+            <option value="">Same as main</option>
+        </select>
+    </div>
 
-<!-- Response Settings -->
-<details class="settings-section">
-    <summary>Response Settings</summary>
-    <div class="settings-body">
-        <div class="form-group">
-            <label for="streamResponses">Stream Responses</label>
-            <select id="streamResponses">
-                <option value="true">Enabled</option>
-                <option value="false">Disabled</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="showThinking">Show Reasoning</label>
-            <select id="showThinking">
-                <option value="true">Show</option>
-                <option value="false">Hide</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="saveHistory">Save History</label>
-            <select id="saveHistory">
-                <option value="true">Enabled</option>
-                <option value="false">Disabled</option>
-            </select>
-        </div>
+    <div class="settings-divider"></div>
+    <div class="settings-section-label">System Prompt</div>
+    <div class="form-group">
+        <textarea id="systemPrompt" rows="5" placeholder="Leave empty for default..."></textarea>
+        <small>Override the default system prompt</small>
     </div>
-</details>
 
-<!-- Advanced Settings -->
-<details class="settings-section">
-    <summary>Advanced</summary>
-    <div class="settings-body">
-        <div class="form-group">
-            <label for="orchestratorToggle">Orchestrator Mode</label>
-            <select id="orchestratorToggle">
-                <option value="false">Disabled</option>
-                <option value="true">Enabled</option>
-            </select>
-            <small>Use a separate model for orchestration</small>
-        </div>
-        <div class="form-group">
-            <label for="orchestratorProfile">Orchestrator Profile</label>
-            <select id="orchestratorProfile">
-                <option value="">Same as main</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="visionProfile">Vision Profile</label>
-            <select id="visionProfile">
-                <option value="">Same as main</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="visionBridge">Vision Bridge</label>
-            <select id="visionBridge">
-                <option value="true">Enabled</option>
-                <option value="false">Disabled</option>
-            </select>
-            <small>Describe screenshots for non-vision models</small>
-        </div>
+    <div class="settings-divider"></div>
+    <div class="settings-section-label">Import / Export</div>
+    <div class="form-row">
+        <button id="exportSettingsBtn" class="btn btn-secondary" style="flex: 1;">Export</button>
+        <button id="importSettingsBtn" class="btn btn-secondary" style="flex: 1;">Import</button>
+        <input id="importSettingsInput" type="file" accept="application/json" style="display: none;" />
     </div>
-</details>
-
-<details class="settings-section">
-    <summary>Export / Import</summary>
-    <div class="settings-body">
-        <div class="form-group">
-            <label>Settings JSON</label>
-            <div class="config-row">
-                <button id="exportSettingsBtn" class="btn btn-secondary">Export</button>
-                <button id="importSettingsBtn" class="btn btn-secondary">Import</button>
-                <input id="importSettingsInput" type="file" accept="application/json" style="display: none;" />
-            </div>
-            <small>Export all profiles to JSON. Import overwrites current settings.</small>
-        </div>
-    </div>
-</details>
-
-<!-- System Prompt -->
-<details class="settings-section">
-    <summary>System Prompt</summary>
-    <div class="settings-body">
-        <div class="form-group">
-            <label for="systemPrompt">Custom System Prompt</label>
-            <textarea id="systemPrompt" rows="6" placeholder="Leave empty for default..."></textarea>
-            <small>Override the default system prompt (advanced)</small>
-        </div>
-    </div>
-</details>
+    <small>Export all profiles to JSON. Import overwrites current settings.</small>
+</div>

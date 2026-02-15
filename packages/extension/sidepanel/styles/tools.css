@@ -1,10 +1,10 @@
 /* ============================================================================
-   Tools & Plan Drawer — Warm Paper Design System
+   Tools & Plan Drawer — Modern Void Design System
    ============================================================================ */
 
 /* Plan Drawer — Editorial Waypoint Style */
 .plan-drawer {
-  background: hsl(30, 6%, 9%);
+  background: var(--card);
   border: 1px solid var(--ink-2);
   border-bottom: none;
   border-radius: 12px 12px 0 0;
@@ -51,7 +51,7 @@
   padding: 8px 12px;
   background: transparent;
   border: none;
-  border-bottom: 1px solid hsla(30, 5%, 100%, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   cursor: pointer;
   color: var(--foreground);
   text-align: left;
@@ -59,7 +59,7 @@
 }
 
 .plan-drawer-header:hover {
-  background: linear-gradient(90deg, hsla(30, 5%, 100%, 0.02), transparent);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.02), transparent);
 }
 
 .plan-drawer-title {
@@ -152,7 +152,7 @@
   top: 6px;
   bottom: 6px;
   width: 1px;
-  background: hsla(30, 5%, 100%, 0.06);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .plan-checklist-item {
@@ -314,7 +314,7 @@
   gap: 6px;
   padding: 4px 10px;
   border-radius: 8px;
-  background: hsla(30, 5%, 100%, 0.02);
+  background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--ink-1);
   font-size: 12px;
   line-height: 1.25;
@@ -393,7 +393,7 @@
   padding: 1px 6px;
   border-radius: 999px;
   border: 1px solid var(--ink-1);
-  background: hsla(30, 5%, 100%, 0.02);
+  background: rgba(255, 255, 255, 0.02);
   flex-shrink: 0;
 }
 

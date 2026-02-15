@@ -40,7 +40,21 @@ export const loadPanelLayout = async () => {
   const rightPanels = appContainer.querySelector('#rightPanelPanels') as HTMLElement | null;
   rightPanels?.insertAdjacentHTML('beforeend', (historyPanel + settingsPanel).trim());
 
-  injectInnerHtml(appContainer, '#settingsTabGeneral', settingsGeneral);
+  // Parse the combined settings-general template and distribute panes into their tab containers.
+  const tmp = document.createElement('div');
+  tmp.innerHTML = settingsGeneral.trim();
+  const panes = tmp.querySelectorAll('.settings-tab-pane[data-pane]');
+  for (const pane of Array.from(panes)) {
+    const paneName = (pane as HTMLElement).dataset.pane;
+    if (!paneName) continue;
+    // Map pane name → tab container id (e.g. "setup" → "#settingsTabSetup")
+    const containerId = `#settingsTab${paneName.charAt(0).toUpperCase() + paneName.slice(1)}`;
+    const container = appContainer.querySelector(containerId) as HTMLElement | null;
+    if (container) {
+      container.innerHTML = pane.outerHTML;
+    }
+  }
+
   injectInnerHtml(appContainer, '#settingsTabProfiles', settingsProfiles);
 
   const modalRoot = document.getElementById('modalRoot');

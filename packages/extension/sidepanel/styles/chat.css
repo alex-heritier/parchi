@@ -1,5 +1,5 @@
 /* ============================================================================
-   Chat — Warm Paper Design System
+   Chat — Modern Void Design System
    ============================================================================ */
 
 .chat-area {
@@ -40,7 +40,7 @@ body.sidebar-open .new-session-fab {
   transform: scale(1.05);
   opacity: 1;
   border-color: var(--accent);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px hsla(35, 45%, 55%, 0.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgb(var(--accent-rgb) / 0.15);
 }
 
 .new-session-fab svg {
@@ -102,8 +102,8 @@ body.sidebar-open .new-session-fab {
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, hsla(35, 45%, 55%, 0.5), hsla(30, 5%, 10%, 0.35));
-  box-shadow: 0 0 40px hsla(35, 45%, 55%, 0.18), inset 0 0 30px hsla(35, 20%, 100%, 0.06);
+  background: radial-gradient(circle at 30% 30%, rgb(var(--accent-rgb) / 0.5), rgba(10, 10, 15, 0.35));
+  box-shadow: 0 0 40px rgb(var(--accent-rgb) / 0.18), inset 0 0 30px rgba(255, 255, 255, 0.06);
   animation: orbPulse 4s ease-in-out infinite, orbFloat 6s ease-in-out infinite;
 }
 
@@ -344,8 +344,8 @@ body.sidebar-open .new-session-fab {
 .message-content a {
   color: var(--accent);
   text-decoration: none;
-  border-bottom: 1px solid hsla(35, 45%, 55%, 0.4);
-  background: hsla(35, 45%, 55%, 0.12);
+  border-bottom: 1px solid rgb(var(--accent-rgb) / 0.4);
+  background: rgb(var(--accent-rgb) / 0.12);
   padding: 1px 4px;
   border-radius: 6px;
   transition: border-color 0.15s ease, background 0.15s ease;
@@ -353,7 +353,7 @@ body.sidebar-open .new-session-fab {
 
 .message-content a:hover {
   border-bottom-color: var(--accent);
-  background: hsla(35, 45%, 55%, 0.2);
+  background: rgb(var(--accent-rgb) / 0.2);
 }
 
 /* Lists */
@@ -428,7 +428,7 @@ body.sidebar-open .new-session-fab {
   font-weight: 500;
   color: var(--foreground);
   border-bottom: 1px solid var(--border);
-  background: hsla(30, 5%, 100%, 0.02);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .markdown-table tbody tr:hover td,
@@ -442,7 +442,7 @@ body.sidebar-open .new-session-fab {
 }
 
 .markdown-table tbody tr:nth-child(even) {
-  background: hsla(30, 5%, 100%, 0.015);
+  background: rgba(255, 255, 255, 0.015);
 }
 
 .markdown-table tbody tr:nth-child(even):hover {
@@ -597,8 +597,8 @@ body.sidebar-open .new-session-fab {
   padding: 6px 8px;
   border-radius: 12px;
   border: 1px solid var(--ink-1);
-  background: hsla(30, 5%, 100%, 0.02);
-  box-shadow: inset 0 1px 0 hsla(30, 5%, 100%, 0.02);
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
 .run-hud-toggle {
@@ -617,7 +617,7 @@ body.sidebar-open .new-session-fab {
 }
 
 .run-hud-toggle:hover {
-  background: hsla(30, 5%, 100%, 0.03);
+  background: rgba(255, 255, 255, 0.03);
   border-color: var(--ink-1);
 }
 
@@ -640,7 +640,7 @@ body.sidebar-open .new-session-fab {
   padding: 1px 6px;
   border-radius: 999px;
   border: 1px solid var(--ink-1);
-  background: hsla(30, 5%, 100%, 0.01);
+  background: rgba(255, 255, 255, 0.01);
   flex-shrink: 0;
 }
 
@@ -671,7 +671,7 @@ body.sidebar-open .new-session-fab {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   border: 1px solid var(--ink-2);
-  background: hsla(30, 5%, 100%, 0.02);
+  background: rgba(255, 255, 255, 0.02);
   color: var(--muted);
 }
 
@@ -838,7 +838,7 @@ body.sidebar-open .new-session-fab {
 .inline-thinking-block {
   margin: 0 0 12px 0;
   padding: 10px 12px;
-  background: linear-gradient(135deg, hsla(35, 45%, 55%, 0.06) 0%, hsla(35, 45%, 55%, 0.02) 100%);
+  background: linear-gradient(135deg, rgb(var(--accent-rgb) / 0.06) 0%, rgb(var(--accent-rgb) / 0.02) 100%);
   border-left: 2px solid var(--accent);
   border-radius: 0 8px 8px 0;
   animation: fadeInUp 0.3s var(--ease-out-expo);
@@ -877,8 +877,8 @@ body.sidebar-open .new-session-fab {
 .stream-event-reasoning {
   margin: 0 0 12px 0;
   padding: 10px 12px;
-  background: linear-gradient(135deg, hsla(35, 45%, 55%, 0.08) 0%, hsla(35, 45%, 55%, 0.02) 100%);
-  border: 1px solid hsla(35, 45%, 55%, 0.15);
+  background: linear-gradient(135deg, rgb(var(--accent-rgb) / 0.08) 0%, rgb(var(--accent-rgb) / 0.02) 100%);
+  border: 1px solid rgb(var(--accent-rgb) / 0.15);
   border-radius: 8px;
   animation: fadeInUp 0.3s var(--ease-out-expo);
 }
@@ -1072,7 +1072,7 @@ body.sidebar-open .new-session-fab {
 }
 
 .export-option:hover {
-  background: hsla(30, 5%, 100%, 0.04);
+  background: rgba(255, 255, 255, 0.04);
   border-color: var(--border);
 }
 
@@ -1128,7 +1128,7 @@ body.sidebar-open .new-session-fab {
 }
 
 .subagent-block.subagent-highlight {
-  box-shadow: 0 0 0 2px hsla(35, 45%, 55%, 0.4);
+  box-shadow: 0 0 0 2px rgb(var(--accent-rgb) / 0.4);
 }
 
 .subagent-header {
@@ -1175,7 +1175,7 @@ body.sidebar-open .new-session-fab {
   letter-spacing: 0.06em;
   padding: 2px 8px;
   border-radius: 999px;
-  background: hsla(30, 5%, 100%, 0.05);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--muted);
 }
 
@@ -1197,7 +1197,7 @@ body.sidebar-open .new-session-fab {
 .subagent-tasks {
   margin: 6px 0;
   padding: 6px 0;
-  border-top: 1px solid hsla(30, 5%, 100%, 0.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .subagent-task {
@@ -1210,7 +1210,7 @@ body.sidebar-open .new-session-fab {
 .subagent-summary {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid hsla(30, 5%, 100%, 0.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .subagent-summary-label {
@@ -1277,14 +1277,14 @@ body.sidebar-open .new-session-fab {
 }
 
 .agent-nav-item:hover {
-  background: hsla(30, 5%, 100%, 0.04);
+  background: rgba(255, 255, 255, 0.04);
   border-color: var(--accent);
   color: var(--foreground);
 }
 
 .agent-nav-item.active {
-  background: hsla(35, 45%, 55%, 0.12);
-  border-color: hsla(35, 45%, 55%, 0.4);
+  background: rgb(var(--accent-rgb) / 0.12);
+  border-color: rgb(var(--accent-rgb) / 0.4);
   color: var(--accent-light);
 }
 
