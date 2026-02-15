@@ -1,6 +1,7 @@
 import { DEFAULT_AGENT_SYSTEM_PROMPT } from '../../../../shared/src/prompts.js';
 import { PARCHI_STORAGE_KEYS } from '../../../../shared/src/settings.js';
 import { SidePanelUI } from '../core/panel-ui.js';
+import { THEMES, DEFAULT_THEME_ID, applyTheme } from './themes.js';
 
 const parseHeadersJson = (raw: string): Record<string, string> => {
   const trimmed = raw.trim();
@@ -227,6 +228,9 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   this.currentConfig = this.configs[settings.activeConfig] ? settings.activeConfig : 'default';
   this.auxAgentProfiles = settings.auxAgentProfiles || [];
   this.applyUiZoom(settings.uiZoom ?? 1, { persist: false });
+  this.currentTheme = settings.theme || DEFAULT_THEME_ID;
+  applyTheme(this.currentTheme);
+  this.renderThemeGrid?.();
 
   if (this.elements.visionBridge)
     this.elements.visionBridge.value = settings.visionBridge !== undefined ? String(settings.visionBridge) : 'true';
@@ -461,6 +465,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
       allowedDomains: this.elements.allowedDomains?.value || '',
       auxAgentProfiles: this.auxAgentProfiles,
       uiZoom: this.uiZoom ?? 1,
+      theme: this.currentTheme || DEFAULT_THEME_ID,
       relayEnabled: this.elements.relayEnabled?.value === 'true',
       relayUrl: normalizedRelayUrl,
       relayToken: this.elements.relayToken?.value || '',
@@ -483,6 +488,34 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
 
 (SidePanelUI.prototype as any).getDefaultSystemPrompt = function getDefaultSystemPrompt() {
   return DEFAULT_AGENT_SYSTEM_PROMPT;
+};
+
+(SidePanelUI.prototype as any).renderThemeGrid = function renderThemeGrid() {
+  const grid = this.elements.themeGrid;
+  if (!grid) return;
+  grid.innerHTML = '';
+  for (const theme of THEMES) {
+    const swatch = document.createElement('button');
+    swatch.className = 'theme-swatch';
+    if (theme.id === this.currentTheme) swatch.classList.add('active');
+    swatch.title = theme.name;
+    swatch.dataset.themeId = theme.id;
+    swatch.innerHTML = `
+      <span class="theme-swatch-color" style="background:${theme.preview.bg}; border-color:${theme.preview.accent}">
+        <span class="theme-swatch-accent" style="background:${theme.preview.accent}"></span>
+      </span>
+      <span class="theme-swatch-label">${theme.name}</span>
+    `;
+    swatch.addEventListener('click', () => this.setTheme(theme.id));
+    grid.appendChild(swatch);
+  }
+};
+
+(SidePanelUI.prototype as any).setTheme = function setTheme(id: string) {
+  this.currentTheme = id;
+  applyTheme(id);
+  this.renderThemeGrid();
+  chrome.storage.local.set({ theme: id }).catch(() => {});
 };
 
 (SidePanelUI.prototype as any).updateScreenshotToggleState = function updateScreenshotToggleState() {

@@ -56,7 +56,7 @@ export class SidePanelUI {
   };
   auxAgentProfiles: string[];
   currentView: 'chat' | 'history';
-  currentSettingsTab: 'general' | 'profiles';
+  currentSettingsTab: 'setup' | 'model' | 'browser' | 'network' | 'profiles';
   profileEditorTarget: string;
   subagents: Map<string, { name: string; status: string; messages: any[]; tasks?: string[] }>;
   activeAgent: string;
@@ -93,6 +93,7 @@ export class SidePanelUI {
   _deleteConfirmTarget: string | null;
   _deleteConfirmAt: number | null;
   timelineCollapsed: boolean;
+  currentTheme: string;
 
   // Methods attached via prototype in panel-modules
   declare init: () => Promise<void>;
@@ -145,7 +146,7 @@ export class SidePanelUI {
     };
     this.auxAgentProfiles = [];
     this.currentView = 'chat';
-    this.currentSettingsTab = 'general';
+    this.currentSettingsTab = 'setup';
     this.profileEditorTarget = 'default';
     this.subagents = new Map();
     this.activeAgent = 'main';
@@ -167,6 +168,7 @@ export class SidePanelUI {
     this._deleteConfirmTarget = null;
     this._deleteConfirmAt = null;
     this.timelineCollapsed = true;
+    this.currentTheme = 'void';
     void this.init();
   }
 }

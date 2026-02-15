@@ -20,13 +20,10 @@ body.sidebar-open .sidebar-scrim {
   pointer-events: auto;
 }
 
-/* Sidebar sizing: vary by active right panel for better ergonomics. */
-body[data-right-panel="settings"] {
-  --sidebar-width: clamp(320px, 80vw, 760px);
-}
-
+/* Sidebar sizing */
+body[data-right-panel="settings"],
 body[data-right-panel="history"] {
-  --sidebar-width: clamp(280px, 60vw, 620px);
+  --sidebar-width: clamp(320px, 80vw, 760px);
 }
 
 @media (max-width: 520px) {
