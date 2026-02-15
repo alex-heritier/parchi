@@ -27,7 +27,6 @@ import { SidePanelUI } from './panel-ui.js';
   bindSidebarNavigation(this.elements, {
     onOpen: () => this.openSidebar(),
     onClose: () => this.closeSidebar(),
-    onChat: () => this.openChatView(),
     onHistory: () => this.openHistoryPanel(),
     onSettings: () => this.openSettingsPanel(),
   });
@@ -67,11 +66,12 @@ import { SidePanelUI } from './panel-ui.js';
   this.elements.deleteConfigBtn?.addEventListener('click', () => this.deleteConfig());
   this.elements.activeConfig?.addEventListener('change', () => this.switchConfig());
 
-  this.elements.settingsTabGeneralBtn?.addEventListener('click', () => this.switchSettingsTab('general'));
+  this.elements.settingsTabSetupBtn?.addEventListener('click', () => this.switchSettingsTab('setup'));
+  this.elements.settingsTabModelBtn?.addEventListener('click', () => this.switchSettingsTab('model'));
+  this.elements.settingsTabBrowserBtn?.addEventListener('click', () => this.switchSettingsTab('browser'));
+  this.elements.settingsTabNetworkBtn?.addEventListener('click', () => this.switchSettingsTab('network'));
   this.elements.settingsTabProfilesBtn?.addEventListener('click', () => this.switchSettingsTab('profiles'));
-  this.elements.openProfilesTabFromGeneralBtn?.addEventListener('click', () => this.switchSettingsTab('profiles'));
   this.elements.createProfileBtn?.addEventListener('click', () => this.createProfileFromInput());
-  this.elements.openGeneralBtn?.addEventListener('click', () => this.switchSettingsTab('general'));
   this.elements.agentGrid?.addEventListener('click', (event) => {
     const pill = (event.target as HTMLElement | null)?.closest('.role-pill');
     if (pill) {
@@ -153,9 +153,27 @@ export PARCHI_RELAY_PORT="${port}"`;
   });
   this.elements.importSettingsInput?.addEventListener('change', (event) => this.importSettings(event));
 
-  // Send message
+  // Send message (or stop if running)
   this.elements.sendBtn?.addEventListener('click', () => {
-    this.sendMessage();
+    if (this.elements.composer?.classList.contains('running')) {
+      try {
+        void chrome.runtime.sendMessage({ type: 'stop_run', sessionId: this.sessionId });
+      } catch {}
+      this.stopWatchdog?.();
+      this.stopThinkingTimer?.();
+      this.stopRunTimer?.();
+      this.elements.composer?.classList.remove('running');
+      this.pendingTurnDraft = null;
+      this.pendingToolCount = 0;
+      this.isStreaming = false;
+      this.activeToolName = null;
+      this.updateActivityState();
+      this.finishStreamingMessage();
+      this.clearErrorBanner?.();
+      this.updateStatus('Stopped', 'warning');
+    } else {
+      this.sendMessage();
+    }
   });
 
   // Enter to send (Shift+Enter for newline)
@@ -207,24 +225,7 @@ export PARCHI_RELAY_PORT="${port}"`;
   this.elements.chatMessages?.addEventListener('scroll', () => this.handleChatScroll());
   this.elements.scrollToLatestBtn?.addEventListener('click', () => this.scrollToBottom({ force: true }));
 
-  // Stop/reset button
-  this.elements.stopRunBtn?.addEventListener('click', () => {
-    try {
-      void chrome.runtime.sendMessage({ type: 'stop_run', sessionId: this.sessionId });
-    } catch {}
-    this.stopWatchdog?.();
-    this.stopThinkingTimer?.();
-    this.stopRunTimer?.();
-    this.elements.composer?.classList.remove('running');
-    this.pendingTurnDraft = null;
-    this.pendingToolCount = 0;
-    this.isStreaming = false;
-    this.activeToolName = null;
-    this.updateActivityState();
-    this.finishStreamingMessage();
-    this.clearErrorBanner?.();
-    this.updateStatus('Stopped', 'warning');
-  });
+  // Stop/reset is now handled by the send button above
 
   // Profile editor controls
   this.elements.profileEditorProvider?.addEventListener('change', () => this.toggleProfileEditorEndpoint());

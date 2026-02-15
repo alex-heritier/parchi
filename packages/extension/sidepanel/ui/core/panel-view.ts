@@ -21,14 +21,13 @@ import { SidePanelUI } from './panel-ui.js';
   showRightPanelContent(this.elements, panelName);
 };
 
-(SidePanelUI.prototype as any).setNavActive = function setNavActive(navName: 'chat' | 'history' | 'settings') {
+(SidePanelUI.prototype as any).setNavActive = function setNavActive(navName: 'history' | 'settings') {
   updateNavActive(this.elements, navName);
 };
 
 (SidePanelUI.prototype as any).openChatView = function openChatView() {
-  this.showRightPanel(null);
+  this.closeSidebar();
   this.switchView('chat');
-  this.setNavActive('chat');
 };
 
 (SidePanelUI.prototype as any).openHistoryPanel = function openHistoryPanel() {
@@ -41,7 +40,7 @@ import { SidePanelUI } from './panel-ui.js';
 (SidePanelUI.prototype as any).openSettingsPanel = function openSettingsPanel() {
   this.openSidebar();
   this.showRightPanel('settings');
-  this.switchSettingsTab(this.currentSettingsTab || 'general');
+  this.switchSettingsTab(this.currentSettingsTab || 'setup');
   this.setNavActive('settings');
 };
 

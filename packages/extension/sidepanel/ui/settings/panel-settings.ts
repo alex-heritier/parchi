@@ -139,19 +139,39 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
 };
 
 (SidePanelUI.prototype as any).switchSettingsTab = function switchSettingsTab(
-  tabName: 'general' | 'profiles' = 'general',
+  tabName: 'setup' | 'model' | 'browser' | 'network' | 'profiles' = 'setup',
 ) {
-  if (this.currentSettingsTab === 'general' && tabName === 'profiles') {
+  // Persist current form state when leaving setup tab
+  if (this.currentSettingsTab === 'setup' && tabName !== 'setup') {
     this.configs[this.currentConfig] = this.collectCurrentFormProfile();
     void this.persistAllSettings({ silent: true });
   }
   this.currentSettingsTab = tabName;
-  const general = this.elements.settingsTabGeneral;
-  const profiles = this.elements.settingsTabProfiles;
-  general?.classList.toggle('hidden', tabName !== 'general');
-  profiles?.classList.toggle('hidden', tabName !== 'profiles');
-  this.elements.settingsTabGeneralBtn?.classList.toggle('active', tabName === 'general');
-  this.elements.settingsTabProfilesBtn?.classList.toggle('active', tabName === 'profiles');
+
+  const tabs = ['setup', 'model', 'browser', 'network', 'profiles'] as const;
+  const tabElements: Record<string, HTMLElement | null> = {
+    setup: this.elements.settingsTabSetup,
+    model: this.elements.settingsTabModel,
+    browser: this.elements.settingsTabBrowser,
+    network: this.elements.settingsTabNetwork,
+    profiles: this.elements.settingsTabProfiles,
+  };
+  const btnElements: Record<string, HTMLElement | null> = {
+    setup: this.elements.settingsTabSetupBtn,
+    model: this.elements.settingsTabModelBtn,
+    browser: this.elements.settingsTabBrowserBtn,
+    network: this.elements.settingsTabNetworkBtn,
+    profiles: this.elements.settingsTabProfilesBtn,
+  };
+
+  for (const tab of tabs) {
+    const isActive = tab === tabName;
+    tabElements[tab]?.classList.toggle('hidden', !isActive);
+    btnElements[tab]?.classList.toggle('active', isActive);
+    // Activate the pane inside the tab container
+    const pane = tabElements[tab]?.querySelector('.settings-tab-pane') as HTMLElement | null;
+    pane?.classList.toggle('active', isActive);
+  }
 };
 
 (SidePanelUI.prototype as any).createProfileFromInput = function createProfileFromInput() {
