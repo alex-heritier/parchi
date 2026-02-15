@@ -70,25 +70,29 @@ const formatHeadersJson = (headers: Record<string, any> | undefined) => {
     this.updateStatus('Cannot delete default profile', 'warning');
     return;
   }
+  await this.deleteProfileByName(this.currentConfig);
+};
 
-  const now = Date.now();
-  if (this._deleteConfirmTarget === this.currentConfig && this._deleteConfirmAt && now - this._deleteConfirmAt < 3000) {
-    // Second click within 3s — actually delete
-    this._deleteConfirmTarget = null;
-    this._deleteConfirmAt = null;
-    delete this.configs[this.currentConfig];
-    this.currentConfig = 'default';
-    this.refreshConfigDropdown();
-    this.updateModelDisplay();
-    this.setActiveConfig(this.currentConfig, true);
-    await this.persistAllSettings({ silent: true });
-    this.updateStatus('Profile deleted', 'success');
-  } else {
-    // First click — mark for confirmation
-    this._deleteConfirmTarget = this.currentConfig;
-    this._deleteConfirmAt = now;
-    this.updateStatus(`Click delete again to confirm removing "${this.currentConfig}"`, 'warning');
+(SidePanelUI.prototype as any).deleteProfileByName = async function deleteProfileByName(name: string) {
+  if (!name || name === 'default') {
+    this.updateStatus('Cannot delete default profile', 'warning');
+    return;
   }
+  if (!this.configs[name]) return;
+
+  delete this.configs[name];
+  if (this.currentConfig === name) {
+    this.currentConfig = 'default';
+  }
+  if (this.profileEditorTarget === name) {
+    this.profileEditorTarget = this.currentConfig;
+    this.editProfile(this.currentConfig, true);
+  }
+  this.refreshConfigDropdown();
+  this.updateModelDisplay();
+  this.setActiveConfig(this.currentConfig, true);
+  await this.persistAllSettings({ silent: true });
+  this.updateStatus(`Profile "${name}" deleted`, 'success');
 };
 
 (SidePanelUI.prototype as any).switchConfig = async function switchConfig() {
@@ -167,10 +171,16 @@ const formatHeadersJson = (headers: Record<string, any> | undefined) => {
       })
       .join('');
     const config = this.configs[name] || {};
+    const deleteBtn = name !== 'default'
+      ? `<button class="agent-card-delete" data-delete-profile="${this.escapeHtml(name)}" title="Delete profile">&times;</button>`
+      : '';
     card.innerHTML = `
-        <div>
-          <h4>${this.escapeHtml(name)}</h4>
-          <span>${this.escapeHtml(config.provider || 'Provider')} · ${this.escapeHtml(config.model || 'Model')}</span>
+        <div class="agent-card-header">
+          <div>
+            <h4>${this.escapeHtml(name)}</h4>
+            <span>${this.escapeHtml(config.provider || 'Provider')} · ${this.escapeHtml(config.model || 'Model')}</span>
+          </div>
+          ${deleteBtn}
         </div>
         <div class="role-pills">${rolePills}</div>
       `;
@@ -329,15 +339,57 @@ const formatHeadersJson = (headers: Record<string, any> | undefined) => {
     this.updateStatus('Invalid headers JSON', 'error');
     return;
   }
-  const existing = this.configs[target] || {};
-  this.configs[target] = { ...existing, ...this.collectProfileEditorData() };
-  await this.persistAllSettings({ silent: true });
-  if (target === this.currentConfig) {
-    this.populateFormFromConfig(this.configs[target]);
-    this.toggleCustomEndpoint();
+
+  const newName = (this.elements.profileEditorName?.value || '').trim();
+  const isRename = newName && newName !== target;
+
+  if (isRename) {
+    if (!newName) {
+      this.updateStatus('Profile name cannot be empty', 'warning');
+      return;
+    }
+    if (this.configs[newName]) {
+      this.updateStatus(`Profile "${newName}" already exists`, 'warning');
+      return;
+    }
+    if (target === 'default') {
+      this.updateStatus('Cannot rename the default profile', 'warning');
+      return;
+    }
   }
-  this.renderProfileGrid();
-  this.updateStatus(`Profile "${target}" saved`, 'success');
+
+  const existing = this.configs[target] || {};
+  const updated = { ...existing, ...this.collectProfileEditorData() };
+
+  if (isRename) {
+    // Move config to new key
+    this.configs[newName] = updated;
+    delete this.configs[target];
+
+    // Update references
+    if (this.currentConfig === target) this.currentConfig = newName;
+    this.profileEditorTarget = newName;
+
+    // Update role selectors if they referenced the old name
+    if (this.elements.visionProfile?.value === target) this.elements.visionProfile.value = newName;
+    if (this.elements.orchestratorProfile?.value === target) this.elements.orchestratorProfile.value = newName;
+    const auxIdx = this.auxAgentProfiles.indexOf(target);
+    if (auxIdx !== -1) this.auxAgentProfiles[auxIdx] = newName;
+
+    if (this.elements.profileEditorTitle) this.elements.profileEditorTitle.textContent = `Editing: ${newName}`;
+    this.refreshConfigDropdown();
+    await this.persistAllSettings({ silent: true });
+    this.updateStatus(`Profile renamed to "${newName}"`, 'success');
+  } else {
+    this.configs[target] = updated;
+    await this.persistAllSettings({ silent: true });
+    if (target === this.currentConfig) {
+      this.populateFormFromConfig(this.configs[target]);
+      this.toggleCustomEndpoint();
+    }
+    this.renderProfileGrid();
+    this.updateStatus(`Profile "${target}" saved`, 'success');
+  }
 };
 
 (SidePanelUI.prototype as any).populateFormFromConfig = function populateFormFromConfig(

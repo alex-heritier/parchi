@@ -269,10 +269,10 @@ const sanitizeForMessaging = (value: any, depth = 0): any => {
         thinkingBlock.className = 'thinking-block collapsed';
         thinkingBlock.innerHTML = `
             <button class="thinking-header" type="button" aria-expanded="false">
-              <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
-              Thinking
+              Thought process
             </button>
             <div class="thinking-content">${this.escapeHtml(cleanedThinking)}</div>
           `;
@@ -299,14 +299,39 @@ const sanitizeForMessaging = (value: any, depth = 0): any => {
       }
     }
 
-    if (content && content.trim() !== '' && streamEventsEl) {
-      let textEvent = streamEventsEl.querySelector('.stream-event-text') as HTMLElement | null;
-      if (!textEvent) {
-        textEvent = document.createElement('div');
+    // Clean up ALL streamed text blocks (they may contain raw <think> tags)
+    if (streamEventsEl) {
+      const textEvents = streamedContainer.querySelectorAll('.stream-event-text');
+      Array.from(textEvents).forEach((el) => (el as Element).remove());
+      // Add a single clean text block with the final content
+      if (content && content.trim() !== '') {
+        const textEvent = document.createElement('div');
         textEvent.className = 'stream-event stream-event-text';
+        textEvent.innerHTML = this.renderMarkdown(content);
         streamEventsEl.appendChild(textEvent);
       }
-      textEvent.innerHTML = this.renderMarkdown(content);
+
+      // Collapse tool rows by default with a summary toggle
+      const toolRows = streamEventsEl.querySelectorAll('.tool-row');
+      if (toolRows.length > 0) {
+        const errorCount = streamEventsEl.querySelectorAll('.tool-row.error').length;
+        const label = `${toolRows.length} tool call${toolRows.length !== 1 ? 's' : ''}${errorCount > 0 ? ` · ${errorCount} error${errorCount !== 1 ? 's' : ''}` : ''}`;
+        const toggle = document.createElement('button');
+        toggle.className = 'tool-group-toggle';
+        toggle.type = 'button';
+        toggle.innerHTML = `
+          <svg class="tool-group-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+          <span>${label}</span>
+        `;
+        toggle.addEventListener('click', () => {
+          streamEventsEl.classList.toggle('tools-collapsed');
+        });
+        // Insert before the first tool row
+        toolRows[0].insertAdjacentElement('beforebegin', toggle);
+        streamEventsEl.classList.add('tools-collapsed');
+      }
     }
 
     this.scrollToBottom();
@@ -334,10 +359,10 @@ const sanitizeForMessaging = (value: any, depth = 0): any => {
     html += `
         <div class="thinking-block collapsed">
           <button class="thinking-header" type="button" aria-expanded="false">
-            <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
-            Thinking
+            Thought process
           </button>
           <div class="thinking-content">${this.escapeHtml(cleanedThinking)}</div>
         </div>

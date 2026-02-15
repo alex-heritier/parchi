@@ -9,7 +9,6 @@ import { SidePanelUI } from './panel-ui.js';
     this.setupEventListeners();
     this.setupPlanDrawer();
     this.setupResizeObserver();
-    // Start with sidebar closed by default
     setSidebarOpen(this.elements, false);
     await this.loadSettings();
     await this.loadHistoryList();
@@ -25,14 +24,10 @@ import { SidePanelUI } from './panel-ui.js';
 
 (SidePanelUI.prototype as any).setupEventListeners = function setupEventListeners() {
   bindSidebarNavigation(this.elements, {
-    onOpen: () => this.openSidebar(),
+    onOpen: () => this.openSettingsPanel(),
     onClose: () => this.closeSidebar(),
     onHistory: () => this.openHistoryPanel(),
     onSettings: () => this.openSettingsPanel(),
-  });
-
-  this.elements.settingsBtn?.addEventListener('click', () => {
-    this.openSettingsPanel();
   });
 
   this.elements.startNewSessionBtn?.addEventListener('click', () => this.startNewSession());
@@ -73,6 +68,13 @@ import { SidePanelUI } from './panel-ui.js';
   this.elements.settingsTabProfilesBtn?.addEventListener('click', () => this.switchSettingsTab('profiles'));
   this.elements.createProfileBtn?.addEventListener('click', () => this.createProfileFromInput());
   this.elements.agentGrid?.addEventListener('click', (event) => {
+    const deleteBtn = (event.target as HTMLElement | null)?.closest('.agent-card-delete') as HTMLElement | null;
+    if (deleteBtn) {
+      event.stopPropagation();
+      const profileName = deleteBtn.dataset.deleteProfile;
+      if (profileName) this.deleteProfileByName(profileName);
+      return;
+    }
     const pill = (event.target as HTMLElement | null)?.closest('.role-pill');
     if (pill) {
       const role = (pill as HTMLElement).dataset.role;

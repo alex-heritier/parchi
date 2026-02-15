@@ -141,6 +141,7 @@ export const getSidePanelElements = (): SidePanelElements => ({
   // Form elements - Appearance
   uiZoom: byId<HTMLInputElement>('uiZoom'),
   uiZoomValue: byId<HTMLElement>('uiZoomValue'),
+  themeGrid: byId<HTMLElement>('themeGrid'),
 
   // Settings actions
   saveSettingsBtn: byId<HTMLButtonElement>('saveSettingsBtn'),

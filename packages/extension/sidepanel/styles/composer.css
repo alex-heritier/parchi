@@ -359,10 +359,7 @@
   }
 }
 
-/* Export button — hidden from toolbar, accessible via sidebar menu */
-.composer .export-btn {
-  display: none;
-}
+/* Export button */
 
 /* Narrow sidepanel adjustments */
 @media (max-width: 520px) {
