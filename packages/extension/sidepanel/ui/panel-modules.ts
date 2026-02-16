@@ -13,6 +13,8 @@ import './settings/panel-settings.js';
 import './status/panel-status.js';
 import './chat/panel-streaming.js';
 import './tabs/panel-tabs.js';
+import './tabs/panel-session-tabs.js';
 import './chat/panel-tools.js';
+import './chat/panel-workflows.js';
 import './status/panel-usage.js';
 import './core/panel-view.js';

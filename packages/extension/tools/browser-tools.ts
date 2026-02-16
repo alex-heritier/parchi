@@ -25,7 +25,7 @@ type ActionOverlayPayload = {
 const MAX_SESSION_TABS = 5;
 
 const DEFAULT_SESSION_GROUP: Required<GroupOptions> = {
-  title: 'Session',
+  title: 'Parchi',
   color: 'blue',
 };
 
@@ -281,6 +281,15 @@ export class BrowserTools {
     return this.currentSessionTabId;
   }
 
+  getSessionState() {
+    return {
+      tabs: this.getSessionTabSummaries(),
+      activeTabId: this.currentSessionTabId,
+      maxTabs: MAX_SESSION_TABS,
+      groupTitle: this.getGroupTitle(DEFAULT_SESSION_GROUP),
+    };
+  }
+
   async configureSessionTabs(tabs: chrome.tabs.Tab[], options: GroupOptions = {}) {
     this.sessionTabs.clear();
     this.currentSessionTabId = null;
@@ -302,24 +311,33 @@ export class BrowserTools {
     }
   }
 
+  private getGroupTitle(options: GroupOptions): string {
+    const base = options.title || DEFAULT_SESSION_GROUP.title;
+    const count = this.sessionTabs.size;
+    return count > 0 ? `${base} · ${count}/${MAX_SESSION_TABS}` : base;
+  }
+
   async ensureSessionTabGroup(options: GroupOptions = DEFAULT_SESSION_GROUP) {
     if (!this.supportsTabGroups) return;
     const sessionTabIds = Array.from(this.sessionTabs.keys());
     if (sessionTabIds.length === 0) return;
 
+    const title = this.getGroupTitle(options);
+    const color = options.color || DEFAULT_SESSION_GROUP.color;
+
     try {
       if (this.sessionTabGroupId !== null) {
         await chrome.tabs.group({ groupId: this.sessionTabGroupId, tabIds: sessionTabIds });
         await chrome.tabGroups.update(this.sessionTabGroupId, {
-          title: options.title || DEFAULT_SESSION_GROUP.title,
-          color: options.color || DEFAULT_SESSION_GROUP.color,
+          title,
+          color,
           collapsed: false,
         });
       } else {
         const groupId = await chrome.tabs.group({ tabIds: sessionTabIds });
         await chrome.tabGroups.update(groupId, {
-          title: options.title || DEFAULT_SESSION_GROUP.title,
-          color: options.color || DEFAULT_SESSION_GROUP.color,
+          title,
+          color,
           collapsed: false,
         });
         this.sessionTabGroupId = groupId;
@@ -327,6 +345,15 @@ export class BrowserTools {
     } catch (error) {
       console.warn('Failed to group tabs:', error);
     }
+  }
+
+  private async updateGroupTitle() {
+    if (!this.supportsTabGroups || this.sessionTabGroupId === null) return;
+    try {
+      await chrome.tabGroups.update(this.sessionTabGroupId, {
+        title: this.getGroupTitle(DEFAULT_SESSION_GROUP),
+      });
+    } catch {}
   }
 
   async executeTool(toolName: string, args: Record<string, any> = {}) {
@@ -365,11 +392,12 @@ export class BrowserTools {
           return {
             success: true,
             tabs: this.getSessionTabSummaries(),
+            activeTabId: this.currentSessionTabId,
             tabCount: this.sessionTabs.size,
             maxTabs: MAX_SESSION_TABS,
             canOpenMore: this.sessionTabs.size < MAX_SESSION_TABS,
             groupId: this.sessionTabGroupId,
-            groupTitle: DEFAULT_SESSION_GROUP.title,
+            groupTitle: this.getGroupTitle(DEFAULT_SESSION_GROUP),
           };
         case 'watchVideo':
           return await this.watchVideo(args);
@@ -505,6 +533,11 @@ export class BrowserTools {
       });
       await chrome.tabs.update(tabId, { url });
       this.currentSessionTabId = tabId;
+      // Update stored metadata so session tab summaries reflect the new URL
+      const existing = this.sessionTabs.get(tabId);
+      if (existing) {
+        existing.url = url;
+      }
       return { success: true, tabId, url };
     } catch (error) {
       return {
@@ -548,6 +581,7 @@ export class BrowserTools {
         if (this.supportsTabGroups && this.sessionTabGroupId !== null) {
           try {
             await chrome.tabs.group({ groupId: this.sessionTabGroupId, tabIds: [tab.id] });
+            await this.updateGroupTitle();
           } catch (error) {
             console.warn('Failed to add tab to session group:', error);
           }
@@ -581,6 +615,7 @@ export class BrowserTools {
     if (this.currentSessionTabId === tabId) {
       this.currentSessionTabId = null;
     }
+    await this.updateGroupTitle();
     return { success: true, tabId };
   }
 

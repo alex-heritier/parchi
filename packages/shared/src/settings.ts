@@ -52,4 +52,5 @@ export const PARCHI_STORAGE_KEYS = [
   'relayLastConnectedAt',
   'relayLastError',
   'theme',
+  'workflows',
 ] as const;

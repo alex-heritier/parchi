@@ -300,7 +300,7 @@ export class BackgroundService {
             if (tab) tabs.push(tab);
           } catch {}
         }
-        await this.getBrowserTools(sessionId).configureSessionTabs(tabs, { title: 'Session', color: 'blue' });
+        await this.getBrowserTools(sessionId).configureSessionTabs(tabs, { title: 'Parchi', color: 'blue' });
         return { ok: true, tabIds: tabs.map((t) => t.id).filter((id): id is number => typeof id === 'number') };
       }
 
@@ -418,6 +418,15 @@ export class BackgroundService {
           break;
         }
 
+        case 'generate_workflow': {
+          const result = await this.generateWorkflowPrompt(
+            message.sessionContext || '',
+            message.maxOutputTokens,
+          );
+          sendResponse({ success: true, result });
+          break;
+        }
+
         case 'ping_test': {
           // Simple test to verify messaging works
           sendResponse({ success: true, pong: true, time: Date.now() });
@@ -501,8 +510,17 @@ export class BackgroundService {
 
       try {
         await browserTools.configureSessionTabs(selectedTabs || [], {
-          title: 'Session',
+          title: 'Parchi',
           color: 'blue',
+        });
+        // Broadcast initial session tab state to sidepanel
+        const tabState = browserTools.getSessionState();
+        this.sendRuntime(runMeta, {
+          type: 'session_tabs_update',
+          tabs: tabState.tabs,
+          activeTabId: tabState.activeTabId,
+          maxTabs: tabState.maxTabs,
+          groupTitle: tabState.groupTitle,
         });
       } catch (error) {
         console.warn('Failed to configure session tabs:', error);
@@ -1173,6 +1191,57 @@ export class BackgroundService {
     }
   }
 
+  async generateWorkflowPrompt(
+    sessionContext: string,
+    maxOutputTokens?: number,
+  ): Promise<{ prompt: string; error?: string }> {
+    try {
+      const settings = this.currentSettings || await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[]);
+      if (!settings?.apiKey) {
+        return { prompt: '', error: 'No API key configured' };
+      }
+      const model = resolveLanguageModel({
+        provider: settings.provider,
+        apiKey: settings.apiKey,
+        model: settings.model,
+        customEndpoint: settings.customEndpoint,
+        extraHeaders: settings.extraHeaders,
+      });
+
+      const outputLimit = Math.min(maxOutputTokens || 4096, 4096);
+
+      const result = await generateText({
+        model,
+        system: `You are a workflow prompt engineer. Your job is to distill a chat session transcript into a single, reusable workflow prompt.
+
+Rules:
+- Output ONLY the workflow prompt itself — no preamble, no "Here is your workflow:", no markdown fences wrapping the entire output.
+- The prompt must be self-contained and reproducible: when a user pastes it into a new chat session, an AI assistant should be able to replicate the same behavior and steps.
+- Break the process down into clear numbered steps.
+- Preserve important details: specific URLs, selectors, field names, values, edge cases, and error-handling the assistant performed.
+- Omit irrelevant chatter, greetings, and status updates.
+- If the session involved browser automation, include the exact actions (navigate, click, type, scroll) with their targets.
+- Keep the prompt concise but thorough — aim for under 1500 words.
+- Use imperative mood ("Navigate to…", "Click…", "Wait for…").`,
+        messages: [
+          {
+            role: 'user',
+            content: `Here is the full chat session transcript. Please create a workflow prompt out of it that captures the complete process step by step, so it can be reused to reproduce this exact behavior in a new session.\n\n---\n\n${sessionContext}`,
+          },
+        ],
+        maxOutputTokens: outputLimit,
+        temperature: 0.3,
+      });
+
+      const text = typeof result.text === 'string' ? result.text.trim() : '';
+      return { prompt: text };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error ?? 'Unknown error');
+      console.error('[generateWorkflowPrompt] Error:', error);
+      return { prompt: '', error: msg };
+    }
+  }
+
   async executeToolByName(
     toolName: string,
     args: Record<string, any>,
@@ -1344,6 +1413,19 @@ export class BackgroundService {
     }
 
     const finalResult = result || { error: 'No result returned' };
+
+    // Broadcast session tab state after tab-modifying tools
+    const tabModifyingTools = ['openTab', 'closeTab', 'navigate', 'switchTab', 'focusTab'];
+    if (tabModifyingTools.includes(toolName)) {
+      const state = browserTools.getSessionState();
+      this.sendRuntime(options.runMeta, {
+        type: 'session_tabs_update',
+        tabs: state.tabs,
+        activeTabId: state.activeTabId,
+        maxTabs: state.maxTabs,
+        groupTitle: state.groupTitle,
+      });
+    }
 
     // Track state for enforcement - only set awaiting if tool succeeded
     const browserActions = ['navigate', 'click', 'type', 'scroll', 'pressKey'];

@@ -350,7 +350,7 @@ const toolIcons: Record<string, string> = {
     const max = Math.max(1, this.contextUsage.maxContextTokens || 0);
     const usedLabel = used >= 10000 ? `${(used / 1000).toFixed(1)}k` : `${used}`;
     const maxLabel = max >= 10000 ? `${(max / 1000).toFixed(0)}k` : `${max}`;
-    labels.push(`Context ~ ${usedLabel} / ${maxLabel}`);
+    labels.push(`${usedLabel} / ${maxLabel}`);
   }
 
   const usageLabel = this.buildUsageLabel?.(this.lastUsage);
