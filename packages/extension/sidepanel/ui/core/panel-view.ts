@@ -76,6 +76,15 @@ import { SidePanelUI } from './panel-ui.js';
   this.updateChatEmptyState?.();
   this.resetActivityPanel();
   this.hideAgentNav();
+  // Clear session tabs HUD
+  this.sessionTabsState = {
+    tabs: [],
+    activeTabId: null,
+    maxTabs: 5,
+    groupTitle: undefined,
+    interactingTabId: null,
+  };
+  this.renderSessionTabsHud?.();
   this.updateStatus('Ready for a new session', 'success');
   this.switchView('chat');
   this.updateContextUsage();

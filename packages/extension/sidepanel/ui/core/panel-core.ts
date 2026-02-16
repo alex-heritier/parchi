@@ -11,6 +11,7 @@ import { SidePanelUI } from './panel-ui.js';
     this.setupResizeObserver();
     setSidebarOpen(this.elements, false);
     await this.loadSettings();
+    await this.loadWorkflows();
     await this.loadHistoryList();
     this.updateStatus('Ready', 'success');
     this.updateModelDisplay();
@@ -178,8 +179,11 @@ export PARCHI_RELAY_PORT="${port}"`;
     }
   });
 
-  // Enter to send (Shift+Enter for newline)
+  // Enter to send (Shift+Enter for newline), workflow menu gets priority
   this.elements.userInput?.addEventListener('keydown', (event: KeyboardEvent) => {
+    if (this.workflowMenuOpen && this.handleWorkflowKeydown(event)) {
+      return;
+    }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       this.sendMessage();
@@ -191,6 +195,7 @@ export PARCHI_RELAY_PORT="${port}"`;
   userInput?.addEventListener('input', () => {
     userInput.style.height = 'auto';
     userInput.style.height = `${userInput.scrollHeight}px`;
+    this.handleWorkflowInput();
   });
 
   // Model selector (now shows profiles)
@@ -411,6 +416,16 @@ export PARCHI_RELAY_PORT="${port}"`;
     this.clearErrorBanner();
     this.updateActivityState();
     this.activeToolName = message.tool || null;
+    // Track which tab the model is interacting with.
+    // Many browser tools resolve tabId internally via resolveTabId() so args.tabId
+    // may be missing. Fall back to the session's active tab for known browser tools.
+    const browserTools = ['navigate', 'openTab', 'click', 'type', 'pressKey', 'scroll',
+      'getContent', 'screenshot', 'switchTab', 'focusTab', 'closeTab', 'watchVideo', 'getVideoInfo'];
+    let toolTabId = typeof message.args?.tabId === 'number' ? message.args.tabId : null;
+    if (!toolTabId && browserTools.includes(message.tool)) {
+      toolTabId = this.sessionTabsState?.activeTabId ?? null;
+    }
+    this.setInteractingTab(toolTabId);
     if (!this.streamingState) {
       this.startStreamingMessage();
     }
@@ -451,6 +466,9 @@ export PARCHI_RELAY_PORT="${port}"`;
     this.pendingToolCount = Math.max(0, this.pendingToolCount - 1);
     this.updateActivityState();
     this.activeToolName = null;
+    if (this.pendingToolCount === 0) {
+      this.setInteractingTab(null);
+    }
     if (!this.streamingState) {
       this.startStreamingMessage();
     }
@@ -554,6 +572,10 @@ export PARCHI_RELAY_PORT="${port}"`;
   }
   if (message.type === 'run_warning') {
     this.showErrorBanner(message.message);
+    return;
+  }
+  if (message.type === 'session_tabs_update') {
+    this.handleSessionTabsUpdate(message);
     return;
   }
   if (message.type === 'subagent_start') {

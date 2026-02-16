@@ -141,6 +141,18 @@ export type SubagentStart = RuntimeMessageBase & {
   parentRunId?: string;
 };
 
+export type SessionTabsUpdate = RuntimeMessageBase & {
+  type: 'session_tabs_update';
+  tabs: Array<{
+    id: number;
+    title?: string;
+    url?: string;
+  }>;
+  activeTabId: number | null;
+  maxTabs: number;
+  groupTitle?: string;
+};
+
 export type SubagentComplete = RuntimeMessageBase & {
   type: 'subagent_complete';
   id: string;
@@ -165,7 +177,8 @@ export type RuntimeMessage =
   | RunWarning
   | ContextCompacted
   | SubagentStart
-  | SubagentComplete;
+  | SubagentComplete
+  | SessionTabsUpdate;
 
 export const runtimeMessageTypes = [
   'user_run_start',
@@ -184,6 +197,7 @@ export const runtimeMessageTypes = [
   'context_compacted',
   'subagent_start',
   'subagent_complete',
+  'session_tabs_update',
 ] as const;
 
 export type RuntimeMessageType = (typeof runtimeMessageTypes)[number];
