@@ -1,16 +1,29 @@
 {
-  "name": "browser-ai-agent",
-  "version": "1.0.0",
-  "description": "AI-powered browser automation extension with configurable LLM providers",
+  "name": "parchi-extension",
+  "version": "0.4.0",
+  "description": "Warm-paper browser automation extension with configurable LLM providers",
   "type": "module",
+  "workspaces": [
+    "packages/backend"
+  ],
   "scripts": {
-    "test": "node tests/run-tests.js",
-    "validate": "node tests/validate-extension.js",
-    "test:unit": "node tests/unit/run-unit-tests.js",
+    "build": "node scripts/build.mjs",
+    "build:firefox": "BROWSER=firefox node scripts/build.mjs",
+    "build:firefox:xpi": "npm run build:firefox && node scripts/build-firefox-xpi.mjs",
+    "backend:dev": "cd packages/backend && npx convex dev",
+    "relay:daemon": "node dist-relay/relay-daemon.js",
+    "relay": "node dist-relay/relay.js",
+    "validate": "node scripts/build.mjs && node dist/tests/validate-extension.js",
+    "test": "node scripts/build.mjs && node dist/tests/run-tests.js",
+    "test:unit": "node scripts/build.mjs && node dist/tests/unit/run-unit-tests.js",
     "test:integration": "echo 'Load tests/integration/test-page.html in browser and run tests'",
-    "lint": "echo 'Linting extension files...' && node tests/lint-check.js",
-    "build": "node tests/validate-extension.js && echo 'Extension validated successfully'",
-    "dev": "echo 'Load extension from Chrome://extensions in Developer Mode'"
+    "test:api": "node scripts/build.mjs && node dist/tests/api/run-api-tests.js",
+    "test:e2e": "node scripts/build.mjs && node dist/tests/e2e/run-e2e.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "dev": "echo 'Run npm run build, then load the dist/ folder in Chrome://extensions'"
   },
   "keywords": [
     "chrome-extension",
@@ -22,5 +35,29 @@
   ],
   "author": "",
   "license": "MIT",
-  "devDependencies": {}
+  "bin": {
+    "parchi-relay": "dist-relay/relay.js"
+  },
+  "dependencies": {
+    "@auth/core": "0.37.4",
+    "@ai-sdk/anthropic": "3.0.17",
+    "@ai-sdk/openai": "3.0.13",
+    "@ai-sdk/openai-compatible": "2.0.16",
+    "@convex-dev/auth": "0.0.90",
+    "ai": "6.0.42",
+    "convex": "1.31.7",
+    "stripe": "18.5.0",
+    "ws": "8.18.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@types/chrome": "0.0.268",
+    "@types/node": "22.10.5",
+    "@types/ws": "8.18.1",
+    "esbuild": "0.27.2",
+    "marked": "17.0.1",
+    "playwright": "1.57.0",
+    "typescript": "5.6.3",
+    "web-ext": "8.10.0"
+  }
 }

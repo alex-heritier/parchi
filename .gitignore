@@ -3,7 +3,9 @@ node_modules/
 
 # Build artifacts
 dist/
+dist-relay/
 build/
+server/dist/
 
 # OS files
 .DS_Store
@@ -33,3 +35,13 @@ logs/
 tmp/
 temp/
 *.tmp
+
+
+# Vendored tarballs
+*.tgz
+
+# Planning notes
+plan.md
+
+.claude
+.osgrep

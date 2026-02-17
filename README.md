@@ -1,140 +1,334 @@
-# Azzta Agent
+<div align="center">
 
-Azzta Agent is a premium warm-paper inspired Chrome (Chromium) extension built for professionals and teams who want brand-safe browser automation. Every detail – from the tactile UI to the safety prompts – is tuned for production distribution, paid plans, and tight visual identity. The Live/History panes, profile manager (including vision routes and orchestrator tools), and compacted context allow you to confidently surface Azzta as a monetizable feature inside your workflow toolkit.
+<img src="packages/extension/icons/icon.svg" alt="Parchi" width="120" height="120" />
 
-## Highlights
+# Parchi
 
-- **Safe automation**: Unsafe actions (installing extensions, deleting history, visiting unknown schemes) are blocked unless explicitly requested, and tab groups created by the user are preserved.
-- **Vision & screenshot controls**: Screenshots stay off by default; enable them only when pairing the main agent with a vision-capable profile. Vision bridges automatically describe captures so non-vision models can continue reasoning.
-- **Orchestrator workflows**: Toggle orchestrator mode to expose `spawn_subagent`/`subagent_complete`, letting the orchestrator spin focused helpers for subtasks and gather sanitized summaries.
-- **Warm Paper UI**: Geist Sans typography, rounded cards, solid warm hues, card glow, and tab/history panes deliver a clean, tactile experience with subtle pulses and scrollbars.
-- **History & context management**: Sessions persist locally (if enabled), `<think>` blocks render cleanly, context is compacted when the limit nears, and the model keeps working even after individual errors.
+**Your AI-powered browser copilot.**
 
-## Brand & Production Readiness
+Chat-driven browser automation that lives in your sidebar. Navigate, read, click, extract — all through natural language.
 
-- **Azzta identity**: Header copy, pill tabs, pill buttons, and status rings carry the brand narrative – the product never looks like a rough utility overlay but a curated experience you can safely charge for.
-- **Monetization-friendly controls**: Strict safety guardrails, orchestrator tooling, and history segmentation let you offer Azzta as a paid tier where customers rely on reliable outcomes.
-- **Design system ready**: Warm Paper palette (solid creams, soft tans, charcoal text) plus Geist Sans/Mono fonts, subtle rings, and card shadows form a reusable system for future marketing or docs.
+[![Chrome MV3](https://img.shields.io/badge/Chrome-MV3-4285F4?logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/)
+[![Firefox](https://img.shields.io/badge/Firefox-109%2B-FF7139?logo=firefox&logoColor=white)](https://www.mozilla.org/firefox/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-a5b4fc.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.4.0-6366f1.svg)]()
 
-## Features
+<br />
 
-### Provider & Profile Management
-- Configure multiple profiles (system prompt, model, provider, temperature, tokens, timeout, screenshot preferences) and switch mid-session.
-- Vision profiles describe screenshots for non-vision agents, while screenshots stay disabled unless explicitly toggled.
-- Profiles are reused by orchestrators and optional sub-agents for flexible workflows.
+[Installation](#-installation) · [Setup](#-setup-your-ai-provider) · [Features](#-features) · [Use Your Subscription](#-use-your-existing-ai-subscription) · [Relay CLI](#-relay-daemon--cli)
 
-### Automation Tools
-- **Navigation & visibility**: `navigate`, `getContent`, `screenshot` (vision aware), `getTabs`, `describeSessionTabs`, glow annotations keep track of operated pages.
-- **Interaction**: `click`, `type`, `pressKey`, `scroll`, `focusTab`, `switchTab`, `openTab`, `closeTab`.
-- **Tab orchestration**: `groupTabs`, `describeSessionTabs`, `spawn_subagent`, `subagent_complete`.
-- **History & safety**: History APIs remain accessible but require explicit user consent; orchestrator prompts instruct the model to avoid destructive actions.
+</div>
 
-### Orchestrator Mode
-- When enabled, exposes `spawn_subagent` and `subagent_complete` tools.
-- Orchestrator builds sub-agent histories that run tools independently, report progress, and return structured summaries.
-- Supports up to ten simultaneous helpers, each respecting the same navigation/safety guardrails.
-- **Sub-agent navigation bar**: Visual navigation between main agent and sub-agents with status indicators.
-- **Live status indicators**: Green pulsing indicator shows active agent, completed sub-agents marked with checkmarks.
+---
 
-### Agent Teams
-- The Agent Teams panel lists every saved configuration, letting you tap rich pills to assign Main, Vision, Orchestrator, or Team roles with a single tap.
-- Toggle Vision or Orchestrator pills to route screenshots and coordination duties while Team pills let multiple allied agents run in parallel.
-- A built-in profile editor inside the Agent Library tab lets you click any card, update its provider/API/model/system prompt settings, and save immediately—no more bouncing back to general settings for simple edits.
+## 📦 Installation
 
-### UI Enhancements
-- Live/History tabs allow quick switching between the current conversation and saved sessions.
-- Tab selection preserves user choices, and the panel displays a glowing status ring plus tool timeline entries.
-- Thinking blocks render `<think>`/`<analysis>` snippets, and streaming updates show incremental thought-progress.
-- **Dark mode optimized**: Teal/cyan gradient message bubbles, clean styling without shadows for modern aesthetic.
-- **Context tracking**: Real-time token usage display with cumulative session tracking.
+### Chrome (recommended)
 
-### Error Recovery
-- **Multi-layer error recovery**: Automatic retry with exponential backoff for API errors.
-- **Tool ordering fixes**: Intelligent message sanitization prevents "tool call result does not follow tool call" errors.
-- **Silent retry**: Up to 3 automatic retries before surfacing errors to user.
-- **Emergency recovery**: Automatic tool history clearing for persistent ordering issues.
-- **Non-terminating errors**: Process continues gracefully after errors instead of stopping completely.
+<table>
+<tr>
+<td width="60">
 
-## Installation
+**1.**
 
-1. Clone or download:
-   ```bash
-   git clone <repo-url>
-   cd browser-ai
-   ```
-2. Ensure `icons/` contains `icon16.png`, `icon48.png`, `icon128.png` (optional but recommended).
-3. Open `chrome://extensions`, enable Developer Mode, and load the unpacked `browser-ai` directory.
-4. Pin the extension to the toolbar if desired.
+</td>
+<td>
 
-## Configuration
-
-1. Open the side panel via the toolbar icon.
-2. Click the gear icon to open Settings.
-3. Choose your provider (OpenAI, Anthropic, Custom) and paste the corresponding API key.
-4. Configure model, temperature, timeout, and system prompt per profile.
-5. Toggle screenshot tools only when pairing with a vision-capable profile or vision bridge.
-6. Enable orchestrator mode to expose sub-agent tooling and pick an orchestrator profile if desired.
-7. In the Agent Teams panel, tap the Main / Vision / Orchestrator / Team pills to assign the right profiles to each role. You can select multiple profiles for auxiliary duties to keep complex workflows readable.
-8. Click any card to edit it directly in the Agent Library tab, then hit Save Profile to keep the change.
-9. Save settings and switch profiles via the dropdown.
-
-## Usage
-
-- Ask the assistant to drive the browser: “Open example.com, find contact emails, and summarize the hero section.”
-- Use Vision bridging: “Capture the modal, describe it with the vision profile, then continue filling the form.”
-- Spawn a helper: “Start a sub-agent to collect pricing tiers on this page and summarize with subagent_complete.”
-- Save history: toggle it on to store sessions locally, then switch to the History tab to reopen or review them.
-
-## Architecture
-
-```
-sidepanel/    → UI (HTML/CSS/JS) with Warm Paper styling and live/history tabs
-background.js → Service worker orchestrating AI calls, tool execution, security guards, and orchestrator helpers
-ai/provider.js → OpenAI/Anthropic integration, tool formatting, vision descriptions, safety prompts
-tools/browser-tools.js → Browser automation helpers, page glow, group-aware tab management, URL validation
-content.js    → DOM helpers for highlighting, hover simulation, metadata
-```
-
-## Security & Privacy
-
-- API keys are stored locally and only used for outbound requests to configured providers.
-- The orchestrator/system prompts explicitly forbid installs, destructive history edits, or actions outside user-selected tabs.
-- Navigation validates URLs and rejects unsafe schemes (`javascript:`, `data:`, `chrome:`).
-- Screenshots opt-in and never transmit image data unless the vision profile is explicitly configured.
-- Content scripts have no access beyond user tabs; no telemetry is collected.
-
-## Testing
+**Get the extension files**
 
 ```bash
-npm test         # Runs the full testing suite
-npm run validate # Validates extension files and manifest
-npm run test:unit # Unit tests
+git clone https://github.com/0xSero/parchi.git
+cd parchi
+npm install
+npm run build
 ```
 
-> `npm test` currently fails when corepack cannot fetch signatures on certain Node versions; rerun after ensuring corepack can update.
+This creates a `dist/` folder with the built extension.
 
-## Troubleshooting
+</td>
+</tr>
+<tr>
+<td>
 
-- **Panel not opening**: reload via `chrome://extensions`, ensure it is enabled, and check console logs.
-- **AI not responding**: verify API key, model name, provider limits, and extension permissions (tabs, storage, scripting).
-- **Tools failing**: inspect the Console/Network tabs for script injection issues, ensure DOM selectors exist, or increase tool timeout.
+**2.**
 
-## Future Ideas
+</td>
+<td>
 
-- Visual selector (point, highlight, confirm).
-- Workflow templates (multi-pass diaries).
-- Native vision model selection UI.
-- Traffic-safe DevTools Protocol integration.
-- Export session history or transcripts.
+**Open Chrome Extensions page**
 
-## Contributing
+Navigate to `chrome://extensions` in your address bar, or go to **⋮ Menu → Extensions → Manage Extensions**.
 
-Improvements welcome: more tests, additional tools, UI polish, safety audits, localization.
+</td>
+</tr>
+<tr>
+<td>
 
-## License
+**3.**
 
-MIT License – see `LICENSE`.
+</td>
+<td>
 
-## Support
+**Enable Developer Mode**
 
-Create an issue or join discussions in this repository.
+Toggle the **Developer mode** switch in the top-right corner of the extensions page.
+
+</td>
+</tr>
+<tr>
+<td>
+
+**4.**
+
+</td>
+<td>
+
+**Load the extension**
+
+Click **"Load unpacked"** and select the `dist/` folder from the cloned repo.
+
+</td>
+</tr>
+<tr>
+<td>
+
+**5.**
+
+</td>
+<td>
+
+**Open Parchi**
+
+Click the Parchi icon in your toolbar (you may need to pin it first via the puzzle piece icon). The side panel opens — you're ready to go.
+
+</td>
+</tr>
+</table>
+
+### Firefox
+
+```bash
+npm run build:firefox
+```
+
+1. Open `about:debugging#/runtime/this-firefox`
+2. Click **"Load Temporary Add-on"**
+3. Select any file inside the `dist/` folder
+
+> **XPI packaging:** `npm run build:firefox:xpi` outputs `dist/parchi-0.4.0.xpi` for distribution. Requires Developer Edition/Nightly or Mozilla add-on signing for release installs.
+
+---
+
+## 🔧 Setup Your AI Provider
+
+Parchi works with any OpenAI-compatible endpoint. Open the **Settings** panel (gear icon) to configure.
+
+### Option A: Direct API Key (BYOK)
+
+Use your own API key from any supported provider:
+
+| Provider | API URL | Example Models |
+|----------|---------|----------------|
+| **OpenAI** | `https://api.openai.com/v1` | `gpt-4o`, `gpt-4-turbo`, `o1` |
+| **Anthropic** | `https://api.anthropic.com/v1` | `claude-sonnet-4-20250514`, `claude-3-5-sonnet-20241022` |
+| **Kimi** | `https://api.moonshot.cn/v1` | `moonshot-v1-128k` |
+| **OpenRouter** | `https://openrouter.ai/api/v1` | Any model on OpenRouter |
+| **Local (Ollama, LM Studio)** | `http://localhost:11434/v1` | `llama3`, `mistral`, etc. |
+| **Any OpenAI-compatible** | Your endpoint URL | Your model name |
+
+**Steps:**
+
+1. Open **Settings** → select your provider or choose **Custom**
+2. Paste your **API Key**
+3. Set the **API URL** (auto-filled for known providers)
+4. Pick a **Model** from the dropdown (auto-fetched) or type one manually
+5. Hit **Save** — start chatting
+
+### Option B: Parchi Account (Proxy Mode)
+
+Sign in with Google or GitHub to use Parchi's hosted proxy. No API keys needed — billing is handled through your Parchi subscription.
+
+1. Open **Settings** → choose **Paid** account mode
+2. Sign in via OAuth
+3. Select a model and start chatting
+
+---
+
+## 🔑 Use Your Existing AI Subscription
+
+Already paying for **Claude Pro**, **ChatGPT Plus**, **Gemini Advanced**, or another AI subscription? You can route that subscription through Parchi using **[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)**.
+
+CLIProxyAPI is an open-source proxy that converts your existing AI subscription access into an OpenAI-compatible API endpoint — no separate API key purchase needed.
+
+### How it works
+
+1. **Install CLIProxyAPI** — follow the [setup guide](https://github.com/router-for-me/CLIProxyAPI)
+2. **Authenticate** with your existing provider (Claude, OpenAI, Gemini, etc.) via OAuth
+3. **Point Parchi** at the proxy endpoint:
+   - Open **Settings** → provider: **Custom**
+   - **API URL:** your CLIProxyAPI endpoint (e.g. `http://localhost:PORT/v1`)
+   - **API Key:** your proxy token
+   - **Model:** the model you want to use
+4. **Chat** — requests route through your existing subscription
+
+### Supported subscriptions
+
+| Subscription | What you get |
+|--------------|-------------|
+| **Claude Pro / Max** | Claude models via your Anthropic account |
+| **ChatGPT Plus / Pro** | GPT-4o, o1, etc. via your OpenAI account |
+| **Gemini Advanced** | Gemini models via your Google account |
+| **Qwen / iFlow** | Additional provider access |
+
+> CLIProxyAPI supports multi-account round-robin, streaming, function calling, and multimodal inputs. See their [documentation](https://help.router-for.me) for full details.
+
+---
+
+## ✨ Features
+
+### Chat & AI
+
+- **Streaming responses** with real-time reasoning display
+- **Extended thinking** for Claude models (thinking budget scales with max tokens)
+- **Multiple profiles** — save different provider/model/prompt configs and switch instantly
+- **Vision support** — analyze screenshots and video frames with vision-capable models
+- **Context compaction** — auto-summarizes old conversation when approaching token limits
+- **Workflow templates** — save and reuse prompt templates with `/` quick access
+
+### Browser Automation (25+ tools)
+
+Parchi can control your browser through natural language:
+
+| Category | Tools | What they do |
+|----------|-------|-------------|
+| **Navigate** | `navigate`, `openTab`, `closeTab`, `switchTab` | Go to URLs, manage tabs |
+| **Interact** | `click`, `clickAt`, `type`, `pressKey`, `scroll` | Click elements, fill forms, press keys |
+| **Read** | `getContent`, `screenshot`, `findHtml` | Extract text, capture pages, search DOM |
+| **Video** | `watchVideo`, `getVideoInfo` | Analyze video by frame capture |
+| **Organize** | `groupTabs`, `getTabs`, `describeSessionTabs` | Group and list tabs |
+| **Plan** | `set_plan`, `update_plan` | Step-by-step task planning and tracking |
+| **Delegate** | `spawn_subagent`, `subagent_complete` | Multi-agent orchestration |
+
+### Session Management
+
+- **Session tabs** — auto-groups tabs opened during a session (Chrome)
+- **Floating HUD** showing active session tabs
+- **Chat history** — up to 50 sessions, 200 messages each
+- **Export** conversations as markdown (full, last response, or detailed with tool events)
+
+### Settings & Controls
+
+- **Tool permissions** — toggle read, interact, navigate, tabs, screenshots
+- **Domain allowlist** — restrict which sites the agent can act on
+- **Action confirmation** — require approval before the agent acts
+- **Themes** — Void, Ember, Forest, Ocean, and more
+- **UI zoom** — 85% to 125%
+- **Custom headers** — add auth tokens or special headers per profile
+
+---
+
+## 🛰 Relay Daemon & CLI
+
+Expose Parchi as a local automation endpoint for scripts and external tools.
+
+```bash
+# 1. Build with relay token
+PARCHI_RELAY_TOKEN=your-secret npm run build
+
+# 2. Start the daemon
+PARCHI_RELAY_TOKEN=your-secret npm run relay:daemon
+
+# 3. Enable in extension Settings → Relay section
+#    URL: http://127.0.0.1:17373
+#    Token: your-secret
+```
+
+**CLI commands:**
+
+```bash
+export PARCHI_RELAY_TOKEN=your-secret
+
+# List connected agents
+npm run relay -- agents
+
+# List available tools
+npm run relay -- tools
+
+# Execute a single tool
+npm run relay -- tool navigate --args='{"url":"https://example.com"}'
+
+# Run the agent and wait for result
+npm run relay -- run "Open example.com and summarize the page"
+```
+
+---
+
+## 🏗 Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│                  Side Panel UI                   │
+│  Chat · Tools Timeline · Settings · History      │
+└──────────────────────┬──────────────────────────┘
+                       │ runtime messages
+┌──────────────────────▼──────────────────────────┐
+│            Background Service Worker             │
+│  Agent loop · Tool execution · Stream handling   │
+└───────┬───────────────────┬─────────────────────┘
+        │                   │
+   Chrome APIs         AI Provider
+  (tabs, scripting,    (OpenAI, Anthropic,
+   navigation)          custom endpoints)
+```
+
+**Key paths:**
+
+| File | Role |
+|------|------|
+| `packages/extension/background.ts` | Agent loop, AI calls, tool execution |
+| `packages/extension/sidepanel/` | UI — chat, settings, tools, history |
+| `packages/extension/tools/` | Browser automation tool definitions |
+| `packages/shared/` | Shared types and runtime message schemas |
+
+---
+
+## 🔨 Development
+
+```bash
+npm install          # install dependencies
+npm run build        # build to dist/
+npm run typecheck    # type checking
+npm run lint         # biome linter
+npm run lint:fix     # auto-fix lint issues
+npm run test:unit    # run unit tests
+```
+
+After building, reload the extension in `chrome://extensions` to pick up changes.
+
+### Firefox builds
+
+```bash
+npm run build:firefox       # build for Firefox → dist/
+npm run build:firefox:xpi   # package as .xpi for distribution
+```
+
+---
+
+## 📊 Chrome vs Firefox
+
+| Feature | Chrome | Firefox |
+|---------|--------|---------|
+| Tab grouping | ✅ | — |
+| Side panel | ✅ Native | Sidebar (adapted) |
+| Relay keepalive | ✅ Offscreen doc | — |
+| Min version | MV3 | 109.0+ |
+
+---
+
+<div align="center">
+
+**[Parchi](https://github.com/0xSero/parchi)** is MIT licensed.
+
+Built with the [AI SDK](https://sdk.vercel.ai) · Styled with [Warm Paper](https://github.com/0xSero/parchi) design system
+
+</div>
