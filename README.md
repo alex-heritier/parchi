@@ -1,69 +1,334 @@
+<div align="center">
+
+<img src="packages/extension/icons/icon.svg" alt="Parchi" width="120" height="120" />
+
 # Parchi
 
-Parchi is a browser sidepanel extension for AI-powered browsing assistance. It pairs a chat UI with tool-driven browser automation so you can navigate, read, and act on pages without leaving your workflow.
+**Your AI-powered browser copilot.**
 
-## What it does
+Chat-driven browser automation that lives in your sidebar. Navigate, read, click, extract — all through natural language.
 
-- Chat-driven browser automation with tool execution
-- Inline tool-call timeline + reasoning during streaming
-- Session history and profile-driven settings
+[![Chrome MV3](https://img.shields.io/badge/Chrome-MV3-4285F4?logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/)
+[![Firefox](https://img.shields.io/badge/Firefox-109%2B-FF7139?logo=firefox&logoColor=white)](https://www.mozilla.org/firefox/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-a5b4fc.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.4.0-6366f1.svg)]()
 
-## Architecture
+<br />
 
-```mermaid
-flowchart LR
-  UI[Sidepanel UI] -->|user_message| BG[Background Service Worker]
-  BG -->|chat| LLM[AI Provider]
-  LLM -->|tool calls| BG
-  BG -->|tool exec| Browser[Chrome APIs]
-  BG -->|assistant_response| UI
+[Installation](#-installation) · [Setup](#-setup-your-ai-provider) · [Features](#-features) · [Use Your Subscription](#-use-your-existing-ai-subscription) · [Relay CLI](#-relay-daemon--cli)
+
+</div>
+
+---
+
+## 📦 Installation
+
+### Chrome (recommended)
+
+<table>
+<tr>
+<td width="60">
+
+**1.**
+
+</td>
+<td>
+
+**Get the extension files**
+
+```bash
+git clone https://github.com/0xSero/parchi.git
+cd parchi
+npm install
+npm run build
 ```
 
-## Streaming flow
+This creates a `dist/` folder with the built extension.
 
-```mermaid
-sequenceDiagram
-  participant UI as Sidepanel
-  participant BG as Background
-  participant LLM as AI Provider
+</td>
+</tr>
+<tr>
+<td>
 
-  UI->>BG: user_message
-  BG->>LLM: chat (stream)
-  LLM-->>BG: stream delta
-  BG-->>UI: assistant_stream delta
-  LLM-->>BG: final response
-  BG-->>UI: assistant_response
+**2.**
+
+</td>
+<td>
+
+**Open Chrome Extensions page**
+
+Navigate to `chrome://extensions` in your address bar, or go to **⋮ Menu → Extensions → Manage Extensions**.
+
+</td>
+</tr>
+<tr>
+<td>
+
+**3.**
+
+</td>
+<td>
+
+**Enable Developer Mode**
+
+Toggle the **Developer mode** switch in the top-right corner of the extensions page.
+
+</td>
+</tr>
+<tr>
+<td>
+
+**4.**
+
+</td>
+<td>
+
+**Load the extension**
+
+Click **"Load unpacked"** and select the `dist/` folder from the cloned repo.
+
+</td>
+</tr>
+<tr>
+<td>
+
+**5.**
+
+</td>
+<td>
+
+**Open Parchi**
+
+Click the Parchi icon in your toolbar (you may need to pin it first via the puzzle piece icon). The side panel opens — you're ready to go.
+
+</td>
+</tr>
+</table>
+
+### Firefox
+
+```bash
+npm run build:firefox
 ```
 
-## Quality
+1. Open `about:debugging#/runtime/this-firefox`
+2. Click **"Load Temporary Add-on"**
+3. Select any file inside the `dist/` folder
 
-Last verified: 2026-01-21
+> **XPI packaging:** `npm run build:firefox:xpi` outputs `dist/parchi-0.4.0.xpi` for distribution. Requires Developer Edition/Nightly or Mozilla add-on signing for release installs.
 
-| Check | Command | Result |
-| --- | --- | --- |
-| Unit tests | `npm run test:unit` | 31/31 passing |
+---
 
-## Development
+## 🔧 Setup Your AI Provider
 
-- `npm install`
-- `npm run build`
-- Load the unpacked extension from `dist/` in Chrome
-- For Firefox: `npm run build:firefox`, then load `dist/` via `about:debugging#/runtime/this-firefox`
-- For a Firefox XPI: `npm run build:firefox:xpi` (outputs `dist/parchi-<version>.xpi`; requires Developer Edition/Nightly or add-on signing for release)
+Parchi works with any OpenAI-compatible endpoint. Open the **Settings** panel (gear icon) to configure.
 
-## Relay (Daemon + CLI)
+### Option A: Direct API Key (BYOK)
 
-The relay exposes the extension as a local automation endpoint (tools mode) and as an in-browser agent runner (agent mode).
+Use your own API key from any supported provider:
 
-1. Start the daemon:
-   - `PARCHI_RELAY_TOKEN=your-secret npm run build`
-   - `PARCHI_RELAY_TOKEN=your-secret npm run relay:daemon`
-2. In the extension Settings, open the `Relay` section:
-   - Enable Relay
-   - Set Relay URL to `http://127.0.0.1:17373`
-   - Set Relay Token to the same `PARCHI_RELAY_TOKEN`
-3. Use the CLI:
-   - List agents: `PARCHI_RELAY_TOKEN=your-secret npm run relay -- agents`
-   - List tools: `PARCHI_RELAY_TOKEN=your-secret npm run relay -- tools`
-   - Call a tool: `PARCHI_RELAY_TOKEN=your-secret npm run relay -- tool navigate --args='{\"url\":\"https://example.com\"}'`
-   - Run the agent and wait: `PARCHI_RELAY_TOKEN=your-secret npm run relay -- run \"Open example.com and summarize the page\"`
+| Provider | API URL | Example Models |
+|----------|---------|----------------|
+| **OpenAI** | `https://api.openai.com/v1` | `gpt-4o`, `gpt-4-turbo`, `o1` |
+| **Anthropic** | `https://api.anthropic.com/v1` | `claude-sonnet-4-20250514`, `claude-3-5-sonnet-20241022` |
+| **Kimi** | `https://api.moonshot.cn/v1` | `moonshot-v1-128k` |
+| **OpenRouter** | `https://openrouter.ai/api/v1` | Any model on OpenRouter |
+| **Local (Ollama, LM Studio)** | `http://localhost:11434/v1` | `llama3`, `mistral`, etc. |
+| **Any OpenAI-compatible** | Your endpoint URL | Your model name |
+
+**Steps:**
+
+1. Open **Settings** → select your provider or choose **Custom**
+2. Paste your **API Key**
+3. Set the **API URL** (auto-filled for known providers)
+4. Pick a **Model** from the dropdown (auto-fetched) or type one manually
+5. Hit **Save** — start chatting
+
+### Option B: Parchi Account (Proxy Mode)
+
+Sign in with Google or GitHub to use Parchi's hosted proxy. No API keys needed — billing is handled through your Parchi subscription.
+
+1. Open **Settings** → choose **Paid** account mode
+2. Sign in via OAuth
+3. Select a model and start chatting
+
+---
+
+## 🔑 Use Your Existing AI Subscription
+
+Already paying for **Claude Pro**, **ChatGPT Plus**, **Gemini Advanced**, or another AI subscription? You can route that subscription through Parchi using **[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)**.
+
+CLIProxyAPI is an open-source proxy that converts your existing AI subscription access into an OpenAI-compatible API endpoint — no separate API key purchase needed.
+
+### How it works
+
+1. **Install CLIProxyAPI** — follow the [setup guide](https://github.com/router-for-me/CLIProxyAPI)
+2. **Authenticate** with your existing provider (Claude, OpenAI, Gemini, etc.) via OAuth
+3. **Point Parchi** at the proxy endpoint:
+   - Open **Settings** → provider: **Custom**
+   - **API URL:** your CLIProxyAPI endpoint (e.g. `http://localhost:PORT/v1`)
+   - **API Key:** your proxy token
+   - **Model:** the model you want to use
+4. **Chat** — requests route through your existing subscription
+
+### Supported subscriptions
+
+| Subscription | What you get |
+|--------------|-------------|
+| **Claude Pro / Max** | Claude models via your Anthropic account |
+| **ChatGPT Plus / Pro** | GPT-4o, o1, etc. via your OpenAI account |
+| **Gemini Advanced** | Gemini models via your Google account |
+| **Qwen / iFlow** | Additional provider access |
+
+> CLIProxyAPI supports multi-account round-robin, streaming, function calling, and multimodal inputs. See their [documentation](https://help.router-for.me) for full details.
+
+---
+
+## ✨ Features
+
+### Chat & AI
+
+- **Streaming responses** with real-time reasoning display
+- **Extended thinking** for Claude models (thinking budget scales with max tokens)
+- **Multiple profiles** — save different provider/model/prompt configs and switch instantly
+- **Vision support** — analyze screenshots and video frames with vision-capable models
+- **Context compaction** — auto-summarizes old conversation when approaching token limits
+- **Workflow templates** — save and reuse prompt templates with `/` quick access
+
+### Browser Automation (25+ tools)
+
+Parchi can control your browser through natural language:
+
+| Category | Tools | What they do |
+|----------|-------|-------------|
+| **Navigate** | `navigate`, `openTab`, `closeTab`, `switchTab` | Go to URLs, manage tabs |
+| **Interact** | `click`, `clickAt`, `type`, `pressKey`, `scroll` | Click elements, fill forms, press keys |
+| **Read** | `getContent`, `screenshot`, `findHtml` | Extract text, capture pages, search DOM |
+| **Video** | `watchVideo`, `getVideoInfo` | Analyze video by frame capture |
+| **Organize** | `groupTabs`, `getTabs`, `describeSessionTabs` | Group and list tabs |
+| **Plan** | `set_plan`, `update_plan` | Step-by-step task planning and tracking |
+| **Delegate** | `spawn_subagent`, `subagent_complete` | Multi-agent orchestration |
+
+### Session Management
+
+- **Session tabs** — auto-groups tabs opened during a session (Chrome)
+- **Floating HUD** showing active session tabs
+- **Chat history** — up to 50 sessions, 200 messages each
+- **Export** conversations as markdown (full, last response, or detailed with tool events)
+
+### Settings & Controls
+
+- **Tool permissions** — toggle read, interact, navigate, tabs, screenshots
+- **Domain allowlist** — restrict which sites the agent can act on
+- **Action confirmation** — require approval before the agent acts
+- **Themes** — Void, Ember, Forest, Ocean, and more
+- **UI zoom** — 85% to 125%
+- **Custom headers** — add auth tokens or special headers per profile
+
+---
+
+## 🛰 Relay Daemon & CLI
+
+Expose Parchi as a local automation endpoint for scripts and external tools.
+
+```bash
+# 1. Build with relay token
+PARCHI_RELAY_TOKEN=your-secret npm run build
+
+# 2. Start the daemon
+PARCHI_RELAY_TOKEN=your-secret npm run relay:daemon
+
+# 3. Enable in extension Settings → Relay section
+#    URL: http://127.0.0.1:17373
+#    Token: your-secret
+```
+
+**CLI commands:**
+
+```bash
+export PARCHI_RELAY_TOKEN=your-secret
+
+# List connected agents
+npm run relay -- agents
+
+# List available tools
+npm run relay -- tools
+
+# Execute a single tool
+npm run relay -- tool navigate --args='{"url":"https://example.com"}'
+
+# Run the agent and wait for result
+npm run relay -- run "Open example.com and summarize the page"
+```
+
+---
+
+## 🏗 Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│                  Side Panel UI                   │
+│  Chat · Tools Timeline · Settings · History      │
+└──────────────────────┬──────────────────────────┘
+                       │ runtime messages
+┌──────────────────────▼──────────────────────────┐
+│            Background Service Worker             │
+│  Agent loop · Tool execution · Stream handling   │
+└───────┬───────────────────┬─────────────────────┘
+        │                   │
+   Chrome APIs         AI Provider
+  (tabs, scripting,    (OpenAI, Anthropic,
+   navigation)          custom endpoints)
+```
+
+**Key paths:**
+
+| File | Role |
+|------|------|
+| `packages/extension/background.ts` | Agent loop, AI calls, tool execution |
+| `packages/extension/sidepanel/` | UI — chat, settings, tools, history |
+| `packages/extension/tools/` | Browser automation tool definitions |
+| `packages/shared/` | Shared types and runtime message schemas |
+
+---
+
+## 🔨 Development
+
+```bash
+npm install          # install dependencies
+npm run build        # build to dist/
+npm run typecheck    # type checking
+npm run lint         # biome linter
+npm run lint:fix     # auto-fix lint issues
+npm run test:unit    # run unit tests
+```
+
+After building, reload the extension in `chrome://extensions` to pick up changes.
+
+### Firefox builds
+
+```bash
+npm run build:firefox       # build for Firefox → dist/
+npm run build:firefox:xpi   # package as .xpi for distribution
+```
+
+---
+
+## 📊 Chrome vs Firefox
+
+| Feature | Chrome | Firefox |
+|---------|--------|---------|
+| Tab grouping | ✅ | — |
+| Side panel | ✅ Native | Sidebar (adapted) |
+| Relay keepalive | ✅ Offscreen doc | — |
+| Min version | MV3 | 109.0+ |
+
+---
+
+<div align="center">
+
+**[Parchi](https://github.com/0xSero/parchi)** is MIT licensed.
+
+Built with the [AI SDK](https://sdk.vercel.ai) · Styled with [Warm Paper](https://github.com/0xSero/parchi) design system
+
+</div>
