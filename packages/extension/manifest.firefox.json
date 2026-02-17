@@ -1,6 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Parchi",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{01750513-9c5b-418a-af8e-31344dd293e3}",
+      "strict_min_version": "109.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  },
   "version": "0.3.10",
   "description": "Warm-paper browser automation assistant with configurable LLM/vision profiles and enterprise-ready controls",
   "permissions": [
@@ -11,7 +20,9 @@
     "declarativeNetRequest"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "<all_urls>",
+    "https://*.convex.cloud/*",
+    "https://*.convex.site/*"
   ],
   "action": {
     "default_title": "Parchi Panel"
@@ -28,6 +39,9 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
   },
   "content_scripts": [
     {

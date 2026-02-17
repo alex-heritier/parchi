@@ -1,6 +1,7 @@
 import { DEFAULT_AGENT_SYSTEM_PROMPT } from '../../../../shared/src/prompts.js';
 import { PARCHI_STORAGE_KEYS } from '../../../../shared/src/settings.js';
 import { SidePanelUI } from '../core/panel-ui.js';
+import { THEMES, DEFAULT_THEME_ID, applyTheme } from './themes.js';
 
 const parseHeadersJson = (raw: string): Record<string, string> => {
   const trimmed = raw.trim();
@@ -139,7 +140,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
 };
 
 (SidePanelUI.prototype as any).switchSettingsTab = function switchSettingsTab(
-  tabName: 'setup' | 'model' | 'browser' | 'network' | 'profiles' = 'setup',
+  tabName: 'setup' | 'oauth' | 'model' | 'browser' | 'network' | 'prompt' | 'profiles' = 'setup',
 ) {
   // Persist current form state when leaving setup tab
   if (this.currentSettingsTab === 'setup' && tabName !== 'setup') {
@@ -148,19 +149,23 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   }
   this.currentSettingsTab = tabName;
 
-  const tabs = ['setup', 'model', 'browser', 'network', 'profiles'] as const;
+  const tabs = ['setup', 'oauth', 'model', 'browser', 'network', 'prompt', 'profiles'] as const;
   const tabElements: Record<string, HTMLElement | null> = {
     setup: this.elements.settingsTabSetup,
+    oauth: this.elements.settingsTabOauth,
     model: this.elements.settingsTabModel,
     browser: this.elements.settingsTabBrowser,
     network: this.elements.settingsTabNetwork,
+    prompt: this.elements.settingsTabPrompt,
     profiles: this.elements.settingsTabProfiles,
   };
   const btnElements: Record<string, HTMLElement | null> = {
     setup: this.elements.settingsTabSetupBtn,
+    oauth: this.elements.settingsTabOauthBtn,
     model: this.elements.settingsTabModelBtn,
     browser: this.elements.settingsTabBrowserBtn,
     network: this.elements.settingsTabNetworkBtn,
+    prompt: this.elements.settingsTabPromptBtn,
     profiles: this.elements.settingsTabProfilesBtn,
   };
 
@@ -227,6 +232,9 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   this.currentConfig = this.configs[settings.activeConfig] ? settings.activeConfig : 'default';
   this.auxAgentProfiles = settings.auxAgentProfiles || [];
   this.applyUiZoom(settings.uiZoom ?? 1, { persist: false });
+  this.currentTheme = settings.theme || DEFAULT_THEME_ID;
+  applyTheme(this.currentTheme);
+  this.renderThemeGrid?.();
 
   if (this.elements.visionBridge)
     this.elements.visionBridge.value = settings.visionBridge !== undefined ? String(settings.visionBridge) : 'true';
@@ -280,6 +288,8 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   this.toggleCustomEndpoint();
   this.updateScreenshotToggleState();
   this.editProfile(this.currentConfig, true);
+  this.updatePromptSections?.();
+  await this.refreshAccountPanel?.({ silent: true });
 };
 
 (SidePanelUI.prototype as any).updateRelayStatusFromSettings = function updateRelayStatusFromSettings(
@@ -310,6 +320,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   }
   const profile = this.collectCurrentFormProfile();
   this.configs[this.currentConfig] = profile;
+  this.savePromptSections?.();
   await this.persistAllSettings();
 
   // Refresh models after saving settings
@@ -461,6 +472,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
       allowedDomains: this.elements.allowedDomains?.value || '',
       auxAgentProfiles: this.auxAgentProfiles,
       uiZoom: this.uiZoom ?? 1,
+      theme: this.currentTheme || DEFAULT_THEME_ID,
       relayEnabled: this.elements.relayEnabled?.value === 'true',
       relayUrl: normalizedRelayUrl,
       relayToken: this.elements.relayToken?.value || '',
@@ -485,6 +497,34 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   return DEFAULT_AGENT_SYSTEM_PROMPT;
 };
 
+(SidePanelUI.prototype as any).renderThemeGrid = function renderThemeGrid() {
+  const grid = this.elements.themeGrid;
+  if (!grid) return;
+  grid.innerHTML = '';
+  for (const theme of THEMES) {
+    const swatch = document.createElement('button');
+    swatch.className = 'theme-swatch';
+    if (theme.id === this.currentTheme) swatch.classList.add('active');
+    swatch.title = theme.name;
+    swatch.dataset.themeId = theme.id;
+    swatch.innerHTML = `
+      <span class="theme-swatch-color" style="background:${theme.preview.bg}; border-color:${theme.preview.accent}">
+        <span class="theme-swatch-accent" style="background:${theme.preview.accent}"></span>
+      </span>
+      <span class="theme-swatch-label">${theme.name}</span>
+    `;
+    swatch.addEventListener('click', () => this.setTheme(theme.id));
+    grid.appendChild(swatch);
+  }
+};
+
+(SidePanelUI.prototype as any).setTheme = function setTheme(id: string) {
+  this.currentTheme = id;
+  applyTheme(id);
+  this.renderThemeGrid();
+  chrome.storage.local.set({ theme: id }).catch(() => {});
+};
+
 (SidePanelUI.prototype as any).updateScreenshotToggleState = function updateScreenshotToggleState() {
   if (!this.elements.enableScreenshots) return;
   const wantsScreens = this.elements.enableScreenshots.value === 'true';
@@ -499,5 +539,64 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   });
   if (wantsScreens && !hasVision) {
     this.updateStatus('Enable a vision-capable profile before sending screenshots.', 'warning');
+  }
+};
+
+/* ============================================================================
+   Orchestrator / Vision prompt sections in Prompt tab
+   ============================================================================ */
+
+(SidePanelUI.prototype as any).updatePromptSections = function updatePromptSections() {
+  // Re-query elements in case they weren't available at constructor time (loaded via template)
+  const orchSection = this.elements.orchestratorPromptSection || document.getElementById('orchestratorPromptSection');
+  const orchTextarea = this.elements.orchestratorPromptTextarea || document.getElementById('orchestratorPromptTextarea') as HTMLTextAreaElement | null;
+  const visSection = this.elements.visionPromptSection || document.getElementById('visionPromptSection');
+  const visTextarea = this.elements.visionPromptTextarea || document.getElementById('visionPromptTextarea') as HTMLTextAreaElement | null;
+
+  // Cache
+  if (orchSection) this.elements.orchestratorPromptSection = orchSection;
+  if (orchTextarea) this.elements.orchestratorPromptTextarea = orchTextarea;
+  if (visSection) this.elements.visionPromptSection = visSection;
+  if (visTextarea) this.elements.visionPromptTextarea = visTextarea;
+
+  // Orchestrator
+  const orchEnabled = this.elements.orchestratorToggle?.value === 'true';
+  const orchProfileName = this.elements.orchestratorProfile?.value || this.currentConfig;
+  if (orchSection) {
+    orchSection.classList.toggle('hidden', !orchEnabled);
+  }
+  if (orchEnabled && orchTextarea) {
+    const orchProfile = this.configs[orchProfileName] || {};
+    orchTextarea.value = orchProfile.systemPrompt || '';
+  }
+
+  // Vision
+  const visProfileName = this.elements.visionProfile?.value;
+  const visEnabled = !!visProfileName && visProfileName !== '' && visProfileName !== this.currentConfig;
+  if (visSection) {
+    visSection.classList.toggle('hidden', !visEnabled);
+  }
+  if (visEnabled && visTextarea) {
+    const visProfile = this.configs[visProfileName] || {};
+    visTextarea.value = visProfile.systemPrompt || '';
+  }
+};
+
+(SidePanelUI.prototype as any).savePromptSections = function savePromptSections() {
+  // Save orchestrator prompt back to its profile
+  const orchEnabled = this.elements.orchestratorToggle?.value === 'true';
+  if (orchEnabled && this.elements.orchestratorPromptTextarea) {
+    const orchProfileName = this.elements.orchestratorProfile?.value || this.currentConfig;
+    if (this.configs[orchProfileName]) {
+      this.configs[orchProfileName].systemPrompt = this.elements.orchestratorPromptTextarea.value || '';
+    }
+  }
+
+  // Save vision prompt back to its profile
+  const visProfileName = this.elements.visionProfile?.value;
+  if (visProfileName && visProfileName !== this.currentConfig && this.elements.visionPromptTextarea) {
+    if (this.configs[visProfileName]) {
+      this.configs[visProfileName].systemPrompt = this.elements.visionPromptTextarea.value || '';
+    }
   }
 };

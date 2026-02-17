@@ -4,19 +4,40 @@ import type { Message } from '../../../ai/message-schema.js';
 import { bindSidebarNavigation, setSidebarOpen } from './panel-navigation.js';
 import { SidePanelUI } from './panel-ui.js';
 
+const resolveTextAreaMaxHeight = (textarea: HTMLTextAreaElement, fallbackHeight: number): number => {
+  const computedMaxHeight = Number.parseFloat(getComputedStyle(textarea).maxHeight);
+  if (Number.isFinite(computedMaxHeight) && computedMaxHeight > 0) {
+    return computedMaxHeight;
+  }
+  return fallbackHeight;
+};
+
+const autoResizeTextArea = (textarea: HTMLTextAreaElement | null, maxHeight: number, minHeight = 0) => {
+  if (!textarea) return;
+  const resolvedMaxHeight = resolveTextAreaMaxHeight(textarea, maxHeight);
+  const resolvedMinHeight = Math.min(Math.max(0, minHeight), resolvedMaxHeight);
+  textarea.style.height = 'auto';
+  const nextHeight = Math.min(textarea.scrollHeight, resolvedMaxHeight);
+  const clampedHeight = Math.max(nextHeight, resolvedMinHeight);
+  textarea.style.height = `${clampedHeight}px`;
+  textarea.style.overflowY = textarea.scrollHeight > resolvedMaxHeight || clampedHeight >= resolvedMaxHeight ? 'auto' : 'hidden';
+};
+
 (SidePanelUI.prototype as any).init = async function init() {
   try {
     this.setupEventListeners();
     this.setupPlanDrawer();
     this.setupResizeObserver();
-    // Start with sidebar closed by default
     setSidebarOpen(this.elements, false);
     await this.loadSettings();
+    await this.initAccountPanel?.();
+    await this.loadWorkflows();
     await this.loadHistoryList();
     this.updateStatus('Ready', 'success');
     this.updateModelDisplay();
     this.fetchAvailableModels();
     this.updateChatEmptyState?.();
+    this.initMascotBubble?.();
   } catch (error) {
     console.error('[Parchi] init() failed:', error);
     this.updateStatus('Initialization failed - check console', 'error');
@@ -25,14 +46,10 @@ import { SidePanelUI } from './panel-ui.js';
 
 (SidePanelUI.prototype as any).setupEventListeners = function setupEventListeners() {
   bindSidebarNavigation(this.elements, {
-    onOpen: () => this.openSidebar(),
+    onOpen: () => this.openSettingsPanel(),
     onClose: () => this.closeSidebar(),
     onHistory: () => this.openHistoryPanel(),
     onSettings: () => this.openSettingsPanel(),
-  });
-
-  this.elements.settingsBtn?.addEventListener('click', () => {
-    this.openSettingsPanel();
   });
 
   this.elements.startNewSessionBtn?.addEventListener('click', () => this.startNewSession());
@@ -67,12 +84,21 @@ import { SidePanelUI } from './panel-ui.js';
   this.elements.activeConfig?.addEventListener('change', () => this.switchConfig());
 
   this.elements.settingsTabSetupBtn?.addEventListener('click', () => this.switchSettingsTab('setup'));
+  this.elements.settingsTabOauthBtn?.addEventListener('click', () => this.switchSettingsTab('oauth'));
   this.elements.settingsTabModelBtn?.addEventListener('click', () => this.switchSettingsTab('model'));
   this.elements.settingsTabBrowserBtn?.addEventListener('click', () => this.switchSettingsTab('browser'));
   this.elements.settingsTabNetworkBtn?.addEventListener('click', () => this.switchSettingsTab('network'));
+  this.elements.settingsTabPromptBtn?.addEventListener('click', () => this.switchSettingsTab('prompt'));
   this.elements.settingsTabProfilesBtn?.addEventListener('click', () => this.switchSettingsTab('profiles'));
   this.elements.createProfileBtn?.addEventListener('click', () => this.createProfileFromInput());
   this.elements.agentGrid?.addEventListener('click', (event) => {
+    const deleteBtn = (event.target as HTMLElement | null)?.closest('.agent-card-delete') as HTMLElement | null;
+    if (deleteBtn) {
+      event.stopPropagation();
+      const profileName = deleteBtn.dataset.deleteProfile;
+      if (profileName) this.deleteProfileByName(profileName);
+      return;
+    }
     const pill = (event.target as HTMLElement | null)?.closest('.role-pill');
     if (pill) {
       const role = (pill as HTMLElement).dataset.role;
@@ -90,8 +116,13 @@ import { SidePanelUI } from './panel-ui.js';
 
   // Screenshot + vision controls
   this.elements.enableScreenshots?.addEventListener('change', () => this.updateScreenshotToggleState());
-  this.elements.visionProfile?.addEventListener('change', () => this.updateScreenshotToggleState());
+  this.elements.visionProfile?.addEventListener('change', () => {
+    this.updateScreenshotToggleState();
+    this.updatePromptSections?.();
+  });
   this.elements.sendScreenshotsAsImages?.addEventListener('change', () => this.updateScreenshotToggleState());
+  this.elements.orchestratorToggle?.addEventListener('change', () => this.updatePromptSections?.());
+  this.elements.orchestratorProfile?.addEventListener('change', () => this.updatePromptSections?.());
 
   // Save settings
   this.elements.saveSettingsBtn?.addEventListener('click', () => {
@@ -176,8 +207,11 @@ export PARCHI_RELAY_PORT="${port}"`;
     }
   });
 
-  // Enter to send (Shift+Enter for newline)
+  // Enter to send (Shift+Enter for newline), workflow menu gets priority
   this.elements.userInput?.addEventListener('keydown', (event: KeyboardEvent) => {
+    if (this.workflowMenuOpen && this.handleWorkflowKeydown(event)) {
+      return;
+    }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       this.sendMessage();
@@ -187,9 +221,18 @@ export PARCHI_RELAY_PORT="${port}"`;
   // Auto-expand textarea height as user types
   const userInput = this.elements.userInput;
   userInput?.addEventListener('input', () => {
-    userInput.style.height = 'auto';
-    userInput.style.height = `${userInput.scrollHeight}px`;
+    autoResizeTextArea(userInput, 280);
+    this.handleWorkflowInput();
   });
+  this.elements.systemPrompt?.addEventListener('input', () => {
+    autoResizeTextArea(this.elements.systemPrompt, 500, 500);
+  });
+  this.elements.profileEditorPrompt?.addEventListener('input', () => {
+    autoResizeTextArea(this.elements.profileEditorPrompt, 500);
+  });
+  autoResizeTextArea(userInput, 280);
+  autoResizeTextArea(this.elements.systemPrompt, 500, 500);
+  autoResizeTextArea(this.elements.profileEditorPrompt, 500);
 
   // Model selector (now shows profiles)
   this.elements.modelSelect?.addEventListener('change', () => {
@@ -409,6 +452,16 @@ export PARCHI_RELAY_PORT="${port}"`;
     this.clearErrorBanner();
     this.updateActivityState();
     this.activeToolName = message.tool || null;
+    // Track which tab the model is interacting with.
+    // Many browser tools resolve tabId internally via resolveTabId() so args.tabId
+    // may be missing. Fall back to the session's active tab for known browser tools.
+    const browserTools = ['navigate', 'openTab', 'click', 'type', 'pressKey', 'scroll',
+      'getContent', 'screenshot', 'switchTab', 'focusTab', 'closeTab', 'watchVideo', 'getVideoInfo'];
+    let toolTabId = typeof message.args?.tabId === 'number' ? message.args.tabId : null;
+    if (!toolTabId && browserTools.includes(message.tool)) {
+      toolTabId = this.sessionTabsState?.activeTabId ?? null;
+    }
+    this.setInteractingTab(toolTabId);
     if (!this.streamingState) {
       this.startStreamingMessage();
     }
@@ -449,6 +502,9 @@ export PARCHI_RELAY_PORT="${port}"`;
     this.pendingToolCount = Math.max(0, this.pendingToolCount - 1);
     this.updateActivityState();
     this.activeToolName = null;
+    if (this.pendingToolCount === 0) {
+      this.setInteractingTab(null);
+    }
     if (!this.streamingState) {
       this.startStreamingMessage();
     }
@@ -554,6 +610,10 @@ export PARCHI_RELAY_PORT="${port}"`;
     this.showErrorBanner(message.message);
     return;
   }
+  if (message.type === 'session_tabs_update') {
+    this.handleSessionTabsUpdate(message);
+    return;
+  }
   if (message.type === 'subagent_start') {
     this.addSubagent(message.id, message.name, message.tasks);
     this.updateStatus(`Sub-agent "${message.name}" started`, 'active');
@@ -592,6 +652,18 @@ export PARCHI_RELAY_PORT="${port}"`;
 };
 
 (SidePanelUI.prototype as any).handleContextCompaction = function handleContextCompaction(message: any) {
+  const trimmedCount = Number(message.trimmedCount || 0);
+  const preservedCount = Number(message.preservedCount || 0);
+  const percent = typeof message.contextUsage?.percent === 'number' ? Math.max(0, Math.min(100, Math.round(message.contextUsage.percent))) : null;
+  const parts = [
+    trimmedCount > 0 ? `${trimmedCount} summarized` : 'Context compacted',
+    preservedCount > 0 ? `${preservedCount} preserved` : null,
+    percent !== null ? `${percent}% after compaction` : null,
+  ].filter(Boolean);
+  if (parts.length > 0) {
+    this.updateStatus(`Context compacted: ${parts.join(', ')}`, 'success');
+  }
+
   const normalized = normalizeConversationHistory(message.contextMessages as unknown as Message[]);
   this.contextHistory = normalized;
   this.sessionId = message.newSessionId || this.sessionId;

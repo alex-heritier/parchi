@@ -41,6 +41,7 @@ import { SidePanelUI } from './panel-ui.js';
   this.openSidebar();
   this.showRightPanel('settings');
   this.switchSettingsTab(this.currentSettingsTab || 'setup');
+  void this.refreshAccountPanel?.({ silent: true });
   this.setNavActive('settings');
 };
 
@@ -67,6 +68,11 @@ import { SidePanelUI } from './panel-ui.js';
   this.pendingToolCount = 0;
   this.isStreaming = false;
   this.activeToolName = null;
+  this._lastTypingAt = 0;
+  this._mascotBubbleOpen = false;
+  const mascotBubble = document.getElementById('mascotBubble');
+  if (mascotBubble) mascotBubble.classList.add('hidden');
+  this.updateMascotEyeState?.();
   this.subagents.clear();
   this.activeAgent = 'main';
   this.historyTurnMap.clear();
@@ -76,6 +82,15 @@ import { SidePanelUI } from './panel-ui.js';
   this.updateChatEmptyState?.();
   this.resetActivityPanel();
   this.hideAgentNav();
+  // Clear session tabs HUD
+  this.sessionTabsState = {
+    tabs: [],
+    activeTabId: null,
+    maxTabs: 5,
+    groupTitle: undefined,
+    interactingTabId: null,
+  };
+  this.renderSessionTabsHud?.();
   this.updateStatus('Ready for a new session', 'success');
   this.switchView('chat');
   this.updateContextUsage();

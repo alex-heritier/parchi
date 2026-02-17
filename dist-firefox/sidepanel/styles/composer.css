@@ -1,0 +1,597 @@
+/* ============================================================================
+   Composer — Modern Void Design System
+   ============================================================================ */
+
+.composer-wrapper {
+  padding: 16px 18px 20px;
+  background: var(--background);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--card);
+  border: none;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: none;
+  transition: box-shadow 0.3s;
+  position: relative;
+}
+
+/* Gloss sheen overlay — disabled for subtle look */
+.composer::after {
+  display: none;
+}
+
+/* Running state — model is working */
+.composer.running {
+  border: none;
+  box-shadow: none;
+}
+
+.composer.running::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, hsla(0, 0%, 100%, 0.2) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  z-index: 2;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.composer.running textarea {
+  color: var(--muted);
+}
+
+.composer.running .send-btn {
+  background: hsla(0, 40%, 50%, 0.9);
+  color: #fff;
+}
+
+.composer.running .send-btn:hover {
+  background: hsl(0, 45%, 55%);
+  color: #fff;
+}
+
+/* Send/Stop icon toggle — stop icon hidden by default */
+.send-btn .stop-icon {
+  display: none;
+}
+
+.composer.running .send-btn .send-icon {
+  display: none;
+}
+
+.composer.running .send-btn .stop-icon {
+  display: block;
+}
+
+.composer textarea {
+  width: 100%;
+  min-height: 54px;
+  padding: 18px 18px 12px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 15px;
+  line-height: 1.6;
+  resize: none;
+  border: none;
+  border-radius: 0;
+  outline: none;
+  transition: color var(--duration-fast) ease;
+}
+
+.composer textarea::placeholder {
+  color: var(--muted-dim);
+}
+
+.composer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 14px 8px;
+  background: transparent;
+  border-top: 1px solid var(--ink-1);
+}
+
+.composer-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.composer-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Zoom controls — hidden from toolbar, accessible via settings */
+.zoom-controls {
+  display: none;
+}
+
+.zoom-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border: 1px solid transparent;
+  background: transparent;
+  transition: all var(--duration-fast) ease;
+}
+
+.zoom-btn:hover {
+  border-color: var(--ink-2);
+  background: var(--card-hover);
+  color: var(--foreground);
+}
+
+.zoom-btn:active {
+  transform: scale(0.96);
+}
+
+.zoom-reset {
+  font-size: 11px;
+  color: var(--foreground);
+}
+
+/* Status — inline text, no pill */
+.composer-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  font-size: 11px;
+  color: var(--muted);
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: all var(--duration-fast) ease;
+}
+
+.composer-status:hover {
+  background: transparent;
+}
+
+.composer-status .status-dot {
+  width: 6px;
+  height: 6px;
+  box-shadow: none;
+  transition: all var(--duration-fast) ease;
+}
+
+.composer-status .status-dot.active {
+  background: var(--accent);
+  box-shadow: 0 0 8px rgb(var(--accent-rgb) / 0.3);
+}
+
+.composer-status #statusText {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+/* Secondary meta — hidden by default, shown on hover */
+.composer-status .status-meta {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--muted-dim);
+  margin-left: 2px;
+  padding-left: 6px;
+  border-left: 1px solid var(--ink-1);
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  transition: all var(--duration-fast) ease;
+}
+
+.composer-status:hover .status-meta,
+.composer-status.has-meta .status-meta {
+  opacity: 1;
+  max-width: 120px;
+}
+
+.composer-status .status-meta:empty {
+  display: none;
+}
+
+/* Icon buttons inside composer — ghost style */
+.composer .icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+  color: var(--muted-dim);
+}
+
+.composer .icon-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: transparent;
+  color: var(--foreground);
+}
+
+/* Tab selector button */
+.tab-selector-btn {
+  position: relative;
+}
+
+.tab-selector-btn.has-selection {
+  background: rgb(var(--accent-rgb) / 0.08);
+  border-color: rgb(var(--accent-rgb) / 0.15);
+  color: var(--foreground);
+}
+
+.tab-selector-btn.has-selection::after {
+  content: attr(data-count);
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Profile / model selector — neutral pill */
+.model-selector {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  background: transparent;
+  border: 1px solid var(--ink-1);
+  border-radius: 9999px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+  box-shadow: none;
+  max-width: 300px;
+  min-width: 160px;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Shimmer animation — disabled */
+.model-selector::before {
+  display: none;
+}
+
+.model-selector:hover {
+  border-color: var(--ink-2);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--foreground);
+}
+
+.model-selector:hover::before {
+  display: none;
+}
+
+.model-selector select {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  appearance: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Fill entire pill so click anywhere opens dropdown */
+  position: absolute;
+  inset: 0;
+  padding: 0 28px 0 12px;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.model-selector select:focus {
+  outline: none;
+}
+
+.model-selector-chevron {
+  pointer-events: none;
+  opacity: 0.7;
+  flex-shrink: 0;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+@media (max-width: 640px) {
+  .model-selector {
+    padding: 0 10px;
+    max-width: 160px;
+  }
+  .model-selector select {
+    max-width: 120px;
+    font-size: 11px;
+  }
+}
+
+/* Export button — hidden from toolbar, accessible via sidebar menu */
+.composer .export-btn {
+  display: none;
+}
+
+/* Narrow sidepanel adjustments */
+@media (max-width: 520px) {
+  .composer .icon-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+  }
+
+  .model-selector {
+    max-width: 160px;
+  }
+}
+
+/* Selected Tabs — Paper card style matching composer */
+.selected-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selected-tabs-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--ink-2);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.selected-group-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.selected-group-label::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--group-color, var(--accent));
+  box-shadow: 0 0 6px var(--group-color, var(--accent));
+}
+
+.selected-group-count {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  border: 1px solid var(--ink-1);
+  color: var(--muted-dim);
+  background: var(--background);
+  font-family: var(--font-mono);
+}
+
+.selected-tabs-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.selected-tab-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: 9999px;
+  background: var(--background);
+  border: 1px solid var(--ink-1);
+  color: var(--foreground);
+  transition: all var(--duration-fast) ease;
+}
+
+.selected-tab-chip:hover {
+  border-color: var(--ink-2);
+  transform: translateY(-1px);
+}
+
+.selected-tab-chip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  border: none;
+  background: transparent;
+  color: var(--muted-dim);
+  transition: all var(--duration-fast) ease;
+}
+
+.selected-tab-chip button:hover {
+  background: var(--error);
+  color: white;
+  transform: scale(1.1);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  position: relative;
+  overflow: hidden;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+}
+
+.btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent);
+  opacity: 0;
+  transition: opacity var(--duration-fast);
+}
+
+.btn:hover {
+  background: var(--card-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.btn:hover::after {
+  opacity: 1;
+}
+
+.btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.btn-primary {
+  background: linear-gradient(180deg, var(--accent), var(--accent-dark));
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 12px rgb(var(--accent-rgb) / 0.25);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(180deg, var(--accent-light), var(--accent));
+  box-shadow: 0 6px 16px rgb(var(--accent-rgb) / 0.35);
+}
+
+.btn-secondary {
+  background: transparent;
+}
+
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  position: relative;
+  overflow: hidden;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+}
+
+.icon-btn::before {
+  display: none;
+}
+
+.icon-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--foreground);
+}
+
+.icon-btn:active {
+  transform: scale(0.95);
+}
+
+/* Send button — subtle circle */
+.send-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--muted-dim);
+  border: none;
+  border-radius: 50%;
+  color: var(--background);
+  box-shadow: none;
+  position: relative;
+  overflow: hidden;
+  transition: all var(--duration-fast) var(--ease-spring);
+}
+
+.send-btn::before {
+  display: none;
+}
+
+.send-btn:hover {
+  background: var(--muted);
+}
+
+.send-btn:hover::before {
+  display: none;
+}
+
+.send-btn:active {
+  transform: scale(0.95);
+}
+
+.send-btn:disabled {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted-dim);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}

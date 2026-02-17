@@ -162,9 +162,6 @@ export function shouldCompact({
 
 function estimateTokens(message: Message): number {
   let tokens = estimateTokensFromContent(message.content);
-  if (message.thinking) {
-    tokens += Math.ceil(message.thinking.length / 4);
-  }
 
   if (Array.isArray(message.content)) {
     for (const part of message.content) {
@@ -231,7 +228,6 @@ export function serializeConversation(messages: Message[]): string {
     if (msg.role === 'user') {
       if (contentText) parts.push(`[User]: ${contentText}`);
     } else if (msg.role === 'assistant') {
-      if (msg.thinking) parts.push(`[Assistant thinking]: ${msg.thinking}`);
       if (contentText) parts.push(`[Assistant]: ${contentText}`);
       if (Array.isArray(msg.toolCalls) && msg.toolCalls.length > 0) {
         const toolCalls = msg.toolCalls.map((call) => `${call.name}(${JSON.stringify(call.args || {})})`).join('; ');

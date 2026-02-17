@@ -32,7 +32,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
     // Extract inline code blocks to avoid linkifying inside code
     const inlineCode: string[] = [];
     html = html.replace(/`([^`]+)`/g, (_: string, code: string) => {
-      const placeholder = `@@INLINE_CODE_${inlineCode.length}@@`;
+      const placeholder = `@@INLINECODE${inlineCode.length}@@`;
       inlineCode.push(`<code>${escape(code)}</code>`);
       return placeholder;
     });
@@ -68,7 +68,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
     html = html.replace(/(?<!_)_(?!\s)(.+?)_(?!_)/g, '<em>$1</em>');
 
     inlineCode.forEach((codeBlock, index) => {
-      const placeholder = `@@INLINE_CODE_${index}@@`;
+      const placeholder = `@@INLINECODE${index}@@`;
       html = html.split(placeholder).join(codeBlock);
     });
     return html;
@@ -196,6 +196,32 @@ import { SidePanelUI } from '../core/panel-ui.js';
 
 (SidePanelUI.prototype as any).renderMarkdownTable = function renderMarkdownTable(tableText: string): string {
   const escape = (value = '') => this.escapeHtmlBasic(value);
+  const escapeAttr = (value = '') => this.escapeAttribute(value);
+
+  // Inline markdown for table cells (bold, italic, code, links)
+  const applyCell = (value = '') => {
+    let html = escape(value);
+    const inlineCode: string[] = [];
+    html = html.replace(/`([^`]+)`/g, (_: string, code: string) => {
+      const ph = `@@TCODE${inlineCode.length}@@`;
+      inlineCode.push(`<code>${escape(code)}</code>`);
+      return ph;
+    });
+    html = html.replace(
+      /\[([^\]]+)\]\(([^)]+)\)/g,
+      (_: string, label: string, url: string) =>
+        `<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`,
+    );
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
+    html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
+    html = html.replace(/(?<!\*)\*(?!\s)(.+?)\*(?!\*)/g, '<em>$1</em>');
+    html = html.replace(/(?<!_)_(?!\s)(.+?)_(?!_)/g, '<em>$1</em>');
+    inlineCode.forEach((codeBlock, i) => {
+      html = html.split(`@@TCODE${i}@@`).join(codeBlock);
+    });
+    return html;
+  };
 
   const lines = tableText
     .trim()
@@ -225,7 +251,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
   // Header
   html += '<thead><tr>';
   headers.forEach((header) => {
-    html += `<th>${escape(header)}</th>`;
+    html += `<th>${applyCell(header)}</th>`;
   });
   html += '</tr></thead>';
 
@@ -243,7 +269,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
         cells.forEach((cell, idx) => {
           // First column often acts as row header
           const tag = idx === 0 ? 'th' : 'td';
-          html += `<${tag}>${escape(cell)}</${tag}>`;
+          html += `<${tag}>${applyCell(cell)}</${tag}>`;
         });
         // Fill empty cells to match header count
         for (let i = cells.length; i < headers.length; i++) {

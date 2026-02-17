@@ -56,7 +56,7 @@ export class SidePanelUI {
   };
   auxAgentProfiles: string[];
   currentView: 'chat' | 'history';
-  currentSettingsTab: 'general' | 'profiles';
+  currentSettingsTab: 'setup' | 'oauth' | 'model' | 'browser' | 'network' | 'prompt' | 'profiles';
   profileEditorTarget: string;
   subagents: Map<string, { name: string; status: string; messages: any[]; tasks?: string[] }>;
   activeAgent: string;
@@ -93,6 +93,21 @@ export class SidePanelUI {
   _deleteConfirmTarget: string | null;
   _deleteConfirmAt: number | null;
   timelineCollapsed: boolean;
+  currentTheme: string;
+  sessionTabsState: {
+    tabs: Array<{ id: number; title?: string; url?: string }>;
+    activeTabId: number | null;
+    maxTabs: number;
+    groupTitle?: string;
+    interactingTabId: number | null;
+  };
+  workflows: Array<{ id: string; name: string; prompt: string; createdAt: number }>;
+  workflowMenuOpen: boolean;
+  workflowMenuIndex: number;
+  _lastTypingAt: number;
+  _typingCheckTimerId: number | null;
+  _mascotBubbleOpen: boolean;
+  _currentVerb: string | null;
 
   // Methods attached via prototype in panel-modules
   declare init: () => Promise<void>;
@@ -145,7 +160,7 @@ export class SidePanelUI {
     };
     this.auxAgentProfiles = [];
     this.currentView = 'chat';
-    this.currentSettingsTab = 'general';
+    this.currentSettingsTab = 'setup';
     this.profileEditorTarget = 'default';
     this.subagents = new Map();
     this.activeAgent = 'main';
@@ -167,6 +182,21 @@ export class SidePanelUI {
     this._deleteConfirmTarget = null;
     this._deleteConfirmAt = null;
     this.timelineCollapsed = true;
+    this.currentTheme = 'void';
+    this.sessionTabsState = {
+      tabs: [],
+      activeTabId: null,
+      maxTabs: 5,
+      groupTitle: undefined,
+      interactingTabId: null,
+    };
+    this.workflows = [];
+    this.workflowMenuOpen = false;
+    this.workflowMenuIndex = -1;
+    this._lastTypingAt = 0;
+    this._typingCheckTimerId = null;
+    this._mascotBubbleOpen = false;
+    this._currentVerb = null;
     void this.init();
   }
 }

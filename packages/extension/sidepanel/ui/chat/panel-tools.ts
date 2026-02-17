@@ -82,37 +82,18 @@ const toolIcons: Record<string, string> = {
     };
     this.toolCallViews.set(entryId, entry);
 
-    // Create elegant inline tool display
     if (this.streamingState?.eventsEl) {
       const toolEl = this.createToolElement(entry);
       entry.element = toolEl;
-      const activeIndex =
-        typeof this.stepTimeline?.activeStepIndex === 'number' ? this.stepTimeline.activeStepIndex : null;
-      const activeStep = activeIndex !== null ? this.stepTimeline.steps.get(activeIndex) : null;
-      const target = activeStep?.toolsEl || this.stepTimeline?.activeStepBody || this.streamingState.eventsEl;
-      target.appendChild(toolEl);
+      this.streamingState.eventsEl.appendChild(toolEl);
       this.streamingState.lastEventType = 'tool';
     }
-
-    // Update timeline summary (total + last action).
-    this._timelineStats = this._timelineStats || { total: 0, running: 0, last: '', lastStatus: 'RUN' };
-    this._timelineStats.total += 1;
-    this._timelineStats.running += 1;
-    const argsTokens = this.getArgsTokens?.(args) || [];
-    const argsLabel = argsTokens.length ? ` · ${argsTokens.join(' · ')}` : '';
-    this._timelineStats.last = `${displayName}${argsLabel}`;
-    this._timelineStats.lastStatus = 'RUN';
-    this.refreshTimelineHud?.();
     this.scrollToBottom();
   }
 
   if (result !== null && result !== undefined) {
     this.updateToolResult(entry, result);
-    this._timelineStats = this._timelineStats || { total: 0, running: 0, last: '', lastStatus: 'RUN' };
-    this._timelineStats.running = Math.max(0, (this._timelineStats.running || 0) - 1);
     const isError = result && (result.error || result.success === false);
-    this._timelineStats.lastStatus = isError ? 'ERR' : 'OK';
-    this.refreshTimelineHud?.();
     if (isError) {
       const detail = result?.details
         ? ` (${this.truncateText?.(String(result.details), 140) || String(result.details)})`
@@ -214,25 +195,7 @@ const toolIcons: Record<string, string> = {
 };
 
 (SidePanelUI.prototype as any).refreshTimelineHud = function refreshTimelineHud() {
-  const stats = this._timelineStats || { total: 0, running: 0, last: '', lastStatus: 'RUN' };
-  const hud = this.streamingState?.container?.querySelector('.run-hud') as HTMLElement | null;
-  if (!hud) return;
-
-  const pill = hud.querySelector('.run-hud-pill') as HTMLElement | null;
-  const countEl = hud.querySelector('.run-hud-count') as HTMLElement | null;
-  const lastEl = hud.querySelector('.run-hud-last') as HTMLElement | null;
-
-  if (pill) {
-    pill.dataset.state = stats.running > 0 || this.isStreaming ? 'running' : 'idle';
-  }
-  if (countEl) {
-    countEl.textContent = `${stats.total}`;
-  }
-  if (lastEl) {
-    const status = stats.lastStatus ? `${stats.lastStatus}` : '';
-    const label = stats.last || '';
-    lastEl.textContent = label ? `${status} ${label}`.trim() : '';
-  }
+  // No-op: run-hud removed
 };
 
 (SidePanelUI.prototype as any).getToolIcon = function getToolIcon(toolName: string): string {
@@ -365,7 +328,8 @@ const toolIcons: Record<string, string> = {
 // ============================================================================
 
 (SidePanelUI.prototype as any).updateActivityState = function updateActivityState() {
-  const labels: string[] = [];
+  // --- Toolbar: timer + context ---
+  const toolbarLabels: string[] = [];
 
   if (this.runStartedAt) {
     const elapsed = Math.max(0, Date.now() - this.runStartedAt);
@@ -373,57 +337,43 @@ const toolIcons: Record<string, string> = {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     const label = `${minutes.toString().padStart(1, '0')}:${seconds.toString().padStart(2, '0')}`;
-    labels.push(`Run ${label}`);
+    toolbarLabels.push(`Run ${label}`);
   }
 
-  if (this.pendingToolCount > 0) {
-    labels.push(`${this.pendingToolCount} action${this.pendingToolCount > 1 ? 's' : ''} running`);
-  }
-  if (this.isStreaming) {
-    labels.push('Streaming response');
-  }
   if (this.contextUsage && this.contextUsage.maxContextTokens) {
     const used = Math.max(0, this.contextUsage.approxTokens || 0);
     const max = Math.max(1, this.contextUsage.maxContextTokens || 0);
     const usedLabel = used >= 10000 ? `${(used / 1000).toFixed(1)}k` : `${used}`;
     const maxLabel = max >= 10000 ? `${(max / 1000).toFixed(0)}k` : `${max}`;
-    labels.push(`Context ~ ${usedLabel} / ${maxLabel}`);
+    toolbarLabels.push(`${usedLabel} / ${maxLabel}`);
   }
 
   const usageLabel = this.buildUsageLabel?.(this.lastUsage);
   if (usageLabel) {
-    labels.push(usageLabel);
+    toolbarLabels.push(usageLabel);
   }
 
   if (this.elements.statusMeta) {
-    if (labels.length > 0) {
-      this.elements.statusMeta.textContent = labels.join(' · ');
-      this.elements.statusMeta.classList.remove('hidden');
-      this.elements.statusBar?.classList.add('has-meta');
-    } else {
-      this.elements.statusMeta.textContent = '';
-      this.elements.statusMeta.classList.add('hidden');
-      this.elements.statusBar?.classList.remove('has-meta');
-    }
+    this.elements.statusMeta.textContent = toolbarLabels.join(' · ');
   }
 
-  // Inline run HUD (per streaming message)
-  const hud = this.streamingState?.container?.querySelector('.run-hud') as HTMLElement | null;
-  if (hud) {
-    const timeEl = hud.querySelector('.run-hud-time') as HTMLElement | null;
+  // --- Bubble: status only (actions, streaming) ---
+  const bubbleLabels: string[] = [];
 
-    const elapsedLabel = (() => {
-      if (!this.runStartedAt) return '';
-      const elapsed = Math.max(0, Date.now() - this.runStartedAt);
-      const totalSeconds = Math.floor(elapsed / 1000);
-      const minutes = Math.floor(totalSeconds / 60);
-      const seconds = totalSeconds % 60;
-      return `${minutes.toString().padStart(1, '0')}:${seconds.toString().padStart(2, '0')}`;
-    })();
-
-    if (timeEl) timeEl.textContent = elapsedLabel ? elapsedLabel : '';
-    this.refreshTimelineHud?.();
+  if (this.pendingToolCount > 0) {
+    bubbleLabels.push(`${this.pendingToolCount} action${this.pendingToolCount > 1 ? 's' : ''} running`);
   }
+  if (this.isStreaming) {
+    bubbleLabels.push('Streaming');
+  }
+
+  const bubbleMeta = document.getElementById('bubbleMeta');
+  if (bubbleMeta) {
+    bubbleMeta.textContent = bubbleLabels.join(' · ');
+  }
+
+  // Update mascot eye state
+  this.updateMascotEyeState();
   this.updateActivityToggle();
 };
 
@@ -433,6 +383,92 @@ const toolIcons: Record<string, string> = {
 
 (SidePanelUI.prototype as any).toggleActivityPanel = function toggleActivityPanel(_force?: boolean) {
   // Activity panel removed — no-op
+};
+
+/* ============================================================================
+   Mascot Bubble — click to show/hide status bubble above mascot
+   ============================================================================ */
+
+(SidePanelUI.prototype as any).initMascotBubble = function initMascotBubble() {
+  const mascot = document.getElementById('mascotCorner');
+  if (!mascot) return;
+
+  // Track typing for eye state
+  this._lastTypingAt = 0;
+  this._typingCheckTimerId = null;
+  this._mascotBubbleOpen = false;
+
+  mascot.addEventListener('click', () => {
+    this.toggleMascotBubble();
+  });
+
+  // Typing detection on userInput
+  const userInput = this.elements.userInput;
+  if (userInput) {
+    userInput.addEventListener('input', () => {
+      this._lastTypingAt = Date.now();
+      this.updateMascotEyeState();
+
+      // Start polling to detect when typing stops
+      if (!this._typingCheckTimerId) {
+        this._typingCheckTimerId = window.setInterval(() => {
+          const elapsed = Date.now() - this._lastTypingAt;
+          if (elapsed >= 5000) {
+            window.clearInterval(this._typingCheckTimerId);
+            this._typingCheckTimerId = null;
+            this.updateMascotEyeState();
+          }
+        }, 1000);
+      }
+    });
+  }
+};
+
+(SidePanelUI.prototype as any).toggleMascotBubble = function toggleMascotBubble() {
+  const bubble = document.getElementById('mascotBubble');
+  if (!bubble) return;
+
+  this._mascotBubbleOpen = !this._mascotBubbleOpen;
+  if (this._mascotBubbleOpen) {
+    bubble.classList.remove('hidden');
+    // Update content immediately
+    this.updateActivityState();
+  } else {
+    bubble.classList.add('hidden');
+  }
+};
+
+(SidePanelUI.prototype as any).updateMascotBubbleContent = function updateMascotBubbleContent(
+  verb: string,
+  elapsed: string,
+) {
+  const bubbleVerb = document.getElementById('bubbleVerb');
+  if (bubbleVerb) {
+    bubbleVerb.textContent = `${verb} ${elapsed}`;
+  }
+};
+
+/* ============================================================================
+   Mascot Eye State
+   ============================================================================ */
+
+(SidePanelUI.prototype as any).updateMascotEyeState = function updateMascotEyeState() {
+  const mascot = document.getElementById('mascotCorner');
+  if (!mascot) return;
+
+  const isRunning = !!(this.runStartedAt || this.isStreaming || this.pendingToolCount > 0);
+  const isTyping = this._lastTypingAt && (Date.now() - this._lastTypingAt) < 5000;
+
+  // Remove all state classes
+  mascot.classList.remove('sleeping', 'working', 'looking-up', 'thinking');
+
+  if (isRunning) {
+    mascot.classList.add('working');
+  } else if (isTyping) {
+    mascot.classList.add('looking-up');
+  } else {
+    mascot.classList.add('sleeping');
+  }
 };
 
 (SidePanelUI.prototype as any).updateThinkingPanel = function updateThinkingPanel(

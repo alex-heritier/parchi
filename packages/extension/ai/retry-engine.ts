@@ -13,6 +13,28 @@ const DEFAULT_QUIT_PHRASES = [
   'unable to provide a final response',
 ];
 
+function hasRunawayRepetition(text: string): boolean {
+  const segments = text
+    .split(/[\n.!?]+/)
+    .map((segment) => segment.trim().toLowerCase())
+    .filter(Boolean)
+    .map((segment) => segment.replace(/[^a-z0-9\s]/g, ''))
+    .map((segment) => segment.replace(/\s+/g, ' ').trim())
+    .filter((segment) => segment.length >= 20);
+
+  if (segments.length < 8) return false;
+
+  const counts = new Map<string, number>();
+  let maxCount = 0;
+  for (const segment of segments) {
+    const next = (counts.get(segment) || 0) + 1;
+    counts.set(segment, next);
+    if (next > maxCount) maxCount = next;
+  }
+
+  return maxCount >= 4 && maxCount / segments.length >= 0.33;
+}
+
 export function createExponentialBackoff(options: BackoffOptions = {}) {
   const baseMs = Number.isFinite(options.baseMs) ? Number(options.baseMs) : 500;
   const maxMs = Number.isFinite(options.maxMs) ? Number(options.maxMs) : 8000;
@@ -38,5 +60,7 @@ export function isValidFinalResponse(
   if (!trimmed) return options.allowEmpty === true;
   const lowered = trimmed.toLowerCase();
   const phrases = options.quitPhrases || DEFAULT_QUIT_PHRASES;
-  return !phrases.some((phrase) => lowered.includes(phrase));
+  if (phrases.some((phrase) => lowered.includes(phrase))) return false;
+  if (hasRunawayRepetition(trimmed)) return false;
+  return true;
 }

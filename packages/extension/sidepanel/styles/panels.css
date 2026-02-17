@@ -402,6 +402,36 @@
   transform: translateX(2px);
 }
 
+.agent-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.agent-card-delete {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--muted-dim);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all var(--duration-fast) ease;
+}
+
+.agent-card-delete:hover {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.25);
+}
+
 .role-pill {
   display: inline-flex;
   padding: 3px 8px;
@@ -437,6 +467,82 @@
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin: 10px 0;
+}
+
+.profile-system-prompt {
+  margin: 0;
+}
+
+.profile-system-prompt .settings-body {
+  padding-top: 12px;
+  gap: 8px;
+}
+
+.system-prompt-textarea {
+  min-height: 300px;
+  max-height: 500px;
+  resize: none;
+  overflow-y: auto;
+}
+
+/* Theme Grid */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.theme-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px;
+  background: transparent;
+  border: 1px solid var(--ink-1);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--duration-fast) ease;
+}
+
+.theme-swatch:hover {
+  border-color: var(--ink-3);
+  background: rgba(255, 255, 255, 0.02);
+  transform: translateY(-1px);
+}
+
+.theme-swatch.active {
+  border-color: var(--accent);
+  background: rgb(var(--accent-rgb) / 0.06);
+}
+
+.theme-swatch-color {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.theme-swatch-accent {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.theme-swatch-label {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--muted-dim);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.theme-swatch.active .theme-swatch-label {
+  color: var(--accent);
 }
 
 /* History */

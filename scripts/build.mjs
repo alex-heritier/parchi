@@ -19,6 +19,50 @@ const distName = isFirefox ? 'dist-firefox' : 'dist';
 const distDir = path.join(rootDir, distName);
 const relayDistDir = path.join(rootDir, 'dist-relay');
 const extensionRoot = path.join(rootDir, 'packages', 'extension');
+const parseEnvText = (text) => {
+  const parsed = {};
+  for (const rawLine of String(text || '').split(/\r?\n/g)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eqIndex = line.indexOf('=');
+    if (eqIndex <= 0) continue;
+    const key = line.slice(0, eqIndex).trim();
+    let value = line.slice(eqIndex + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    parsed[key] = value;
+  }
+  return parsed;
+};
+
+const loadBuildEnv = () => {
+  const envPaths = [
+    path.join(rootDir, '.env.local'),
+    path.join(rootDir, '.env'),
+    path.join(rootDir, 'packages', 'backend', '.env.local'),
+    path.join(rootDir, 'packages', 'backend', '.env'),
+  ];
+  for (const envPath of envPaths) {
+    if (!fs.existsSync(envPath)) continue;
+    const parsed = parseEnvText(fs.readFileSync(envPath, 'utf8'));
+    for (const [key, value] of Object.entries(parsed)) {
+      if (!process.env[key] || process.env[key]?.trim() === '') {
+        process.env[key] = String(value);
+      }
+    }
+  }
+};
+
+loadBuildEnv();
+
+const convexUrl = String(process.env.CONVEX_URL || '').trim();
+const buildDefines = {
+  __CONVEX_URL__: JSON.stringify(convexUrl),
+};
 
 const ensureDir = (dir) => fs.mkdirSync(dir, { recursive: true });
 const cleanDir = (dir) => {
@@ -69,6 +113,7 @@ const run = async () => {
     target: 'es2022',
     sourcemap: true,
     logLevel: 'info',
+    define: buildDefines,
   });
 
   // Build content script as IIFE (content scripts don't support ESM)
@@ -82,6 +127,7 @@ const run = async () => {
     target: 'es2022',
     sourcemap: true,
     logLevel: 'info',
+    define: buildDefines,
   });
 
   await esbuild.build({
@@ -102,6 +148,7 @@ const run = async () => {
     target: 'es2022',
     sourcemap: true,
     logLevel: 'info',
+    define: buildDefines,
     packages: 'external',
     external: ['chromium-bidi/lib/cjs/bidiMapper/BidiMapper', 'chromium-bidi/lib/cjs/cdp/CdpConnection'],
   });
@@ -119,6 +166,7 @@ const run = async () => {
     target: 'es2022',
     sourcemap: true,
     logLevel: 'info',
+    define: buildDefines,
     packages: 'external',
     banner: {
       js: '#!/usr/bin/env node',

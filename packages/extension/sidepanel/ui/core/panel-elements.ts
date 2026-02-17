@@ -36,6 +36,9 @@ export const getSidePanelElements = (): SidePanelElements => ({
   tabList: byId<HTMLElement>('tabList'),
   closeTabSelector: byId<HTMLButtonElement>('closeTabSelector'),
   selectedTabsBar: byId<HTMLElement>('selectedTabsBar'),
+  sessionTabsHud: byId<HTMLElement>('sessionTabsHud'),
+  sessionTabsCount: byId<HTMLElement>('sessionTabsCount'),
+  sessionTabsList: byId<HTMLElement>('sessionTabsList'),
   scrollToLatestBtn: byId<HTMLButtonElement>('scrollToLatestBtn'),
   newSessionFab: byId<HTMLButtonElement>('newSessionFab'),
   historyPanel: byId<HTMLElement>('historyPanel'),
@@ -43,14 +46,18 @@ export const getSidePanelElements = (): SidePanelElements => ({
   clearHistoryBtn: byId<HTMLButtonElement>('clearHistoryBtn'),
   startNewSessionBtn: byId<HTMLButtonElement>('startNewSessionBtn'),
   settingsTabSetupBtn: byId<HTMLButtonElement>('settingsTabSetupBtn'),
+  settingsTabOauthBtn: byId<HTMLButtonElement>('settingsTabOauthBtn'),
   settingsTabModelBtn: byId<HTMLButtonElement>('settingsTabModelBtn'),
   settingsTabBrowserBtn: byId<HTMLButtonElement>('settingsTabBrowserBtn'),
   settingsTabNetworkBtn: byId<HTMLButtonElement>('settingsTabNetworkBtn'),
+  settingsTabPromptBtn: byId<HTMLButtonElement>('settingsTabPromptBtn'),
   settingsTabProfilesBtn: byId<HTMLButtonElement>('settingsTabProfilesBtn'),
   settingsTabSetup: byId<HTMLElement>('settingsTabSetup'),
+  settingsTabOauth: byId<HTMLElement>('settingsTabOauth'),
   settingsTabModel: byId<HTMLElement>('settingsTabModel'),
   settingsTabBrowser: byId<HTMLElement>('settingsTabBrowser'),
   settingsTabNetwork: byId<HTMLElement>('settingsTabNetwork'),
+  settingsTabPrompt: byId<HTMLElement>('settingsTabPrompt'),
   settingsTabProfiles: byId<HTMLElement>('settingsTabProfiles'),
   newProfileNameInput: byId<HTMLInputElement>('newProfileNameInput'),
   createProfileBtn: byId<HTMLButtonElement>('createProfileBtn'),
@@ -90,6 +97,28 @@ export const getSidePanelElements = (): SidePanelElements => ({
   exportSettingsBtn: byId<HTMLButtonElement>('exportSettingsBtn'),
   importSettingsBtn: byId<HTMLButtonElement>('importSettingsBtn'),
   importSettingsInput: byId<HTMLInputElement>('importSettingsInput'),
+
+  // Account + billing
+  accountOnboardingModal: byId<HTMLElement>('accountOnboardingModal'),
+  accountChooseByokBtn: byId<HTMLButtonElement>('accountChooseByokBtn'),
+  accountChoosePaidBtn: byId<HTMLButtonElement>('accountChoosePaidBtn'),
+  accountAuthUnavailable: byId<HTMLElement>('accountAuthUnavailable'),
+  accountAuthSignedOut: byId<HTMLElement>('accountAuthSignedOut'),
+  accountAuthSignedIn: byId<HTMLElement>('accountAuthSignedIn'),
+  accountEmailInput: byId<HTMLInputElement>('accountEmailInput'),
+  accountPasswordInput: byId<HTMLInputElement>('accountPasswordInput'),
+  accountSignInBtn: byId<HTMLButtonElement>('accountSignInBtn'),
+  accountSignUpBtn: byId<HTMLButtonElement>('accountSignUpBtn'),
+  accountGoogleBtn: byId<HTMLButtonElement>('accountGoogleBtn'),
+  accountGithubBtn: byId<HTMLButtonElement>('accountGithubBtn'),
+  accountStatusText: byId<HTMLElement>('accountStatusText'),
+  accountUserValue: byId<HTMLElement>('accountUserValue'),
+  accountPlanValue: byId<HTMLElement>('accountPlanValue'),
+  accountUsageValue: byId<HTMLElement>('accountUsageValue'),
+  accountUpgradeBtn: byId<HTMLButtonElement>('accountUpgradeBtn'),
+  accountManageBtn: byId<HTMLButtonElement>('accountManageBtn'),
+  accountRefreshBtn: byId<HTMLButtonElement>('accountRefreshBtn'),
+  accountSignOutBtn: byId<HTMLButtonElement>('accountSignOutBtn'),
 
 
   // Relay
@@ -137,10 +166,15 @@ export const getSidePanelElements = (): SidePanelElements => ({
 
   // Form elements - System prompt
   systemPrompt: byId<HTMLTextAreaElement>('systemPrompt'),
+  orchestratorPromptSection: byId<HTMLElement>('orchestratorPromptSection'),
+  orchestratorPromptTextarea: byId<HTMLTextAreaElement>('orchestratorPromptTextarea'),
+  visionPromptSection: byId<HTMLElement>('visionPromptSection'),
+  visionPromptTextarea: byId<HTMLTextAreaElement>('visionPromptTextarea'),
 
   // Form elements - Appearance
   uiZoom: byId<HTMLInputElement>('uiZoom'),
   uiZoomValue: byId<HTMLElement>('uiZoomValue'),
+  themeGrid: byId<HTMLElement>('themeGrid'),
 
   // Settings actions
   saveSettingsBtn: byId<HTMLButtonElement>('saveSettingsBtn'),

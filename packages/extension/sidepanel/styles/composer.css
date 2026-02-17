@@ -36,16 +36,8 @@
 }
 
 .composer.running::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent 0%, hsla(0, 0%, 100%, 0.2) 50%, transparent 100%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
-  z-index: 2;
+  /* shimmer removed — mascot handles running state */
+  display: none;
 }
 
 @keyframes shimmer {
@@ -88,11 +80,13 @@
   width: 100%;
   min-height: 54px;
   padding: 18px 18px 12px;
+  max-height: min(40vh, 280px);
   background: transparent;
   color: var(--foreground);
   font-size: 15px;
   line-height: 1.6;
   resize: none;
+  overflow-y: auto;
   border: none;
   border-radius: 0;
   outline: none;
@@ -111,6 +105,8 @@
   padding: 6px 14px 8px;
   background: transparent;
   border-top: 1px solid var(--ink-1);
+  position: relative;
+  z-index: 3;
 }
 
 .composer-toolbar-left {
@@ -166,7 +162,7 @@
   color: var(--foreground);
 }
 
-/* Status — inline text, no pill */
+/* Status — only timer & context meta shown inline */
 .composer-status {
   display: inline-flex;
   align-items: center;
@@ -177,9 +173,7 @@
   border-radius: 0;
   font-size: 11px;
   color: var(--muted);
-  max-width: 260px;
   white-space: nowrap;
-  overflow: hidden;
   transition: all var(--duration-fast) ease;
 }
 
@@ -196,7 +190,6 @@
 
 .composer-status .status-dot.active {
   background: var(--accent);
-  box-shadow: 0 0 8px rgb(var(--accent-rgb) / 0.3);
 }
 
 .composer-status #statusText {
@@ -215,7 +208,6 @@
   padding-left: 6px;
   border-left: 1px solid var(--ink-1);
   opacity: 0;
-  max-width: 0;
   overflow: hidden;
   transition: all var(--duration-fast) ease;
 }
@@ -223,7 +215,6 @@
 .composer-status:hover .status-meta,
 .composer-status.has-meta .status-meta {
   opacity: 1;
-  max-width: 120px;
 }
 
 .composer-status .status-meta:empty {
@@ -359,10 +350,7 @@
   }
 }
 
-/* Export button — hidden from toolbar, accessible via sidebar menu */
-.composer .export-btn {
-  display: none;
-}
+/* Export button */
 
 /* Narrow sidepanel adjustments */
 @media (max-width: 520px) {
@@ -562,13 +550,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--muted-dim);
+  background: var(--foreground);
   border: none;
   border-radius: 50%;
   color: var(--background);
-  box-shadow: none;
+  box-shadow: 0 10px 20px rgb(0 0 0 / 0.28);
   position: relative;
   overflow: hidden;
+  z-index: 4;
   transition: all var(--duration-fast) var(--ease-spring);
 }
 
@@ -577,7 +566,9 @@
 }
 
 .send-btn:hover {
-  background: var(--muted);
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 12px 24px rgb(var(--accent-rgb) / 0.35);
 }
 
 .send-btn:hover::before {
@@ -594,4 +585,285 @@
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
+}
+
+/* ============================================================================
+   Workflow Menu — slash command palette
+   ============================================================================ */
+
+.workflow-menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--card);
+  border: 1px solid var(--ink-2);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+  animation: workflowSlideUp 0.15s var(--ease-out-expo);
+}
+
+@keyframes workflowSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.workflow-menu-list {
+  overflow-y: auto;
+  max-height: 200px;
+  padding: 4px;
+}
+
+.workflow-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background var(--duration-fast) ease;
+}
+
+.workflow-item:hover,
+.workflow-item.active {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.workflow-item.active {
+  outline: 1px solid var(--ink-2);
+}
+
+.workflow-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.workflow-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workflow-item-preview {
+  font-size: 11px;
+  color: var(--muted-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workflow-item-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--muted-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: all var(--duration-fast) ease;
+  flex-shrink: 0;
+}
+
+.workflow-item:hover .workflow-item-delete {
+  opacity: 1;
+}
+
+.workflow-item-delete:hover {
+  background: rgba(255, 80, 80, 0.15);
+  color: var(--error);
+}
+
+.workflow-empty {
+  padding: 20px 16px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted-dim);
+}
+
+.workflow-empty strong {
+  color: var(--muted);
+}
+
+.workflow-save-row {
+  border-top: 1px solid var(--ink-1);
+  padding: 4px;
+}
+
+.workflow-save-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--duration-fast) ease;
+}
+
+.workflow-save-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--foreground);
+}
+
+.workflow-save-btn svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.workflow-save-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
+.workflow-save-input {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--background);
+  border: 1px solid var(--ink-2);
+  border-radius: 8px;
+  color: var(--foreground);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color var(--duration-fast) ease;
+}
+
+.workflow-save-input:focus {
+  border-color: var(--accent);
+}
+
+.workflow-save-prompt {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--background);
+  border: 1px solid var(--ink-2);
+  border-radius: 8px;
+  color: var(--foreground);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  min-height: 72px;
+  max-height: 500px;
+  height: 72px;
+  resize: none;
+  overflow-y: hidden;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color var(--duration-fast) ease;
+}
+
+.workflow-save-prompt:focus {
+  border-color: var(--accent);
+}
+
+.workflow-save-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.workflow-save-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workflow-generate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: transparent;
+  border: 1px solid var(--ink-2);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all var(--duration-fast) ease;
+  white-space: nowrap;
+}
+
+.workflow-generate-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgb(var(--accent-rgb) / 0.06);
+}
+
+.workflow-generate-btn svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.workflow-generate-btn.loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.workflow-spinner {
+  animation: workflowSpin 1s linear infinite;
+}
+
+@keyframes workflowSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.workflow-save-cancel {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--ink-2);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--duration-fast) ease;
+}
+
+.workflow-save-cancel:hover {
+  border-color: var(--ink-2);
+  color: var(--foreground);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.workflow-save-confirm {
+  padding: 6px 12px;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity var(--duration-fast) ease;
+}
+
+.workflow-save-confirm:hover {
+  opacity: 0.85;
 }
