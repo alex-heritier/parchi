@@ -3,10 +3,14 @@
   "version": "0.4.0",
   "description": "Warm-paper browser automation extension with configurable LLM providers",
   "type": "module",
+  "workspaces": [
+    "packages/backend"
+  ],
   "scripts": {
     "build": "node scripts/build.mjs",
     "build:firefox": "BROWSER=firefox node scripts/build.mjs",
     "build:firefox:xpi": "npm run build:firefox && node scripts/build-firefox-xpi.mjs",
+    "backend:dev": "cd packages/backend && npx convex dev",
     "relay:daemon": "node dist-relay/relay-daemon.js",
     "relay": "node dist-relay/relay.js",
     "validate": "node scripts/build.mjs && node dist/tests/validate-extension.js",
@@ -35,10 +39,14 @@
     "parchi-relay": "dist-relay/relay.js"
   },
   "dependencies": {
+    "@auth/core": "0.37.4",
     "@ai-sdk/anthropic": "3.0.17",
     "@ai-sdk/openai": "3.0.13",
     "@ai-sdk/openai-compatible": "2.0.16",
+    "@convex-dev/auth": "0.0.90",
     "ai": "6.0.42",
+    "convex": "1.31.7",
+    "stripe": "18.5.0",
     "ws": "8.18.3"
   },
   "devDependencies": {

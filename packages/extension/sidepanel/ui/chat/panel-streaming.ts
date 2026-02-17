@@ -11,6 +11,19 @@ const formatElapsed = (elapsedMs: number) => {
   return `${minuteLabel}:${secondLabel}`;
 };
 
+/* Top 20 trending internet verbs */
+const MASCOT_VERBS = [
+  'Vibing', 'Slaying', 'Cooking', 'Grinding', 'Manifesting',
+  'Ghosting', 'Flexing', 'Streaming', 'Hustling', 'Glazing',
+  'Mogging', 'Coping', 'Rizzing', 'Finessing', 'Fumbling',
+  'Binging', 'Canceling', 'Yoinking', 'Simping', 'Dooming',
+];
+let _verbIndex = Math.floor(Math.random() * MASCOT_VERBS.length);
+const nextVerb = () => {
+  _verbIndex = (_verbIndex + 1) % MASCOT_VERBS.length;
+  return MASCOT_VERBS[_verbIndex];
+};
+
 (SidePanelUI.prototype as any).handleAssistantStream = function handleAssistantStream(event: any) {
   if (event.status === 'start') {
     this.isStreaming = true;
@@ -33,9 +46,17 @@ const formatElapsed = (elapsedMs: number) => {
     window.clearInterval(this.thinkingTimerId);
   }
   this.thinkingStartedAt = Date.now();
+  this._currentVerb = nextVerb();
+  let tickCount = 0;
   const updateTimer = () => {
     const elapsed = formatElapsed(Date.now() - (this.thinkingStartedAt || Date.now()));
-    this.updateStatus(`Thinking ${elapsed}`, 'active');
+    // Rotate verb every 3 seconds
+    tickCount++;
+    if (tickCount % 3 === 0) {
+      this._currentVerb = nextVerb();
+    }
+    this.updateStatus(`${this._currentVerb} ${elapsed}`, 'active');
+    this.updateMascotBubbleContent(this._currentVerb, elapsed);
   };
   updateTimer();
   this.thinkingTimerId = window.setInterval(updateTimer, 1000);
@@ -47,6 +68,10 @@ const formatElapsed = (elapsedMs: number) => {
     this.thinkingTimerId = null;
   }
   this.thinkingStartedAt = null;
+  this._currentVerb = null;
+  // Clear bubble verb when not thinking
+  const bubbleVerb = document.getElementById('bubbleVerb');
+  if (bubbleVerb) bubbleVerb.textContent = '';
 };
 
 (SidePanelUI.prototype as any).startStreamingMessage = function startStreamingMessage() {

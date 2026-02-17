@@ -71,7 +71,22 @@ export function buildRunPlan(
   options: { existingPlan?: RunPlan | null; now?: number; maxSteps?: number } = {},
 ): RunPlan {
   const now = options.now ?? Date.now();
-  const steps = normalizePlanSteps(stepsInput, { maxSteps: options.maxSteps });
+  const maxSteps = options.maxSteps ?? 8;
+  const incomingSteps = normalizePlanSteps(stepsInput, { maxSteps });
+  const existingPlan = options.existingPlan ?? null;
+  const existingSteps = existingPlan?.steps || [];
+
+  const steps = [
+    ...existingSteps.map((step, index) => ({
+      ...step,
+      id: step.id || `step-${index + 1}`,
+    })),
+    ...incomingSteps.map((step, index) => ({
+      ...step,
+      id: `step-${existingSteps.length + index + 1}`,
+    })),
+  ].slice(0, maxSteps);
+
   const createdAt = options.existingPlan?.createdAt ?? now;
   return {
     steps,

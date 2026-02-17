@@ -140,7 +140,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
 };
 
 (SidePanelUI.prototype as any).switchSettingsTab = function switchSettingsTab(
-  tabName: 'setup' | 'model' | 'browser' | 'network' | 'profiles' = 'setup',
+  tabName: 'setup' | 'oauth' | 'model' | 'browser' | 'network' | 'prompt' | 'profiles' = 'setup',
 ) {
   // Persist current form state when leaving setup tab
   if (this.currentSettingsTab === 'setup' && tabName !== 'setup') {
@@ -149,19 +149,23 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   }
   this.currentSettingsTab = tabName;
 
-  const tabs = ['setup', 'model', 'browser', 'network', 'profiles'] as const;
+  const tabs = ['setup', 'oauth', 'model', 'browser', 'network', 'prompt', 'profiles'] as const;
   const tabElements: Record<string, HTMLElement | null> = {
     setup: this.elements.settingsTabSetup,
+    oauth: this.elements.settingsTabOauth,
     model: this.elements.settingsTabModel,
     browser: this.elements.settingsTabBrowser,
     network: this.elements.settingsTabNetwork,
+    prompt: this.elements.settingsTabPrompt,
     profiles: this.elements.settingsTabProfiles,
   };
   const btnElements: Record<string, HTMLElement | null> = {
     setup: this.elements.settingsTabSetupBtn,
+    oauth: this.elements.settingsTabOauthBtn,
     model: this.elements.settingsTabModelBtn,
     browser: this.elements.settingsTabBrowserBtn,
     network: this.elements.settingsTabNetworkBtn,
+    prompt: this.elements.settingsTabPromptBtn,
     profiles: this.elements.settingsTabProfilesBtn,
   };
 
@@ -284,6 +288,8 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   this.toggleCustomEndpoint();
   this.updateScreenshotToggleState();
   this.editProfile(this.currentConfig, true);
+  this.updatePromptSections?.();
+  await this.refreshAccountPanel?.({ silent: true });
 };
 
 (SidePanelUI.prototype as any).updateRelayStatusFromSettings = function updateRelayStatusFromSettings(
@@ -314,6 +320,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   }
   const profile = this.collectCurrentFormProfile();
   this.configs[this.currentConfig] = profile;
+  this.savePromptSections?.();
   await this.persistAllSettings();
 
   // Refresh models after saving settings
@@ -532,5 +539,64 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   });
   if (wantsScreens && !hasVision) {
     this.updateStatus('Enable a vision-capable profile before sending screenshots.', 'warning');
+  }
+};
+
+/* ============================================================================
+   Orchestrator / Vision prompt sections in Prompt tab
+   ============================================================================ */
+
+(SidePanelUI.prototype as any).updatePromptSections = function updatePromptSections() {
+  // Re-query elements in case they weren't available at constructor time (loaded via template)
+  const orchSection = this.elements.orchestratorPromptSection || document.getElementById('orchestratorPromptSection');
+  const orchTextarea = this.elements.orchestratorPromptTextarea || document.getElementById('orchestratorPromptTextarea') as HTMLTextAreaElement | null;
+  const visSection = this.elements.visionPromptSection || document.getElementById('visionPromptSection');
+  const visTextarea = this.elements.visionPromptTextarea || document.getElementById('visionPromptTextarea') as HTMLTextAreaElement | null;
+
+  // Cache
+  if (orchSection) this.elements.orchestratorPromptSection = orchSection;
+  if (orchTextarea) this.elements.orchestratorPromptTextarea = orchTextarea;
+  if (visSection) this.elements.visionPromptSection = visSection;
+  if (visTextarea) this.elements.visionPromptTextarea = visTextarea;
+
+  // Orchestrator
+  const orchEnabled = this.elements.orchestratorToggle?.value === 'true';
+  const orchProfileName = this.elements.orchestratorProfile?.value || this.currentConfig;
+  if (orchSection) {
+    orchSection.classList.toggle('hidden', !orchEnabled);
+  }
+  if (orchEnabled && orchTextarea) {
+    const orchProfile = this.configs[orchProfileName] || {};
+    orchTextarea.value = orchProfile.systemPrompt || '';
+  }
+
+  // Vision
+  const visProfileName = this.elements.visionProfile?.value;
+  const visEnabled = !!visProfileName && visProfileName !== '' && visProfileName !== this.currentConfig;
+  if (visSection) {
+    visSection.classList.toggle('hidden', !visEnabled);
+  }
+  if (visEnabled && visTextarea) {
+    const visProfile = this.configs[visProfileName] || {};
+    visTextarea.value = visProfile.systemPrompt || '';
+  }
+};
+
+(SidePanelUI.prototype as any).savePromptSections = function savePromptSections() {
+  // Save orchestrator prompt back to its profile
+  const orchEnabled = this.elements.orchestratorToggle?.value === 'true';
+  if (orchEnabled && this.elements.orchestratorPromptTextarea) {
+    const orchProfileName = this.elements.orchestratorProfile?.value || this.currentConfig;
+    if (this.configs[orchProfileName]) {
+      this.configs[orchProfileName].systemPrompt = this.elements.orchestratorPromptTextarea.value || '';
+    }
+  }
+
+  // Save vision prompt back to its profile
+  const visProfileName = this.elements.visionProfile?.value;
+  if (visProfileName && visProfileName !== this.currentConfig && this.elements.visionPromptTextarea) {
+    if (this.configs[visProfileName]) {
+      this.configs[visProfileName].systemPrompt = this.elements.visionPromptTextarea.value || '';
+    }
   }
 };

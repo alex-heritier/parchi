@@ -19,7 +19,7 @@ import {
 import { classifyApiError } from '../ai/error-classifier.js';
 import { normalizeConversationHistory } from '../ai/message-schema.js';
 import type { Message, ToolCall } from '../ai/message-schema.js';
-import { extractTextFromResponseMessages } from '../ai/message-utils.js';
+import { extractTextFromResponseMessages, extractThinking } from '../ai/message-utils.js';
 import { toModelMessages } from '../ai/model-convert.js';
 import { isValidFinalResponse } from '../ai/retry-engine.js';
 import { buildToolSet, describeImageWithModel, resolveLanguageModel } from '../ai/sdk-client.js';
@@ -267,7 +267,37 @@ export class BackgroundService {
   async handleRelayRpc(method: string, params: unknown) {
     switch (method) {
       case 'tools.list':
-        return this.browserTools.getToolDefinitions();
+        const settings = await chrome.storage.local.get([
+          'activeConfig',
+          'provider',
+          'apiKey',
+          'model',
+          'customEndpoint',
+          'extraHeaders',
+          'systemPrompt',
+          'configs',
+          'useOrchestrator',
+          'orchestratorProfile',
+          'visionBridge',
+          'visionProfile',
+          'enableScreenshots',
+          'sendScreenshotsAsImages',
+          'screenshotQuality',
+          'showThinking',
+          'streamResponses',
+          'temperature',
+          'maxTokens',
+          'timeout',
+          'contextLimit',
+          'toolPermissions',
+          'allowedDomains',
+        ]);
+        const activeProfileName = (settings as any).activeConfig || 'default';
+        const activeProfile = this.resolveProfile((settings as any), activeProfileName);
+        const orchestratorEnabled = (settings as any).useOrchestrator === true;
+        const teamProfiles = this.resolveTeamProfiles((settings as any));
+        const visionToolsEnabled = this.isVisionModelProfile(activeProfile);
+        return this.getToolsForSession(settings as any, orchestratorEnabled, teamProfiles, visionToolsEnabled);
 
       case 'tool.call': {
         const tool = typeof (params as any)?.tool === 'string' ? (params as any).tool : '';
@@ -495,14 +525,6 @@ export class BackgroundService {
       if (settings.allowedDomains === undefined) settings.allowedDomains = '';
       if (!Array.isArray(settings.auxAgentProfiles)) settings.auxAgentProfiles = [];
 
-      if (!settings.apiKey) {
-        this.sendRuntime(runMeta, {
-          type: 'run_error',
-          message: 'Please configure your API key in settings',
-        });
-        return;
-      }
-
       this.currentSettings = settings;
       // Track the most recently active session for legacy callers that don't
       // supply a sessionId (e.g., some relay RPC usage).
@@ -533,11 +555,24 @@ export class BackgroundService {
       const teamProfiles = this.resolveTeamProfiles(settings);
 
       const activeProfile = this.resolveProfile(settings, activeProfileName);
-      const orchestratorProfile = orchestratorEnabled
+      let orchestratorProfile = orchestratorEnabled
         ? this.resolveProfile(settings, orchestratorProfileName)
         : activeProfile;
-      const visionProfile =
+      let visionProfile =
         settings.visionBridge !== false ? this.resolveProfile(settings, visionProfileName || activeProfileName) : null;
+
+      const runtimeProfileResolution = this.resolveRuntimeModelProfile(orchestratorProfile, settings);
+      if (!runtimeProfileResolution.allowed) {
+        this.sendRuntime(runMeta, {
+          type: 'run_error',
+          message: runtimeProfileResolution.errorMessage || 'Please configure your API key in settings',
+        });
+        return;
+      }
+      orchestratorProfile = runtimeProfileResolution.profile;
+      if (visionProfile && !this.hasOwnApiKey(visionProfile) && runtimeProfileResolution.route === 'proxy') {
+        visionProfile = this.applyConvexProxyProfile(visionProfile, settings);
+      }
 
       const kimiInUse =
         activeProfile?.provider === 'kimi' ||
@@ -552,7 +587,8 @@ export class BackgroundService {
         });
       }
 
-      const tools = this.getToolsForSession(settings, orchestratorEnabled, teamProfiles);
+      const visionToolsEnabled = this.isVisionModelProfile(orchestratorProfile);
+      const tools = this.getToolsForSession(settings, orchestratorEnabled, teamProfiles, visionToolsEnabled);
       const streamEnabled = settings.streamResponses !== false && settings.streamResponses !== 'false';
       const showThinking = settings.showThinking !== false && settings.showThinking !== 'false';
       const enableAnthropicThinking =
@@ -581,6 +617,7 @@ export class BackgroundService {
         teamProfiles,
         provider: orchestratorProfile.provider || '',
         model: orchestratorProfile.model || settings.model || '',
+        toolCatalog: tools.map((tool) => ({ name: tool.name, description: tool.description || '' })),
         showThinking,
       };
 
@@ -855,6 +892,7 @@ export class BackgroundService {
           });
 
           const cleanedText = this.stripXmlToolCalls(passResult.text);
+          const parsedXmlAssistant = extractThinking(cleanedText, passResult.reasoningText || null);
           const toolMessages: Message[] = [];
           const xmlToolCallEntries: ToolCall[] = [];
           for (const call of xmlToolCalls) {
@@ -890,8 +928,8 @@ export class BackgroundService {
           }
           const xmlAssistantMsg: Message = {
             role: 'assistant',
-            content: cleanedText || '',
-            thinking: passResult.reasoningText || null,
+            content: parsedXmlAssistant.content || '',
+            thinking: parsedXmlAssistant.thinking || null,
             toolCalls: xmlToolCallEntries,
           };
           currentHistory = normalizeConversationHistory([...currentHistory, xmlAssistantMsg]);
@@ -910,11 +948,12 @@ export class BackgroundService {
           continue;
         }
 
-        reasoningText = passResult.reasoningText || null;
-        totalUsage = passResult.totalUsage || totalUsage;
         const cleanedText = this.stripXmlToolCalls(passResult.text);
-        const isValid = isValidFinalResponse(cleanedText, { allowEmpty: false });
-        finalText = isValid ? cleanedText.trim() : '';
+        const parsedFinal = extractThinking(cleanedText, passResult.reasoningText || null);
+        reasoningText = parsedFinal.thinking || passResult.reasoningText || null;
+        totalUsage = passResult.totalUsage || totalUsage;
+        const isValid = isValidFinalResponse(parsedFinal.content, { allowEmpty: false });
+        finalText = isValid ? parsedFinal.content.trim() : '';
 
         if (!finalText) {
           const maxFinalizeAttempts = 2;
@@ -964,7 +1003,12 @@ export class BackgroundService {
               maxOutputTokens: Math.min(2048, orchestratorProfile.maxTokens ?? 4096),
             });
 
-            const candidate = String(finalizeResult.text || '').trim();
+            const candidateRaw = String(finalizeResult.text || '');
+            const parsedFinalize = extractThinking(candidateRaw, reasoningText || null);
+            if (parsedFinalize.thinking) {
+              reasoningText = parsedFinalize.thinking;
+            }
+            const candidate = parsedFinalize.content.trim();
             if (isValidFinalResponse(candidate, { allowEmpty: false })) {
               finalText = candidate;
               totalUsage = {
@@ -1044,6 +1088,15 @@ export class BackgroundService {
       });
 
       if (compactionCheck.shouldCompact) {
+        const currentPercent = Math.max(0, Math.min(100, Math.round(compactionCheck.percent * 100)));
+        this.sendRuntime(runMeta, {
+          type: 'run_status',
+          phase: 'finalizing',
+          attempts: { api: 0, tool: 0, finalize: 0 },
+          maxRetries: { api: 0, tool: 0, finalize: 0 },
+          note: `Context near limit (${currentPercent}%, ${compactionCheck.approxTokens}/${contextLimit} tokens). Compaction started.`,
+        });
+
         let summaryIndex = -1;
         for (let i = nextHistory.length - 1; i >= 0; i -= 1) {
           const msg = nextHistory[i];
@@ -1087,7 +1140,12 @@ export class BackgroundService {
             maxOutputTokens: Math.floor(0.8 * compactionSettings.reserveTokens),
           });
 
-          const summaryMessage = buildCompactionSummaryMessage(summaryResult.text, messagesToSummarize.length);
+          const parsedSummary = extractThinking(summaryResult.text || '', null);
+          const summaryText = parsedSummary.content || String(summaryResult.text || '').trim();
+          const compactedInfo = `Compaction result: summarized ${messagesToSummarize.length} messages, kept ${preserved.length} recent messages.`;
+          const compactedSummary = `${compactedInfo}\n\n${summaryText}`;
+
+          const summaryMessage = buildCompactionSummaryMessage(compactedSummary, messagesToSummarize.length);
           const compaction = applyCompaction({
             summaryMessage,
             preserved,
@@ -1097,7 +1155,7 @@ export class BackgroundService {
 
           this.sendRuntime(runMeta, {
             type: 'context_compacted',
-            summary: summaryResult.text,
+            summary: compactedSummary,
             trimmedCount: messagesToSummarize.length,
             preservedCount: compaction.preservedCount,
             newSessionId,
@@ -1107,6 +1165,14 @@ export class BackgroundService {
               contextLimit,
               percent: Math.round(compactionCheck.percent * 100),
             },
+          });
+
+          this.sendRuntime(runMeta, {
+            type: 'run_status',
+            phase: 'finalizing',
+            attempts: { api: 0, tool: 0, finalize: 0 },
+            maxRetries: { api: 0, tool: 0, finalize: 0 },
+            note: `Context compacted. ${compactedInfo}`,
           });
         }
       }
@@ -1136,17 +1202,46 @@ export class BackgroundService {
   }
 
   async runApiSmokeTest(
-    settings: { provider?: string; apiKey?: string; model?: string; customEndpoint?: string; extraHeaders?: any },
+    settings: {
+      provider?: string;
+      apiKey?: string;
+      model?: string;
+      customEndpoint?: string;
+      extraHeaders?: any;
+      convexUrl?: string;
+      convexAccessToken?: string;
+      convexSubscriptionStatus?: string;
+      convexSubscriptionPlan?: string;
+      accountModeChoice?: string;
+    },
     prompt: string,
   ) {
     try {
-      const model = resolveLanguageModel({
-        provider: settings.provider || 'openai',
-        apiKey: settings.apiKey || '',
-        model: settings.model || '',
-        customEndpoint: settings.customEndpoint,
-        extraHeaders: settings.extraHeaders,
-      });
+      const runtimeProfile = this.resolveRuntimeModelProfile(
+        {
+          provider: settings.provider || 'openai',
+          apiKey: settings.apiKey || '',
+          model: settings.model || '',
+          customEndpoint: settings.customEndpoint,
+          extraHeaders: settings.extraHeaders,
+        },
+        settings as Record<string, any>,
+      );
+      if (!runtimeProfile.allowed) {
+        return {
+          rawText: '',
+          fallbackText: '',
+          resolvedText: '',
+          error: runtimeProfile.errorMessage || 'No API key configured',
+          usage: {
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+          },
+        };
+      }
+
+      const model = resolveLanguageModel(runtimeProfile.profile as any);
 
       const result = streamText({
         model,
@@ -1197,16 +1292,20 @@ export class BackgroundService {
   ): Promise<{ prompt: string; error?: string }> {
     try {
       const settings = this.currentSettings || await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[]);
-      if (!settings?.apiKey) {
-        return { prompt: '', error: 'No API key configured' };
+      const runtimeProfile = this.resolveRuntimeModelProfile(
+        {
+          provider: settings.provider,
+          apiKey: settings.apiKey,
+          model: settings.model,
+          customEndpoint: settings.customEndpoint,
+          extraHeaders: settings.extraHeaders,
+        },
+        settings,
+      );
+      if (!runtimeProfile.allowed) {
+        return { prompt: '', error: runtimeProfile.errorMessage || 'No API key configured' };
       }
-      const model = resolveLanguageModel({
-        provider: settings.provider,
-        apiKey: settings.apiKey,
-        model: settings.model,
-        customEndpoint: settings.customEndpoint,
-        extraHeaders: settings.extraHeaders,
-      });
+      const model = resolveLanguageModel(runtimeProfile.profile as any);
 
       const outputLimit = Math.min(maxOutputTokens || 4096, 4096);
 
@@ -1291,6 +1390,7 @@ Rules:
     sendStart();
 
     if (toolName === 'set_plan') {
+      const hadPlan = Boolean(sessionState.currentPlan && sessionState.currentPlan.steps.length > 0);
       const plan = this.buildPlanFromArgs(args, sessionState.currentPlan);
       if (!plan) {
         const errorResult = {
@@ -1307,7 +1407,9 @@ Rules:
       const result = {
         success: true,
         plan,
-        message: `Plan created with ${plan.steps.length} steps. Use update_plan({ step_index: 0, status: "done" }) after completing each step.`,
+        message: hadPlan
+          ? `Plan extended with ${plan.steps.length} total steps. Continue with the active step and use update_plan({ step_index: 0, status: "done" }) after completing each step.`
+          : `Plan created with ${plan.steps.length} steps. Use update_plan({ step_index: 0, status: "done" }) after completing each step.`,
       };
       sendResult(result);
       return result;
@@ -1670,7 +1772,10 @@ Rules:
       pressKey: 'interact',
       scroll: 'interact',
       getContent: 'read',
+      findHtml: 'read',
       screenshot: 'screenshots',
+      watchVideo: 'screenshots',
+      getVideoInfo: 'screenshots',
       getTabs: 'tabs',
       closeTab: 'tabs',
       switchTab: 'tabs',
@@ -1891,6 +1996,34 @@ Rules:
       context.showThinking && isKimi
         ? '\n<thinking>\nIf you produce internal reasoning, wrap it in <analysis>...</analysis> tags. Keep it concise. Do not include the analysis in your final answer text.\n</thinking>'
         : '';
+    const toolCatalog = Array.isArray(context.toolCatalog) ? context.toolCatalog : [];
+    const availableToolNames = toolCatalog.length
+      ? toolCatalog.map((tool) => String(tool?.name || '')).filter(Boolean)
+      : [];
+    const toolCatalogSection = toolCatalog.length
+      ? `<tooling>
+${toolCatalog.map((tool) => `  - ${tool.name}: ${tool.description || 'No description.'}`).join('\n')}
+</tooling>`
+      : '';
+    const hasVisionTools =
+      availableToolNames.includes('screenshot') ||
+      availableToolNames.includes('watchVideo') ||
+      availableToolNames.includes('getVideoInfo');
+    const visionToolSection = hasVisionTools
+      ? `<vision_tools>
+Vision-capable tools enabled:
+  - screenshot: capture a full screenshot of the current tab for visual verification.
+  - watchVideo: analyze on-page video/audio elements for motion content.
+  - getVideoInfo: fetch metadata for video elements (duration, playback, resolution).
+  - findHtml: confirm whether exact HTML structure exists within page markup.
+If vision tools are enabled, use them when visual structure or media context cannot be verified by text alone.
+</vision_tools>`
+      : '<vision_tools>Vision-capable tools are disabled for this model.</vision_tools>';
+    const orchestratorToolSection = context.orchestratorEnabled
+      ? availableToolNames.includes('spawn_subagent')
+        ? '<orchestrator_tools>Orchestrator tools enabled: spawn_subagent, subagent_complete. Use spawn_subagent for focused parallel work, and have each sub-agent report via subagent_complete.</orchestrator_tools>'
+        : '<orchestrator_tools>Orchestrator mode is enabled.</orchestrator_tools>'
+      : '';
 
     // Build state section with enforcement - tracks exactly what model needs to do next
     let stateSection = '';
@@ -1962,8 +2095,11 @@ After marking step ${currentIndex} done, proceed to step ${currentIndex + 1}.
       }
     }
 
-    return `${basePrompt}
+  return `${basePrompt}
  ${stateSection}${thinkingSection}
+${toolCatalogSection}
+${visionToolSection}
+${orchestratorToolSection}
 
  <browser_context>
 URL: ${context.currentUrl}
@@ -1987,6 +2123,64 @@ When a tool fails:
 • If an element is not found, try a broader selector or use text-based selection
 • Never give up - keep trying until you succeed or exhaust options
 </checkpoint>`;
+  }
+
+  hasOwnApiKey(profile: Record<string, any> | null | undefined) {
+    return Boolean(String(profile?.apiKey || '').trim());
+  }
+
+  hasActivePaidSubscription(settings: Record<string, any> = {}) {
+    const mode = String(settings.accountModeChoice || '').toLowerCase();
+    const status = String(settings.convexSubscriptionStatus || '').toLowerCase();
+    const plan = String(settings.convexSubscriptionPlan || '').toLowerCase();
+    return mode === 'paid' && plan === 'pro' && status === 'active';
+  }
+
+  canUseConvexProxy(settings: Record<string, any> = {}) {
+    return Boolean(String(settings.convexUrl || '').trim() && String(settings.convexAccessToken || '').trim());
+  }
+
+  applyConvexProxyProfile(profile: Record<string, any>, settings: Record<string, any>) {
+    const preferredProvider =
+      profile?.provider === 'kimi' ? 'kimi' : profile?.provider === 'anthropic' ? 'anthropic' : 'openai';
+    return {
+      provider: preferredProvider,
+      apiKey: profile?.apiKey || '',
+      model: profile?.model || settings.model || 'gpt-4o',
+      customEndpoint: profile?.customEndpoint || '',
+      extraHeaders: profile?.extraHeaders || {},
+      useProxy: true,
+      proxyBaseUrl: String(settings.convexUrl || '').trim(),
+      proxyAuthToken: String(settings.convexAccessToken || '').trim(),
+      proxyProvider: preferredProvider,
+    };
+  }
+
+  resolveRuntimeModelProfile(profile: Record<string, any>, settings: Record<string, any>) {
+    if (this.hasOwnApiKey(profile)) {
+      return { allowed: true, route: 'byok', profile };
+    }
+    if (!this.hasActivePaidSubscription(settings)) {
+      return {
+        allowed: false,
+        route: 'none',
+        profile,
+        errorMessage: 'Add an API key in settings or subscribe to the paid plan.',
+      };
+    }
+    if (!this.canUseConvexProxy(settings)) {
+      return {
+        allowed: false,
+        route: 'none',
+        profile,
+        errorMessage: 'Paid plan is active but auth is missing. Sign in again in Account & Billing.',
+      };
+    }
+    return {
+      allowed: true,
+      route: 'proxy',
+      profile: this.applyConvexProxyProfile(profile, settings),
+    };
   }
 
   resolveProfile(settings: Record<string, any>, name = 'default') {
@@ -2026,14 +2220,37 @@ When a tool fails:
     });
   }
 
+  isVisionModelProfile(profile: Record<string, any> | null | undefined) {
+    const provider = String(profile?.provider || '').toLowerCase();
+    const model = String(profile?.model || '').toLowerCase();
+
+    if (!provider) return false;
+    if (provider === 'anthropic') return true;
+    if (provider === 'kimi') return true;
+    if (provider === 'openai') {
+      return /gpt-4o|gpt-4\.1|gpt-4-turbo|gpt-4-vision|vision/.test(model);
+    }
+    if (provider === 'google') {
+      return /(gemini|imagen)/.test(model);
+    }
+
+    return model.includes('vision');
+  }
+
   getToolsForSession(
     settings: Record<string, any>,
     includeOrchestrator = false,
     teamProfiles: Array<{ name: string }> = [],
+    includeVisionTools = false,
   ) {
     let tools = this.browserTools.getToolDefinitions();
     if (settings && settings.enableScreenshots === false) {
       tools = tools.filter((tool) => tool.name !== 'screenshot');
+    }
+    if (!includeVisionTools) {
+      tools = tools.filter(
+        (tool) => tool.name !== 'screenshot' && tool.name !== 'watchVideo' && tool.name !== 'getVideoInfo',
+      );
     }
     tools = tools.concat([
       {
@@ -2178,7 +2395,7 @@ When a tool fails:
       const subAgentSystemPrompt = `${args.prompt || 'You are a focused sub-agent working under an orchestrator. Be concise and tool-driven.'}
 Always cite evidence from tools. Finish by calling subagent_complete with a short summary and any structured findings.`;
 
-      const tools = this.getToolsForSession(settings || {}, false);
+      const tools = this.getToolsForSession(profileSettings, false, [], this.isVisionModelProfile(profileSettings));
       const toolSet = buildToolSet(tools, async (toolName, toolArgs, options) =>
         this.executeToolByName(
           toolName,

@@ -102,9 +102,6 @@ function normalizeAssistantContent(message: Message): AssistantContent {
   // so the SDK sees both text and tool-call parts.
   if (toolCallParts.length > 0) {
     const parts: AssistantContent = [];
-    if (message.thinking) {
-      parts.push({ type: 'reasoning' as const, text: message.thinking });
-    }
     const text = typeof message.content === 'string' ? message.content : '';
     if (text) {
       parts.push({ type: 'text' as const, text });
@@ -113,10 +110,6 @@ function normalizeAssistantContent(message: Message): AssistantContent {
     return parts;
   }
 
-  if (message.thinking) {
-    const text = typeof message.content === 'string' ? message.content : '';
-    return [{ type: 'reasoning', text: message.thinking } as const, { type: 'text', text } as const];
-  }
   if (typeof message.content === 'string') return message.content;
   if (Array.isArray(message.content)) {
     return message.content

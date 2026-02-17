@@ -45,10 +45,12 @@ export class BrowserTools {
       navigate: true,
       openTab: true,
       click: true,
+      clickAt: true,
       type: true,
       pressKey: true,
       scroll: true,
       getContent: true,
+      findHtml: true,
       screenshot: true,
       getTabs: true,
       closeTab: true,
@@ -102,6 +104,26 @@ export class BrowserTools {
         },
       },
       {
+        name: 'clickAt',
+        description:
+          'Click at exact viewport coordinates (x, y). Use this when you cannot identify an element by selector — for example after taking a screenshot and identifying a position visually. Coordinates are relative to the viewport top-left corner. Optionally double-click or right-click.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            x: { type: 'number', description: 'X coordinate in viewport pixels (from left edge).' },
+            y: { type: 'number', description: 'Y coordinate in viewport pixels (from top edge).' },
+            button: {
+              type: 'string',
+              enum: ['left', 'right', 'middle'],
+              description: 'Mouse button (default: left).',
+            },
+            doubleClick: { type: 'boolean', description: 'If true, perform a double-click.' },
+            tabId: { type: 'number', description: 'Optional tab id.' },
+          },
+          required: ['x', 'y'],
+        },
+      },
+      {
         name: 'type',
         description:
           'Type text into an input/textarea/contenteditable. If selector points at a container (e.g. CodeMirror wrapper), it will try to find an editable descendant.',
@@ -152,6 +174,28 @@ export class BrowserTools {
             selector: { type: 'string', description: 'Optional selector to scope content.' },
             tabId: { type: 'number', description: 'Optional tab id.' },
           },
+        },
+      },
+      {
+        name: 'findHtml',
+        description:
+          'Check whether a provided HTML snippet exists in the current page DOM structure (full page by default). Useful for confirming exact markup presence.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            htmlSnippet: { type: 'string', description: 'Exact HTML snippet to search for.' },
+            selector: { type: 'string', description: 'Optional CSS selector to scope search.' },
+            normalizeWhitespace: {
+              type: 'boolean',
+              description: 'Collapse whitespace in both snippet and page HTML before matching.',
+            },
+            maxMatches: {
+              type: 'number',
+              description: 'Maximum number of matches to return (default 8).',
+            },
+            tabId: { type: 'number', description: 'Optional tab id.' },
+          },
+          required: ['htmlSnippet'],
         },
       },
       {
@@ -365,6 +409,8 @@ export class BrowserTools {
           return await this.openTab(args);
         case 'click':
           return await this.click(args);
+        case 'clickAt':
+          return await this.clickAt(args);
         case 'type':
           return await this.type(args);
         case 'pressKey':
@@ -373,6 +419,8 @@ export class BrowserTools {
           return await this.scroll(args);
         case 'getContent':
           return await this.getContent(args);
+        case 'findHtml':
+          return await this.findHtml(args);
         case 'screenshot':
           return await this.screenshot(args);
         case 'getTabs':
@@ -930,6 +978,125 @@ export class BrowserTools {
     return result || { success: false, error: 'Script execution failed.' };
   }
 
+  private async clickAt(args: Record<string, any>) {
+    const tabId = await this.resolveTabId(args);
+    if (!tabId) {
+      return {
+        success: false,
+        error:
+          'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
+      };
+    }
+
+    const x = typeof args.x === 'number' ? args.x : NaN;
+    const y = typeof args.y === 'number' ? args.y : NaN;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return { success: false, error: 'Missing or invalid x/y coordinates.' };
+    }
+
+    const button = ['left', 'right', 'middle'].includes(args.button) ? args.button : 'left';
+    const doubleClick = args.doubleClick === true;
+
+    await this.sendOverlay(tabId, {
+      label: doubleClick ? 'Double-click' : 'Click',
+      note: `(${Math.round(x)}, ${Math.round(y)})`,
+      durationMs: 1500,
+    });
+
+    const clickAtScript = (cx: number, cy: number, btn: string, dblClick: boolean) => {
+      const buttonCode = btn === 'right' ? 2 : btn === 'middle' ? 1 : 0;
+      const el = document.elementFromPoint(cx, cy) as HTMLElement | null;
+
+      const tag = el ? el.tagName.toLowerCase() : null;
+      const id = el?.id || null;
+      const text = el?.textContent?.trim().slice(0, 80) || null;
+
+      const firePointer = (type: string, target: EventTarget) => {
+        try {
+          target.dispatchEvent(
+            new PointerEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              view: window,
+              clientX: cx,
+              clientY: cy,
+              button: buttonCode,
+              pointerId: 1,
+              pointerType: 'mouse',
+              isPrimary: true,
+            }),
+          );
+        } catch {}
+      };
+
+      const fireMouse = (type: string, target: EventTarget) => {
+        target.dispatchEvent(
+          new MouseEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            view: window,
+            clientX: cx,
+            clientY: cy,
+            button: buttonCode,
+          }),
+        );
+      };
+
+      const target: EventTarget = el || document.documentElement;
+
+      // Focus the element if possible
+      if (el && typeof el.focus === 'function') {
+        el.focus();
+      }
+
+      // Full pointer + mouse event sequence
+      firePointer('pointerover', target);
+      fireMouse('mouseover', target);
+      firePointer('pointerdown', target);
+      fireMouse('mousedown', target);
+      firePointer('pointerup', target);
+      fireMouse('mouseup', target);
+      fireMouse('click', target);
+
+      if (dblClick) {
+        firePointer('pointerdown', target);
+        fireMouse('mousedown', target);
+        firePointer('pointerup', target);
+        fireMouse('mouseup', target);
+        fireMouse('click', target);
+        fireMouse('dblclick', target);
+      }
+
+      if (btn === 'right') {
+        fireMouse('contextmenu', target);
+      }
+
+      // Also call native .click() for maximum compatibility
+      if (el && typeof (el as any).click === 'function' && btn === 'left') {
+        (el as any).click();
+      }
+
+      return {
+        success: true,
+        x: cx,
+        y: cy,
+        button: btn,
+        doubleClick: dblClick,
+        elementHit: el
+          ? {
+              tag,
+              id,
+              className: el.className ? String(el.className).slice(0, 120) : null,
+              text: text ? (text.length > 80 ? text.slice(0, 77) + '…' : text) : null,
+            }
+          : null,
+      };
+    };
+
+    const result = await this.runInTab(tabId, clickAtScript, [x, y, button, doubleClick]);
+    return result || { success: false, error: 'Script execution failed.' };
+  }
+
   private async type(args: Record<string, any>) {
     const tabId = await this.resolveTabId(args);
     if (!tabId) {
@@ -1292,6 +1459,108 @@ export class BrowserTools {
       },
       [type, selector, maxChars],
     );
+    return result || { success: false, error: 'Script execution failed.' };
+  }
+
+  private async findHtml(args: Record<string, any>) {
+    const tabId = await this.resolveTabId(args);
+    if (!tabId) {
+      return {
+        success: false,
+        error:
+          'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
+      };
+    }
+
+    const htmlSnippet = String(args.htmlSnippet || args.snippet || '').trim();
+    if (!htmlSnippet) {
+      return {
+        success: false,
+        error: 'Missing htmlSnippet parameter.',
+      };
+    }
+
+    const selector = args.selector ? String(args.selector) : '';
+    const normalizeWhitespace = args.normalizeWhitespace === true;
+    const maxMatches = Math.max(1, Math.min(20, Math.floor(Number(args.maxMatches) || 8)));
+    await this.sendOverlay(tabId, {
+      label: 'Find HTML snippet',
+      note: selector ? `within ${selector}` : 'in document markup',
+      durationMs: 700,
+    });
+
+    const result = await this.runInTab(
+      tabId,
+      (scopeSelector, needle, normalizeWs, matchLimit) => {
+        const normalize = (value: string) => {
+          if (!normalizeWs) return value;
+          return value.replace(/\s+/g, ' ').trim();
+        };
+
+        let scope: HTMLElement | null = null;
+        try {
+          if (scopeSelector) {
+            scope = document.querySelector(scopeSelector);
+          }
+        } catch {
+          scope = null;
+        }
+        const sourceNode = scope || document.documentElement;
+        if (!sourceNode) return { success: false, error: 'Target scope not found.' };
+
+        const rawSource = sourceNode.outerHTML || '';
+        const source = normalize(rawSource);
+        const normalizedNeedle = normalize(needle);
+        const indexNeedle = normalizeWs ? normalizedNeedle : needle;
+        const haystack = normalizeWs ? source : rawSource;
+
+        const matches: Array<{ index: number; context: string }> = [];
+        const searchNeedle = normalizeWs ? indexNeedle : needle;
+        if (searchNeedle && searchNeedle.length > 0) {
+          let position = 0;
+          while (matches.length < matchLimit) {
+            const foundAt = haystack.indexOf(searchNeedle, position);
+            if (foundAt < 0) break;
+            const contextStart = Math.max(0, foundAt - 120);
+            const contextEnd = Math.min(haystack.length, foundAt + searchNeedle.length + 120);
+            matches.push({
+              index: foundAt,
+              context: haystack.slice(contextStart, contextEnd),
+            });
+            position = foundAt + Math.max(1, searchNeedle.length);
+          }
+        }
+
+        if (!normalizeWs && matches.length === 0 && normalizedNeedle && normalizedNeedle !== needle) {
+          const fallbackNeedle = normalizedNeedle;
+          let position = 0;
+          while (matches.length < matchLimit) {
+            const foundAt = source.indexOf(fallbackNeedle, position);
+            if (foundAt < 0) break;
+            const contextStart = Math.max(0, foundAt - 120);
+            const contextEnd = Math.min(source.length, foundAt + fallbackNeedle.length + 120);
+            matches.push({
+              index: -1,
+              context: source.slice(contextStart, contextEnd),
+            });
+            position = foundAt + Math.max(1, fallbackNeedle.length);
+          }
+        }
+
+        return {
+          success: true,
+          hasMatch: matches.length > 0,
+          matchCount: matches.length,
+          matched: matches.length > 0 ? `Found ${matches.length} match(es) for provided HTML.` : 'No exact match found.',
+          scopeSelector: scopeSelector || ':root',
+          snippetLength: normalizeWs ? normalizedNeedle.length : needle.length,
+          sourceLength: haystack.length,
+          matches,
+        };
+      },
+      [selector, htmlSnippet, normalizeWhitespace, maxMatches],
+    );
+
     return result || { success: false, error: 'Script execution failed.' };
   }
 

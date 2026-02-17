@@ -18,6 +18,14 @@ const formatHeadersJson = (headers: Record<string, any> | undefined) => {
   return JSON.stringify(normalized, null, 2);
 };
 
+const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
+  if (!textarea) return;
+  textarea.style.height = 'auto';
+  const nextHeight = Math.min(textarea.scrollHeight, 500);
+  textarea.style.height = `${nextHeight}px`;
+  textarea.style.overflowY = textarea.scrollHeight > 500 ? 'auto' : 'hidden';
+};
+
 (SidePanelUI.prototype as any).createNewConfig = async function createNewConfig(name?: string) {
   // Read from whichever input has a value
   const inputA = this.elements.newProfileInput;
@@ -289,6 +297,7 @@ const formatHeadersJson = (headers: Record<string, any> | undefined) => {
     this.elements.profileEditorSaveHistory.value = config.saveHistory !== false ? 'true' : 'false';
   if (this.elements.profileEditorPrompt)
     this.elements.profileEditorPrompt.value = config.systemPrompt || this.getDefaultSystemPrompt();
+  resizeProfilePromptInput(this.elements.profileEditorPrompt);
 
   this.toggleProfileEditorEndpoint();
   this.refreshProfileJsonEditor?.();

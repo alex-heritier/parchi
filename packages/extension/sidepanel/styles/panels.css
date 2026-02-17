@@ -469,6 +469,22 @@
   margin: 10px 0;
 }
 
+.profile-system-prompt {
+  margin: 0;
+}
+
+.profile-system-prompt .settings-body {
+  padding-top: 12px;
+  gap: 8px;
+}
+
+.system-prompt-textarea {
+  min-height: 300px;
+  max-height: 500px;
+  resize: none;
+  overflow-y: auto;
+}
+
 /* Theme Grid */
 .theme-grid {
   display: grid;

@@ -311,11 +311,21 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
 
   const nameInput = document.getElementById('workflowNameInput') as HTMLInputElement;
   const promptInput = document.getElementById('workflowPromptInput') as HTMLTextAreaElement;
+  const resizePromptInput = () => {
+    if (!promptInput) return;
+    const maxHeight = 500;
+    promptInput.style.height = 'auto';
+    const nextHeight = Math.min(promptInput.scrollHeight, maxHeight);
+    promptInput.style.height = `${nextHeight}px`;
+    promptInput.style.overflowY = promptInput.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  };
 
   const composerValue = this.elements.userInput?.value || '';
   if (composerValue && !composerValue.startsWith('/')) {
     promptInput.value = composerValue;
   }
+  resizePromptInput();
+  promptInput?.addEventListener('input', resizePromptInput);
 
   nameInput?.focus();
 
@@ -424,9 +434,13 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
 (SidePanelUI.prototype as any).selectWorkflow = function selectWorkflow(workflow: Workflow): void {
   const userInput = this.elements.userInput;
   if (!userInput) return;
+  const computedMaxHeight = Number.parseFloat(getComputedStyle(userInput).maxHeight);
+  const maxHeight = Number.isFinite(computedMaxHeight) && computedMaxHeight > 0 ? computedMaxHeight : 280;
   userInput.value = workflow.prompt;
   userInput.style.height = 'auto';
-  userInput.style.height = `${userInput.scrollHeight}px`;
+  const nextHeight = Math.min(userInput.scrollHeight, maxHeight);
+  userInput.style.height = `${nextHeight}px`;
+  userInput.style.overflowY = userInput.scrollHeight > maxHeight ? 'auto' : 'hidden';
   userInput.focus();
   this.hideWorkflowMenu();
 };

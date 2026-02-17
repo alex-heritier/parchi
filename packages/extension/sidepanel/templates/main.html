@@ -80,19 +80,26 @@
                             ></textarea>
                             <div class="composer-toolbar">
                                 <div class="composer-toolbar-left">
-                                    <div id="mascotCorner" class="mascot-corner" title="Your AI companion">
-                                        <div class="mascot-blob">
-                                            <div class="mascot-blob-body"></div>
-                                            <div class="mascot-eyes">
-                                                <div class="mascot-eye"></div>
-                                                <div class="mascot-eye"></div>
+                                    <div class="mascot-wrapper">
+                                        <div id="mascotBubble" class="mascot-bubble hidden">
+                                            <div class="mascot-bubble-content">
+                                                <span id="bubbleVerb" class="bubble-verb"></span>
+                                                <span id="bubbleMeta" class="bubble-meta"></span>
                                             </div>
-                                            <div class="mascot-smile"></div>
+                                            <div class="mascot-bubble-tail"></div>
+                                        </div>
+                                        <div id="mascotCorner" class="mascot-corner sleeping" title="Your AI companion">
+                                            <div class="mascot-blob">
+                                                <div class="mascot-blob-body"></div>
+                                                <div class="mascot-eyes">
+                                                    <div class="mascot-eye"></div>
+                                                    <div class="mascot-eye"></div>
+                                                </div>
+                                                <div class="mascot-smile"></div>
+                                            </div>
                                         </div>
                                     </div>
                                     <div id="statusBar" class="composer-status">
-                                        <span id="statusDot" class="status-dot"></span>
-                                        <span id="statusText">Ready</span>
                                         <span id="statusMeta" class="status-meta"></span>
                                     </div>
                                 </div>
@@ -255,5 +262,18 @@
                         <path d="M5 12h14" />
                     </svg>
                 </button>
+
+                <div id="accountOnboardingModal" class="account-onboarding-modal hidden">
+                    <div class="account-onboarding-card">
+                        <div class="account-onboarding-title">Choose your setup</div>
+                        <div class="account-onboarding-subtitle">
+                            Use your own API keys for free, or subscribe for managed keys and billing.
+                        </div>
+                        <div class="account-onboarding-actions">
+                            <button id="accountChooseByokBtn" class="btn btn-secondary">Use your own API keys</button>
+                            <button id="accountChoosePaidBtn" class="btn btn-primary">Get a subscription</button>
+                        </div>
+                    </div>
+                </div>
 
             </main>
