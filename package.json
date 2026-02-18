@@ -7,6 +7,7 @@
     "packages/backend"
   ],
   "scripts": {
+    "browser:agent": "agent-browser",
     "build": "node scripts/build.mjs",
     "build:firefox": "BROWSER=firefox node scripts/build.mjs",
     "build:firefox:xpi": "npm run build:firefox && node scripts/build-firefox-xpi.mjs",
@@ -39,10 +40,10 @@
     "parchi-relay": "dist-relay/relay.js"
   },
   "dependencies": {
-    "@auth/core": "0.37.4",
     "@ai-sdk/anthropic": "3.0.17",
     "@ai-sdk/openai": "3.0.13",
     "@ai-sdk/openai-compatible": "2.0.16",
+    "@auth/core": "0.37.4",
     "@convex-dev/auth": "0.0.90",
     "ai": "6.0.42",
     "convex": "1.31.7",
@@ -54,6 +55,7 @@
     "@types/chrome": "0.0.268",
     "@types/node": "22.10.5",
     "@types/ws": "8.18.1",
+    "agent-browser": "^0.11.1",
     "esbuild": "0.27.2",
     "marked": "17.0.1",
     "playwright": "1.57.0",
