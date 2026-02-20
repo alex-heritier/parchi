@@ -23,6 +23,8 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
 (SidePanelUI.prototype as any).saveWorkflow = async function saveWorkflow(
   name: string,
   prompt: string,
+  positiveExamples?: Array<{ tool: string; args: any; result: string }>,
+  negativeExamples?: Array<{ tool: string; args: any; error: string; count: number }>,
 ): Promise<void> {
   const workflow: Workflow = {
     id: crypto.randomUUID(),
@@ -32,6 +34,28 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
   };
   this.workflows.push(workflow);
   await chrome.storage.local.set({ workflows: this.workflows });
+
+  // Also save as a composable skill
+  const skills = (await chrome.storage.local.get('skills')).skills || [];
+  const currentUrl = window.location.href || '';
+  const hostname = (() => { try { return new URL(currentUrl).hostname; } catch { return ''; } })();
+  const posExamples = Array.isArray(positiveExamples) ? positiveExamples : [];
+  const negExamples = Array.isArray(negativeExamples) ? negativeExamples : [];
+  skills.push({
+    id: crypto.randomUUID(),
+    name: name.trim(),
+    description: prompt.slice(0, 200),
+    sitePattern: hostname ? `${hostname}*` : '',
+    steps: posExamples.slice(0, 20).map((ex: any) => ({ tool: ex.tool, args: ex.args })),
+    prompt,
+    positiveExamples: posExamples.slice(0, 10),
+    negativeExamples: negExamples.slice(0, 10),
+    createdAt: Date.now(),
+    sourceSessionId: this.sessionId || '',
+    successCount: 0,
+    failureCount: 0,
+  });
+  await chrome.storage.local.set({ skills });
 };
 
 (SidePanelUI.prototype as any).deleteWorkflow = async function deleteWorkflow(id: string): Promise<void> {
@@ -252,9 +276,34 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
 (SidePanelUI.prototype as any).generateWorkflowFromSession = async function generateWorkflowFromSession(): Promise<{
   name: string;
   prompt: string;
+  positiveExamples: Array<{ tool: string; args: any; result: string }>;
+  negativeExamples: Array<{ tool: string; args: any; error: string; count: number }>;
 } | null> {
   const context = this.buildSessionContext();
   if (!context.trim()) return null;
+
+  const positiveExamples: Array<{ tool: string; args: any; result: string }> = [];
+  const negativeExamples: Array<{ tool: string; args: any; error: string; count: number }> = [];
+  const failureCounts = new Map<string, number>();
+
+  if (this.historyTurnMap?.size) {
+    this.historyTurnMap.forEach((turn: any) => {
+      if (!turn.toolEvents?.length) return;
+      for (const ev of turn.toolEvents) {
+        if (ev.type !== 'tool_execution_result') continue;
+        const key = `${ev.tool}:${ev.args?.selector || ev.args?.url || ''}`;
+        if (ev.result?.success === false || ev.result?.error) {
+          const count = (failureCounts.get(key) || 0) + 1;
+          failureCounts.set(key, count);
+          if (count <= 1) { // Only first failure of each type
+            negativeExamples.push({ tool: ev.tool, args: ev.args || {}, error: String(ev.result?.error || ''), count });
+          }
+        } else {
+          positiveExamples.push({ tool: ev.tool, args: ev.args || {}, result: JSON.stringify(ev.result || {}).slice(0, 200) });
+        }
+      }
+    });
+  }
 
   const response = await chrome.runtime.sendMessage({
     type: 'generate_workflow',
@@ -275,7 +324,7 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
   const words = firstText.split(/\s+/).filter(Boolean).slice(0, 3);
   const suggestedName = words.join('-') || 'workflow';
 
-  return { name: suggestedName, prompt: response.result.prompt };
+  return { name: suggestedName, prompt: response.result.prompt, positiveExamples, negativeExamples };
 };
 
 // ──────────────────────────────────────────────────────────────────────
@@ -340,12 +389,15 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
     });
   };
 
+  let _generatedPositiveExamples: Array<{ tool: string; args: any; result: string }> | undefined;
+  let _generatedNegativeExamples: Array<{ tool: string; args: any; error: string; count: number }> | undefined;
+
   const doSave = () => {
     const name = nameInput?.value?.trim();
     const prompt = promptInput?.value?.trim();
     if (!name) { nameInput?.focus(); return; }
     if (!prompt) { promptInput?.focus(); return; }
-    this.saveWorkflow(name, prompt).then(() => {
+    this.saveWorkflow(name, prompt, _generatedPositiveExamples, _generatedNegativeExamples).then(() => {
       this.hideWorkflowMenu();
       const userInput = this.elements.userInput;
       if (userInput && userInput.value.startsWith('/')) {
@@ -373,6 +425,8 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
         promptInput.value = generated.prompt;
         promptInput.style.height = 'auto';
         promptInput.style.height = `${Math.min(promptInput.scrollHeight, 300)}px`;
+        _generatedPositiveExamples = generated.positiveExamples;
+        _generatedNegativeExamples = generated.negativeExamples;
         this.updateStatus('Workflow generated', 'success');
       } else {
         this.updateStatus('No session data to generate from', 'warning');

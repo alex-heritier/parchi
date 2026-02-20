@@ -41420,6 +41420,19 @@ function resolveLanguageModel2(settings) {
       });
       return kimiProxy(modelId);
     }
+    if (proxyProvider === "openrouter") {
+      const openRouterProxy = createOpenAICompatible({
+        name: "openrouter-proxy",
+        apiKey: settings.proxyAuthToken,
+        baseURL: `${normalizedBase}/ai-proxy/openrouter`,
+        headers: {
+          ...extraHeaders,
+          "HTTP-Referer": "https://parchi.app",
+          "X-Title": "Parchi"
+        }
+      });
+      return openRouterProxy(modelId);
+    }
     const openAiProxy = createOpenAICompatible({
       name: "convex-proxy",
       apiKey: settings.proxyAuthToken,
@@ -41443,6 +41456,19 @@ function resolveLanguageModel2(settings) {
       headers: extraHeaders
     });
     return kimiProvider(modelId);
+  }
+  if (provider === "openrouter") {
+    const openRouterProvider = createOpenAICompatible({
+      name: "openrouter",
+      apiKey,
+      baseURL: "https://openrouter.ai/api/v1",
+      headers: {
+        ...extraHeaders,
+        "HTTP-Referer": "https://parchi.app",
+        "X-Title": "Parchi"
+      }
+    });
+    return openRouterProvider(modelId);
   }
   if (provider === "custom") {
     const rawBase = settings.customEndpoint ? settings.customEndpoint.replace(/\/chat\/completions\/?$/i, "").replace(/\/v1\/messages\/?$/i, "").replace(/\/messages\/?$/i, "").replace(/\/+$/, "") : "";
@@ -44090,7 +44116,7 @@ var BackgroundService = class {
       const tools = this.getToolsForSession(settings, orchestratorEnabled, teamProfiles, visionToolsEnabled);
       const streamEnabled = settings.streamResponses !== false && settings.streamResponses !== "false";
       const showThinking = settings.showThinking !== false && settings.showThinking !== "false";
-      const enableAnthropicThinking = showThinking && (orchestratorProfile.provider === "anthropic" || orchestratorProfile.provider === "kimi");
+      const enableAnthropicThinking = showThinking && (orchestratorProfile.provider === "anthropic" || orchestratorProfile.provider === "kimi" || orchestratorProfile.provider === "openrouter" && /claude/i.test(orchestratorProfile.model || ""));
       const [activeTab] = await chrome.tabs.query({
         active: true,
         currentWindow: true
@@ -44115,6 +44141,7 @@ var BackgroundService = class {
         toolCatalog: tools.map((tool2) => ({ name: tool2.name, description: tool2.description || "" })),
         showThinking
       };
+      const matchedSkills = await this.getMatchedSkills(context2.currentUrl);
       const historyInput = Array.isArray(conversationHistory) ? conversationHistory : [];
       const trimmedUserMessage = typeof userMessage === "string" ? userMessage.trim() : "";
       let enrichedUserMessage = userMessage;
@@ -44276,7 +44303,7 @@ ${recordedContext.summary}`;
         }
         const result = streamText({
           model,
-          system: this.enhanceSystemPrompt(orchestratorProfile.systemPrompt || "", context2, sessionState),
+          system: this.enhanceSystemPrompt(orchestratorProfile.systemPrompt || "", context2, sessionState, matchedSkills),
           messages: modelMessages,
           tools: toolSet,
           abortSignal,
@@ -44469,7 +44496,7 @@ ${recordedContext.summary}`;
             }
             const finalizeResult = await generateText({
               model,
-              system: this.enhanceSystemPrompt(orchestratorProfile.systemPrompt || "", context2, sessionState),
+              system: this.enhanceSystemPrompt(orchestratorProfile.systemPrompt || "", context2, sessionState, matchedSkills),
               messages: [
                 ...toModelMessages(currentHistory),
                 {
@@ -44927,6 +44954,20 @@ ${sessionContext}`
       return errorResult;
     }
     const finalResult = result || { error: "No result returned" };
+    const failureKey = `${toolName}:${args?.selector || args?.url || ""}`;
+    if (finalResult.success === false || finalResult.error) {
+      const tracker = sessionState.failureTracker || /* @__PURE__ */ new Map();
+      sessionState.failureTracker = tracker;
+      const existing = tracker.get(failureKey) || { count: 0, lastError: "" };
+      existing.count++;
+      existing.lastError = String(finalResult.error || "");
+      tracker.set(failureKey, existing);
+      if (existing.count >= 3) {
+        finalResult._failureAdvice = `This tool+target has failed ${existing.count} times. Try a fundamentally different approach (different selector, different strategy, or skip this step).`;
+      }
+    } else {
+      sessionState.failureTracker?.delete(failureKey);
+    }
     const tabModifyingTools = ["openTab", "closeTab", "navigate", "switchTab", "focusTab"];
     if (tabModifyingTools.includes(toolName)) {
       const state = browserTools.getSessionState();
@@ -45246,7 +45287,8 @@ Provide a coherent summary of what happens in the video.`,
       lastBrowserAction: null,
       awaitingVerification: false,
       currentStepVerified: false,
-      kimiWarningSent: false
+      kimiWarningSent: false,
+      failureTracker: /* @__PURE__ */ new Map()
     };
     this.sessionStateById.set(id, created);
     return created;
@@ -45303,7 +45345,27 @@ Provide a coherent summary of what happens in the video.`,
       console.log("Side panel not open:", err);
     });
   }
-  enhanceSystemPrompt(basePrompt, context2, sessionState) {
+  async getMatchedSkills(url2) {
+    try {
+      const data = await chrome.storage.local.get("skills");
+      const skills = Array.isArray(data.skills) ? data.skills : [];
+      return skills.filter((skill) => {
+        if (!skill.sitePattern) return false;
+        try {
+          return new RegExp(skill.sitePattern.replace(/\*/g, ".*")).test(url2);
+        } catch {
+          return false;
+        }
+      }).slice(0, 5).map((skill) => ({
+        name: skill.name,
+        description: skill.description,
+        steps: skill.steps.map((s, i) => `${i + 1}. ${s.tool}(${JSON.stringify(s.args)})`).join("\n")
+      }));
+    } catch {
+      return [];
+    }
+  }
+  enhanceSystemPrompt(basePrompt, context2, sessionState, matchedSkills = []) {
     const tabsSection = Array.isArray(context2.availableTabs) && context2.availableTabs.length ? `Tabs selected (${context2.availableTabs.length}). You MUST only act on these tabs (session tabs). Always pass tabId from this list to navigate/click/type/pressKey/scroll/getContent/screenshot.
 ${context2.availableTabs.map((tab) => `  - [${tab.id}] ${tab.title || "Untitled"} - ${tab.url}`).join("\n")}` : "No tabs selected; tools will fail until the user selects at least one tab in the UI.";
     const teamProfiles = Array.isArray(context2.teamProfiles) ? context2.teamProfiles : [];
@@ -45391,11 +45453,18 @@ After marking step ${currentIndex} done, proceed to step ${currentIndex + 1}.
 </execution_state>`;
       }
     }
+    const skillSection = matchedSkills.length > 0 ? `<available_skills>
+Site-matched skills for ${context2.currentUrl}:
+${matchedSkills.map((s) => `- ${s.name}: ${s.description}
+  Steps: ${s.steps}`).join("\n")}
+</available_skills>` : "";
     return `${basePrompt}
  ${stateSection}${thinkingSection}
 ${toolCatalogSection}
 ${visionToolSection}
 ${orchestratorToolSection}
+${skillSection ? `
+${skillSection}` : ""}
 
  <browser_context>
 URL: ${context2.currentUrl}
@@ -45438,7 +45507,7 @@ When a tool fails:
     return Boolean(String(settings.convexUrl || "").trim() && String(settings.convexAccessToken || "").trim());
   }
   applyConvexProxyProfile(profile, settings) {
-    const preferredProvider = profile?.provider === "kimi" ? "kimi" : profile?.provider === "anthropic" ? "anthropic" : "openai";
+    const preferredProvider = profile?.provider === "kimi" ? "kimi" : profile?.provider === "anthropic" ? "anthropic" : profile?.provider === "openrouter" ? "openrouter" : "openai";
     return {
       provider: preferredProvider,
       apiKey: profile?.apiKey || "",
@@ -45526,6 +45595,9 @@ When a tool fails:
     if (!provider) return false;
     if (provider === "anthropic") return true;
     if (provider === "kimi") return true;
+    if (provider === "openrouter") {
+      return /(claude|gpt-4o|gpt-4-turbo|gemini|vision)/i.test(model);
+    }
     if (provider === "openai") {
       return /gpt-4o|gpt-4\.1|gpt-4-turbo|gpt-4-vision|vision/.test(model);
     }

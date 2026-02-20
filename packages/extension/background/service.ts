@@ -28,6 +28,7 @@ import { extractTextFromResponseMessages, extractThinking } from '../ai/message-
 import { toModelMessages } from '../ai/model-convert.js';
 import { isValidFinalResponse } from '../ai/retry-engine.js';
 import { buildToolSet, describeImageWithModel, resolveLanguageModel } from '../ai/sdk-client.js';
+import type { ComposedSkill } from '../../shared/src/recording.js';
 import { RecordingCoordinator } from '../recording/recording-coordinator.js';
 import { RelayBridge } from '../relay/relay-bridge.js';
 import { BrowserTools } from '../tools/browser-tools.js';
@@ -48,6 +49,7 @@ type SessionState = {
   awaitingVerification: boolean;
   currentStepVerified: boolean;
   kimiWarningSent: boolean;
+  failureTracker: Map<string, { count: number; lastError: string }>;
 };
 
 export class BackgroundService {
@@ -615,7 +617,8 @@ export class BackgroundService {
       const streamEnabled = settings.streamResponses !== false && settings.streamResponses !== 'false';
       const showThinking = settings.showThinking !== false && settings.showThinking !== 'false';
       const enableAnthropicThinking =
-        showThinking && (orchestratorProfile.provider === 'anthropic' || orchestratorProfile.provider === 'kimi');
+        showThinking && (orchestratorProfile.provider === 'anthropic' || orchestratorProfile.provider === 'kimi' ||
+        (orchestratorProfile.provider === 'openrouter' && /claude/i.test(orchestratorProfile.model || '')));
 
       const [activeTab] = await chrome.tabs.query({
         active: true,
@@ -643,6 +646,8 @@ export class BackgroundService {
         toolCatalog: tools.map((tool) => ({ name: tool.name, description: tool.description || '' })),
         showThinking,
       };
+
+      const matchedSkills = await this.getMatchedSkills(context.currentUrl);
 
       const historyInput = Array.isArray(conversationHistory) ? conversationHistory : [];
       const trimmedUserMessage = typeof userMessage === 'string' ? userMessage.trim() : '';
@@ -825,7 +830,7 @@ export class BackgroundService {
 
         const result = streamText({
           model,
-          system: this.enhanceSystemPrompt(orchestratorProfile.systemPrompt || '', context, sessionState),
+          system: this.enhanceSystemPrompt(orchestratorProfile.systemPrompt || '', context, sessionState, matchedSkills),
           messages: modelMessages,
           tools: toolSet,
           abortSignal,
@@ -1048,7 +1053,7 @@ export class BackgroundService {
 
             const finalizeResult = await generateText({
               model,
-              system: this.enhanceSystemPrompt(orchestratorProfile.systemPrompt || '', context, sessionState),
+              system: this.enhanceSystemPrompt(orchestratorProfile.systemPrompt || '', context, sessionState, matchedSkills),
               messages: [
                 ...toModelMessages(currentHistory),
                 {
@@ -1575,6 +1580,23 @@ Rules:
 
     const finalResult = result || { error: 'No result returned' };
 
+    // Failure dedup: track repeated failures on same tool+target
+    const failureKey = `${toolName}:${args?.selector || args?.url || ''}`;
+    if (finalResult.success === false || finalResult.error) {
+      const tracker = sessionState.failureTracker || new Map();
+      sessionState.failureTracker = tracker;
+      const existing = tracker.get(failureKey) || { count: 0, lastError: '' };
+      existing.count++;
+      existing.lastError = String(finalResult.error || '');
+      tracker.set(failureKey, existing);
+      if (existing.count >= 3) {
+        finalResult._failureAdvice = `This tool+target has failed ${existing.count} times. Try a fundamentally different approach (different selector, different strategy, or skip this step).`;
+      }
+    } else {
+      // Clear failure tracker on success for this key
+      sessionState.failureTracker?.delete(failureKey);
+    }
+
     // Broadcast session tab state after tab-modifying tools
     const tabModifyingTools = ['openTab', 'closeTab', 'navigate', 'switchTab', 'focusTab'];
     if (tabModifyingTools.includes(toolName)) {
@@ -1969,6 +1991,7 @@ Rules:
       awaitingVerification: false,
       currentStepVerified: false,
       kimiWarningSent: false,
+      failureTracker: new Map(),
     };
     this.sessionStateById.set(id, created);
     return created;
@@ -2035,7 +2058,33 @@ Rules:
     });
   }
 
-  enhanceSystemPrompt(basePrompt: string, context, sessionState: SessionState) {
+  async getMatchedSkills(url: string): Promise<Array<{ name: string; description: string; steps: string }>> {
+    try {
+      const data = await chrome.storage.local.get('skills');
+      const skills: ComposedSkill[] = Array.isArray(data.skills) ? data.skills : [];
+      return skills
+        .filter((skill) => {
+          if (!skill.sitePattern) return false;
+          try {
+            return new RegExp(skill.sitePattern.replace(/\*/g, '.*')).test(url);
+          } catch {
+            return false;
+          }
+        })
+        .slice(0, 5)
+        .map((skill) => ({
+          name: skill.name,
+          description: skill.description,
+          steps: skill.steps
+            .map((s, i) => `${i + 1}. ${s.tool}(${JSON.stringify(s.args)})`)
+            .join('\n'),
+        }));
+    } catch {
+      return [];
+    }
+  }
+
+  enhanceSystemPrompt(basePrompt: string, context, sessionState: SessionState, matchedSkills: Array<{ name: string; description: string; steps: string }> = []) {
     const tabsSection =
       Array.isArray(context.availableTabs) && context.availableTabs.length
         ? `Tabs selected (${context.availableTabs.length}). You MUST only act on these tabs (session tabs). Always pass tabId from this list to navigate/click/type/pressKey/scroll/getContent/screenshot.\n${context.availableTabs
@@ -2154,11 +2203,17 @@ After marking step ${currentIndex} done, proceed to step ${currentIndex + 1}.
       }
     }
 
+    const skillSection = matchedSkills.length > 0
+      ? `<available_skills>\nSite-matched skills for ${context.currentUrl}:\n${matchedSkills.map((s) =>
+          `- ${s.name}: ${s.description}\n  Steps: ${s.steps}`).join('\n')}\n</available_skills>`
+      : '';
+
     return `${basePrompt}
  ${stateSection}${thinkingSection}
 ${toolCatalogSection}
 ${visionToolSection}
 ${orchestratorToolSection}
+${skillSection ? `\n${skillSection}` : ''}
 
  <browser_context>
 URL: ${context.currentUrl}
@@ -2205,7 +2260,10 @@ When a tool fails:
 
   applyConvexProxyProfile(profile: Record<string, any>, settings: Record<string, any>) {
     const preferredProvider =
-      profile?.provider === 'kimi' ? 'kimi' : profile?.provider === 'anthropic' ? 'anthropic' : 'openai';
+      profile?.provider === 'kimi' ? 'kimi'
+      : profile?.provider === 'anthropic' ? 'anthropic'
+      : profile?.provider === 'openrouter' ? 'openrouter'
+      : 'openai';
     return {
       provider: preferredProvider,
       apiKey: profile?.apiKey || '',
@@ -2298,6 +2356,9 @@ When a tool fails:
     if (!provider) return false;
     if (provider === 'anthropic') return true;
     if (provider === 'kimi') return true;
+    if (provider === 'openrouter') {
+      return /(claude|gpt-4o|gpt-4-turbo|gemini|vision)/i.test(model);
+    }
     if (provider === 'openai') {
       return /gpt-4o|gpt-4\.1|gpt-4-turbo|gpt-4-vision|vision/.test(model);
     }

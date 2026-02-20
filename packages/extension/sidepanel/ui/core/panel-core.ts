@@ -466,6 +466,18 @@ export PARCHI_RELAY_PORT="${port}"`;
       this.updateStatus(message.note || 'Failed', 'error');
     } else if (phase === 'completed') {
       this.updateStatus(message.note || 'Ready', 'success');
+    } else if (phase === 'planning' || phase === 'executing' || phase === 'finalizing') {
+      // Surface non-terminal phases with retry counts
+      const phaseLabel = phase.charAt(0).toUpperCase() + phase.slice(1);
+      const retryInfo = message.attempts && message.maxRetries
+        ? (() => {
+            const parts: string[] = [];
+            if (message.attempts.api > 0) parts.push(`api ${message.attempts.api}/${message.maxRetries.api}`);
+            if (message.attempts.tool > 0) parts.push(`tool ${message.attempts.tool}/${message.maxRetries.tool}`);
+            return parts.length ? ` (retries: ${parts.join(', ')})` : '';
+          })()
+        : '';
+      this.updateStatus(`${phaseLabel}${retryInfo}`, 'active');
     } else if (phase) {
       this.updateStatus(message.note || phase, 'active');
     }
@@ -655,6 +667,7 @@ export PARCHI_RELAY_PORT="${port}"`;
     this.showErrorBanner(message.message, {
       category: (message as any).errorCategory,
       action: (message as any).action,
+      recoverable: (message as any).recoverable,
     });
     this.updateStatus('Error', 'error');
     return;

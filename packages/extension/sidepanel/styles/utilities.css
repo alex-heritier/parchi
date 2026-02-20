@@ -187,3 +187,7 @@ textarea:disabled {
   background: hsl(230, 25%, 28%);
   color: var(--foreground);
 }
+
+.error-banner.error-persistent {
+    border-left: 3px solid var(--status-error, #ef4444);
+}

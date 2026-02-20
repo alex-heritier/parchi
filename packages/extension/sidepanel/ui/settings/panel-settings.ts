@@ -37,7 +37,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
 
 (SidePanelUI.prototype as any).toggleCustomEndpoint = function toggleCustomEndpoint() {
   const provider = this.elements.provider?.value;
-  const isCustom = provider === 'custom' || provider === 'kimi';
+  const isCustom = provider === 'custom' || provider === 'kimi' || provider === 'openrouter';
 
   // Always show the endpoint field, but highlight when required
   if (this.elements.customEndpointGroup) {
@@ -55,6 +55,14 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
         this.elements.customEndpoint.value = 'https://api.kimi.com/coding';
       }
       this.elements.customEndpoint.placeholder = 'https://api.kimi.com/coding';
+    } else if (provider === 'openrouter') {
+      this.elements.customEndpoint.placeholder = 'https://openrouter.ai/api/v1';
+      if (
+        !this.elements.customEndpoint.value ||
+        this.elements.customEndpoint.value === 'https://api.kimi.com/coding'
+      ) {
+        this.elements.customEndpoint.value = 'https://openrouter.ai/api/v1';
+      }
     } else if (isCustom) {
       this.elements.customEndpoint.placeholder = 'https://openrouter.ai/api/v1';
     } else {
@@ -74,6 +82,9 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
         break;
       case 'kimi':
         modelHint.textContent = 'Recommended: kimi-for-coding (or your Kimi model ID)';
+        break;
+      case 'openrouter':
+        modelHint.textContent = 'e.g. anthropic/claude-sonnet-4, openai/gpt-4o, google/gemini-2.0-flash';
         break;
       case 'custom':
         modelHint.textContent = 'Enter the model ID from your provider';
@@ -136,7 +147,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   if (!this.elements.profileEditorEndpointGroup) return;
   const provider = this.elements.profileEditorProvider?.value;
   this.elements.profileEditorEndpointGroup.style.display =
-    provider === 'custom' || provider === 'kimi' ? 'block' : 'none';
+    provider === 'custom' || provider === 'kimi' || provider === 'openrouter' ? 'block' : 'none';
 };
 
 (SidePanelUI.prototype as any).switchSettingsTab = function switchSettingsTab(
@@ -308,7 +319,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
 
 (SidePanelUI.prototype as any).saveSettings = async function saveSettings() {
   if (
-    (this.elements.provider?.value === 'custom' || this.elements.provider?.value === 'kimi') &&
+    (this.elements.provider?.value === 'custom' || this.elements.provider?.value === 'kimi' || this.elements.provider?.value === 'openrouter') &&
     !this.validateCustomEndpoint()
   ) {
     this.updateStatus('Invalid custom endpoint URL', 'error');

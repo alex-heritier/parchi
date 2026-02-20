@@ -71,3 +71,27 @@ export type RecordingUpdate =
   | { type: 'recording_error'; message: string };
 
 export type RecordingMessageType = RecordingCommand['type'] | RecordingUpdate['type'];
+
+// === Composable Skill Types ===
+
+export type AtomicSkill = {
+  tool: string;
+  args: Record<string, any>;
+  precondition?: { urlPattern?: string; requireSelector?: string };
+  postcondition?: { expectUrlChange?: boolean; expectSelector?: string };
+};
+
+export type ComposedSkill = {
+  id: string;
+  name: string;
+  description: string;
+  sitePattern: string;
+  steps: AtomicSkill[];
+  prompt?: string;
+  positiveExamples: Array<{ tool: string; args: Record<string, any>; result: string }>;
+  negativeExamples: Array<{ tool: string; args: Record<string, any>; error: string; count: number }>;
+  createdAt: number;
+  sourceSessionId?: string;
+  successCount: number;
+  failureCount: number;
+};

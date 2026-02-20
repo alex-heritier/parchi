@@ -71,6 +71,19 @@ function resolveLanguageModel(settings) {
       });
       return kimiProxy(modelId);
     }
+    if (proxyProvider === "openrouter") {
+      const openRouterProxy = createOpenAICompatible({
+        name: "openrouter-proxy",
+        apiKey: settings.proxyAuthToken,
+        baseURL: `${normalizedBase}/ai-proxy/openrouter`,
+        headers: {
+          ...extraHeaders,
+          "HTTP-Referer": "https://parchi.app",
+          "X-Title": "Parchi"
+        }
+      });
+      return openRouterProxy(modelId);
+    }
     const openAiProxy = createOpenAICompatible({
       name: "convex-proxy",
       apiKey: settings.proxyAuthToken,
@@ -94,6 +107,19 @@ function resolveLanguageModel(settings) {
       headers: extraHeaders
     });
     return kimiProvider(modelId);
+  }
+  if (provider === "openrouter") {
+    const openRouterProvider = createOpenAICompatible({
+      name: "openrouter",
+      apiKey,
+      baseURL: "https://openrouter.ai/api/v1",
+      headers: {
+        ...extraHeaders,
+        "HTTP-Referer": "https://parchi.app",
+        "X-Title": "Parchi"
+      }
+    });
+    return openRouterProvider(modelId);
   }
   if (provider === "custom") {
     const rawBase = settings.customEndpoint ? settings.customEndpoint.replace(/\/chat\/completions\/?$/i, "").replace(/\/v1\/messages\/?$/i, "").replace(/\/messages\/?$/i, "").replace(/\/+$/, "") : "";

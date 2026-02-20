@@ -15,7 +15,7 @@ export type SDKModelSettings = {
   useProxy?: boolean;
   proxyBaseUrl?: string;
   proxyAuthToken?: string;
-  proxyProvider?: 'openai' | 'anthropic' | 'kimi';
+  proxyProvider?: 'openai' | 'anthropic' | 'kimi' | 'openrouter';
 };
 
 export function resolveLanguageModel(settings: SDKModelSettings) {
@@ -58,6 +58,20 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
       return kimiProxy(modelId);
     }
 
+    if (proxyProvider === 'openrouter') {
+      const openRouterProxy = createOpenAICompatible({
+        name: 'openrouter-proxy',
+        apiKey: settings.proxyAuthToken,
+        baseURL: `${normalizedBase}/ai-proxy/openrouter`,
+        headers: {
+          ...extraHeaders,
+          'HTTP-Referer': 'https://parchi.app',
+          'X-Title': 'Parchi',
+        },
+      });
+      return openRouterProxy(modelId);
+    }
+
     const openAiProxy = createOpenAICompatible({
       name: 'convex-proxy',
       apiKey: settings.proxyAuthToken,
@@ -91,6 +105,20 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
       headers: extraHeaders,
     });
     return kimiProvider(modelId);
+  }
+
+  if (provider === 'openrouter') {
+    const openRouterProvider = createOpenAICompatible({
+      name: 'openrouter',
+      apiKey,
+      baseURL: 'https://openrouter.ai/api/v1',
+      headers: {
+        ...extraHeaders,
+        'HTTP-Referer': 'https://parchi.app',
+        'X-Title': 'Parchi',
+      },
+    });
+    return openRouterProvider(modelId);
   }
 
   if (provider === 'custom') {
