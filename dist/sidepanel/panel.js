@@ -1536,6 +1536,15 @@ SidePanelUI.prototype.handleRuntimeMessage = function handleRuntimeMessage(messa
       this.updateStatus(message.note || "Failed", "error");
     } else if (phase === "completed") {
       this.updateStatus(message.note || "Ready", "success");
+    } else if (phase === "planning" || phase === "executing" || phase === "finalizing") {
+      const phaseLabel = phase.charAt(0).toUpperCase() + phase.slice(1);
+      const retryInfo = message.attempts && message.maxRetries ? (() => {
+        const parts = [];
+        if (message.attempts.api > 0) parts.push(`api ${message.attempts.api}/${message.maxRetries.api}`);
+        if (message.attempts.tool > 0) parts.push(`tool ${message.attempts.tool}/${message.maxRetries.tool}`);
+        return parts.length ? ` (retries: ${parts.join(", ")})` : "";
+      })() : "";
+      this.updateStatus(`${phaseLabel}${retryInfo}`, "active");
     } else if (phase) {
       this.updateStatus(message.note || phase, "active");
     }
@@ -1709,7 +1718,8 @@ SidePanelUI.prototype.handleRuntimeMessage = function handleRuntimeMessage(messa
     this.finishStreamingMessage();
     this.showErrorBanner(message.message, {
       category: message.errorCategory,
-      action: message.action
+      action: message.action,
+      recoverable: message.recoverable
     });
     this.updateStatus("Error", "error");
     return;
@@ -4041,7 +4051,7 @@ SidePanelUI.prototype.cancelSettings = async function cancelSettings() {
 };
 SidePanelUI.prototype.toggleCustomEndpoint = function toggleCustomEndpoint() {
   const provider = this.elements.provider?.value;
-  const isCustom = provider === "custom" || provider === "kimi";
+  const isCustom = provider === "custom" || provider === "kimi" || provider === "openrouter";
   if (this.elements.customEndpointGroup) {
     this.elements.customEndpointGroup.classList.toggle("required", isCustom);
   }
@@ -4051,6 +4061,11 @@ SidePanelUI.prototype.toggleCustomEndpoint = function toggleCustomEndpoint() {
         this.elements.customEndpoint.value = "https://api.kimi.com/coding";
       }
       this.elements.customEndpoint.placeholder = "https://api.kimi.com/coding";
+    } else if (provider === "openrouter") {
+      this.elements.customEndpoint.placeholder = "https://openrouter.ai/api/v1";
+      if (!this.elements.customEndpoint.value || this.elements.customEndpoint.value === "https://api.kimi.com/coding") {
+        this.elements.customEndpoint.value = "https://openrouter.ai/api/v1";
+      }
     } else if (isCustom) {
       this.elements.customEndpoint.placeholder = "https://openrouter.ai/api/v1";
     } else {
@@ -4068,6 +4083,9 @@ SidePanelUI.prototype.toggleCustomEndpoint = function toggleCustomEndpoint() {
         break;
       case "kimi":
         modelHint.textContent = "Recommended: kimi-for-coding (or your Kimi model ID)";
+        break;
+      case "openrouter":
+        modelHint.textContent = "e.g. anthropic/claude-sonnet-4, openai/gpt-4o, google/gemini-2.0-flash";
         break;
       case "custom":
         modelHint.textContent = "Enter the model ID from your provider";
@@ -4125,7 +4143,7 @@ SidePanelUI.prototype.validateProfileEditorHeaders = function validateProfileEdi
 SidePanelUI.prototype.toggleProfileEditorEndpoint = function toggleProfileEditorEndpoint() {
   if (!this.elements.profileEditorEndpointGroup) return;
   const provider = this.elements.profileEditorProvider?.value;
-  this.elements.profileEditorEndpointGroup.style.display = provider === "custom" || provider === "kimi" ? "block" : "none";
+  this.elements.profileEditorEndpointGroup.style.display = provider === "custom" || provider === "kimi" || provider === "openrouter" ? "block" : "none";
 };
 SidePanelUI.prototype.switchSettingsTab = function switchSettingsTab(tabName = "setup") {
   if (this.currentSettingsTab === "setup" && tabName !== "setup") {
@@ -4274,7 +4292,7 @@ SidePanelUI.prototype.updateRelayStatusFromSettings = function updateRelayStatus
   }
 };
 SidePanelUI.prototype.saveSettings = async function saveSettings() {
-  if ((this.elements.provider?.value === "custom" || this.elements.provider?.value === "kimi") && !this.validateCustomEndpoint()) {
+  if ((this.elements.provider?.value === "custom" || this.elements.provider?.value === "kimi" || this.elements.provider?.value === "openrouter") && !this.validateCustomEndpoint()) {
     this.updateStatus("Invalid custom endpoint URL", "error");
     return;
   }
@@ -5325,6 +5343,21 @@ SidePanelUI.prototype.createToolElement = function createToolElement(entry) {
   entry.statusEl = container.querySelector(".tool-status");
   entry.durationEl = container.querySelector(".tool-duration");
   this.animateToolDuration(entry);
+  container.addEventListener("click", () => {
+    const existing = container.querySelector(".tool-detail");
+    if (existing) {
+      existing.remove();
+      return;
+    }
+    if (!entry.result) return;
+    const detail = document.createElement("div");
+    detail.className = "tool-detail";
+    const resultText = typeof entry.result === "object" ? JSON.stringify(entry.result, null, 2) : String(entry.result);
+    const truncated = resultText.length > 2e3 ? resultText.slice(0, 2e3) + "\n...(truncated)" : resultText;
+    detail.textContent = truncated;
+    container.appendChild(detail);
+  });
+  container.style.cursor = "pointer";
   return container;
 };
 SidePanelUI.prototype.animateToolDuration = function animateToolDuration(entry) {
@@ -5442,6 +5475,9 @@ SidePanelUI.prototype.showErrorBanner = function showErrorBanner(message, opts) 
       </svg>
     </button>
   `;
+  if (opts?.recoverable === false) {
+    banner.classList.add("error-persistent");
+  }
   const dismissButton = banner.querySelector(".error-dismiss");
   dismissButton?.addEventListener("click", () => banner.remove());
   const settingsBtn = banner.querySelector(".error-settings-btn");
@@ -5450,7 +5486,8 @@ SidePanelUI.prototype.showErrorBanner = function showErrorBanner(message, opts) 
     this.openSettingsPanel?.();
   });
   document.body.appendChild(banner);
-  setTimeout(() => banner.remove(), 12e3);
+  const dismissMs = opts?.recoverable === false ? 3e4 : 12e3;
+  setTimeout(() => banner.remove(), dismissMs);
 };
 SidePanelUI.prototype.clearRunIncompleteBanner = function clearRunIncompleteBanner() {
   document.querySelectorAll(".run-incomplete-banner").forEach((el) => el.remove());
@@ -5628,7 +5665,7 @@ SidePanelUI.prototype.loadWorkflows = async function loadWorkflows() {
     this.workflows = [];
   }
 };
-SidePanelUI.prototype.saveWorkflow = async function saveWorkflow(name, prompt) {
+SidePanelUI.prototype.saveWorkflow = async function saveWorkflow(name, prompt, positiveExamples, negativeExamples) {
   const workflow = {
     id: crypto.randomUUID(),
     name: name.trim(),
@@ -5637,6 +5674,32 @@ SidePanelUI.prototype.saveWorkflow = async function saveWorkflow(name, prompt) {
   };
   this.workflows.push(workflow);
   await chrome.storage.local.set({ workflows: this.workflows });
+  const skills = (await chrome.storage.local.get("skills")).skills || [];
+  const currentUrl = window.location.href || "";
+  const hostname = (() => {
+    try {
+      return new URL(currentUrl).hostname;
+    } catch {
+      return "";
+    }
+  })();
+  const posExamples = Array.isArray(positiveExamples) ? positiveExamples : [];
+  const negExamples = Array.isArray(negativeExamples) ? negativeExamples : [];
+  skills.push({
+    id: crypto.randomUUID(),
+    name: name.trim(),
+    description: prompt.slice(0, 200),
+    sitePattern: hostname ? `${hostname}*` : "",
+    steps: posExamples.slice(0, 20).map((ex) => ({ tool: ex.tool, args: ex.args })),
+    prompt,
+    positiveExamples: posExamples.slice(0, 10),
+    negativeExamples: negExamples.slice(0, 10),
+    createdAt: Date.now(),
+    sourceSessionId: this.sessionId || "",
+    successCount: 0,
+    failureCount: 0
+  });
+  await chrome.storage.local.set({ skills });
 };
 SidePanelUI.prototype.deleteWorkflow = async function deleteWorkflow(id) {
   this.workflows = this.workflows.filter((w) => w.id !== id);
@@ -5812,6 +5875,27 @@ ${planLines.join("\n")}`);
 SidePanelUI.prototype.generateWorkflowFromSession = async function generateWorkflowFromSession() {
   const context = this.buildSessionContext();
   if (!context.trim()) return null;
+  const positiveExamples = [];
+  const negativeExamples = [];
+  const failureCounts = /* @__PURE__ */ new Map();
+  if (this.historyTurnMap?.size) {
+    this.historyTurnMap.forEach((turn) => {
+      if (!turn.toolEvents?.length) return;
+      for (const ev of turn.toolEvents) {
+        if (ev.type !== "tool_execution_result") continue;
+        const key = `${ev.tool}:${ev.args?.selector || ev.args?.url || ""}`;
+        if (ev.result?.success === false || ev.result?.error) {
+          const count = (failureCounts.get(key) || 0) + 1;
+          failureCounts.set(key, count);
+          if (count <= 1) {
+            negativeExamples.push({ tool: ev.tool, args: ev.args || {}, error: String(ev.result?.error || ""), count });
+          }
+        } else {
+          positiveExamples.push({ tool: ev.tool, args: ev.args || {}, result: JSON.stringify(ev.result || {}).slice(0, 200) });
+        }
+      }
+    });
+  }
   const response = await chrome.runtime.sendMessage({
     type: "generate_workflow",
     sessionContext: context,
@@ -5825,7 +5909,7 @@ SidePanelUI.prototype.generateWorkflowFromSession = async function generateWorkf
   const firstText = firstUser ? (this.extractTextContent?.(firstUser.content) || "").toLowerCase().replace(/[^a-z0-9\s]/g, "") : "";
   const words = firstText.split(/\s+/).filter(Boolean).slice(0, 3);
   const suggestedName = words.join("-") || "workflow";
-  return { name: suggestedName, prompt: response.result.prompt };
+  return { name: suggestedName, prompt: response.result.prompt, positiveExamples, negativeExamples };
 };
 SidePanelUI.prototype.showWorkflowSaveInput = function showWorkflowSaveInput() {
   const saveRow = document.getElementById("workflowSaveRow");
@@ -5878,6 +5962,8 @@ SidePanelUI.prototype.showWorkflowSaveInput = function showWorkflowSaveInput() {
       }
     });
   };
+  let _generatedPositiveExamples;
+  let _generatedNegativeExamples;
   const doSave = () => {
     const name = nameInput?.value?.trim();
     const prompt = promptInput?.value?.trim();
@@ -5889,7 +5975,7 @@ SidePanelUI.prototype.showWorkflowSaveInput = function showWorkflowSaveInput() {
       promptInput?.focus();
       return;
     }
-    this.saveWorkflow(name, prompt).then(() => {
+    this.saveWorkflow(name, prompt, _generatedPositiveExamples, _generatedNegativeExamples).then(() => {
       this.hideWorkflowMenu();
       const userInput = this.elements.userInput;
       if (userInput && userInput.value.startsWith("/")) {
@@ -5913,6 +5999,8 @@ SidePanelUI.prototype.showWorkflowSaveInput = function showWorkflowSaveInput() {
         promptInput.value = generated.prompt;
         promptInput.style.height = "auto";
         promptInput.style.height = `${Math.min(promptInput.scrollHeight, 300)}px`;
+        _generatedPositiveExamples = generated.positiveExamples;
+        _generatedNegativeExamples = generated.negativeExamples;
         this.updateStatus("Workflow generated", "success");
       } else {
         this.updateStatus("No session data to generate from", "warning");

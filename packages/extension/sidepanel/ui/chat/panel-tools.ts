@@ -130,6 +130,25 @@ const toolIcons: Record<string, string> = {
   // Animate duration
   this.animateToolDuration(entry);
 
+  // Click to expand/collapse tool result details
+  container.addEventListener('click', () => {
+    const existing = container.querySelector('.tool-detail');
+    if (existing) {
+      existing.remove();
+      return;
+    }
+    if (!entry.result) return;
+    const detail = document.createElement('div');
+    detail.className = 'tool-detail';
+    const resultText = typeof entry.result === 'object'
+      ? JSON.stringify(entry.result, null, 2)
+      : String(entry.result);
+    const truncated = resultText.length > 2000 ? resultText.slice(0, 2000) + '\n...(truncated)' : resultText;
+    detail.textContent = truncated;
+    container.appendChild(detail);
+  });
+  container.style.cursor = 'pointer';
+
   return container;
 };
 
@@ -257,7 +276,7 @@ const toolIcons: Record<string, string> = {
 
 (SidePanelUI.prototype as any).showErrorBanner = function showErrorBanner(
   message: string,
-  opts?: { category?: string; action?: string },
+  opts?: { category?: string; action?: string; recoverable?: boolean },
 ) {
   // Remove any existing error banners to prevent stacking
   document.querySelectorAll('.error-banner').forEach((el) => el.remove());
@@ -287,6 +306,10 @@ const toolIcons: Record<string, string> = {
     </button>
   `;
 
+  if (opts?.recoverable === false) {
+    banner.classList.add('error-persistent');
+  }
+
   const dismissButton = banner.querySelector('.error-dismiss');
   dismissButton?.addEventListener('click', () => banner.remove());
 
@@ -297,7 +320,9 @@ const toolIcons: Record<string, string> = {
   });
 
   document.body.appendChild(banner);
-  setTimeout(() => banner.remove(), 12000);
+  // Auto-dismiss: persistent for non-recoverable errors, shorter for recoverable
+  const dismissMs = opts?.recoverable === false ? 30000 : 12000;
+  setTimeout(() => banner.remove(), dismissMs);
 };
 
 (SidePanelUI.prototype as any).clearRunIncompleteBanner = function clearRunIncompleteBanner() {
