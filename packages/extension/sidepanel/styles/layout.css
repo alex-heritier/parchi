@@ -44,6 +44,10 @@ body[data-right-panel="settings"] {
 }
 
 /* Sidebar — right side overlay (must not shrink the chat layout) */
+/* NOTE: Do NOT set `transform` on the open state. Firefox creates a new
+   containing-block for transformed elements which clips native <select>
+   dropdown popups inside the sidebar. The slide-in transition still works
+   because CSS animates from translateX(100%) → none when .closed is removed. */
 .sidebar {
   width: var(--sidebar-width);
   height: 100%;
@@ -56,7 +60,6 @@ body[data-right-panel="settings"] {
   right: 0;
   bottom: 0;
   z-index: 80;
-  transform: translateX(0);
   transition: transform var(--duration-normal) var(--ease-out-expo), opacity var(--duration-normal) var(--ease-out-expo),
     box-shadow var(--duration-normal) var(--ease-out-expo);
   box-shadow: -12px 0 40px rgba(0, 0, 0, 0.35);
@@ -75,7 +78,7 @@ body[data-right-panel="settings"] {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: hidden;
+  overflow: clip;
 }
 
 .right-panel.closed {
@@ -165,7 +168,9 @@ body[data-right-panel="settings"] {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* Use clip instead of hidden — allows native <select> popups to escape
+     the container in Firefox while still preventing scrollbar bleed. */
+  overflow: clip;
   min-height: 0;
 }
 

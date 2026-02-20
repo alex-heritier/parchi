@@ -215,12 +215,15 @@ export PARCHI_RELAY_PORT="${port}"`;
       this.stopRunTimer?.();
       this.elements.composer?.classList.remove('running');
       this.pendingTurnDraft = null;
+      this.pendingRecordedContext = null;
+      this.hideRecordedContextBadge?.();
       this.pendingToolCount = 0;
       this.isStreaming = false;
       this.activeToolName = null;
       this.updateActivityState();
       this.finishStreamingMessage();
       this.clearErrorBanner?.();
+      this.insertStoppedDivider();
       this.updateStatus('Stopped', 'warning');
     } else {
       this.sendMessage();
@@ -264,6 +267,18 @@ export PARCHI_RELAY_PORT="${port}"`;
     this.elements.fileInput?.click();
   });
   this.elements.fileInput?.addEventListener('change', (event) => this.handleFileSelection(event));
+
+  // Recording
+  this.elements.recordBtn?.addEventListener('click', () => {
+    if (this.recordingState.status === 'idle') {
+      this.startRecording();
+    } else if (this.recordingState.status === 'recording') {
+      this.stopRecording();
+    }
+  });
+  this.elements.recordedContextRemove?.addEventListener('click', () => {
+    this.removeRecordedContext();
+  });
 
   // Zoom controls
   this.elements.zoomInBtn?.addEventListener('click', () => this.adjustUiZoom(0.05));
@@ -310,6 +325,12 @@ export PARCHI_RELAY_PORT="${port}"`;
   chrome.runtime.onMessage.addListener((message) => {
     if (isRuntimeMessage(message)) {
       this.handleRuntimeMessage(message);
+      return;
+    }
+    // Recording messages (not runtime messages — they have their own schema)
+    const recordingTypes = ['recording_tick', 'recording_complete', 'recording_context_ready', 'recording_error'];
+    if (message?.type && recordingTypes.includes(message.type)) {
+      this.handleRecordingMessage?.(message);
     }
   });
 
@@ -357,12 +378,22 @@ export PARCHI_RELAY_PORT="${port}"`;
   }
 };
 
+(SidePanelUI.prototype as any).insertStoppedDivider = function insertStoppedDivider() {
+  const el = document.createElement('div');
+  el.className = 'stopped-divider';
+  el.innerHTML = '<span>Stopped</span>';
+  this.elements.chatMessages?.appendChild(el);
+  this.scrollToBottom();
+};
+
 (SidePanelUI.prototype as any).recoverFromStuckState = function recoverFromStuckState() {
   this.stopWatchdog();
   this.stopThinkingTimer?.();
   this.stopRunTimer?.();
   this.elements.composer?.classList.remove('running');
   this.pendingTurnDraft = null;
+  this.pendingRecordedContext = null;
+  this.hideRecordedContextBadge?.();
   this.pendingToolCount = 0;
   this.isStreaming = false;
   this.activeToolName = null;
@@ -420,6 +451,8 @@ export PARCHI_RELAY_PORT="${port}"`;
       this.stopRunTimer?.();
       this.elements.composer?.classList.remove('running');
       this.pendingTurnDraft = null;
+      this.pendingRecordedContext = null;
+      this.hideRecordedContextBadge?.();
       this.pendingToolCount = 0;
       this.isStreaming = false;
       this.activeToolName = null;

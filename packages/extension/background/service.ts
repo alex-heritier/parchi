@@ -5,6 +5,11 @@ import type { RunPlan } from '../../shared/src/plan.js';
 import { RUNTIME_MESSAGE_SCHEMA_VERSION } from '../../shared/src/runtime-messages.js';
 import { PARCHI_STORAGE_KEYS } from '../../shared/src/settings.js';
 import {
+  getRuntimeFeatureFlags,
+  setupActionClickOpensPanel,
+  setupKimiUserAgentHeaderSupport,
+} from './browser-compat.js';
+import {
   DEFAULT_COMPACTION_SETTINGS,
   SUMMARIZATION_PROMPT,
   SUMMARIZATION_SYSTEM_PROMPT,
@@ -23,6 +28,7 @@ import { extractTextFromResponseMessages, extractThinking } from '../ai/message-
 import { toModelMessages } from '../ai/model-convert.js';
 import { isValidFinalResponse } from '../ai/retry-engine.js';
 import { buildToolSet, describeImageWithModel, resolveLanguageModel } from '../ai/sdk-client.js';
+import { RecordingCoordinator } from '../recording/recording-coordinator.js';
 import { RelayBridge } from '../relay/relay-bridge.js';
 import { BrowserTools } from '../tools/browser-tools.js';
 import { getActiveTab } from '../utils/active-tab.js';
@@ -60,7 +66,9 @@ export class BackgroundService {
   awaitingVerification: boolean;
   currentStepVerified: boolean;
   kimiHeaderRuleOk: boolean;
+  kimiHeaderMode: 'dnr' | 'webRequest' | 'none';
   kimiWarningSent: boolean;
+  recordingCoordinator: RecordingCoordinator;
 
   // Run coordination: background messages are global, so we keep explicit run
   // state to support stopping/cancelling in-flight runs and preventing output
@@ -92,11 +100,13 @@ export class BackgroundService {
     this.cancelledRunIds = new Set();
     this.sessionStateById = new Map();
     this.browserToolsBySessionId = new Map();
+    this.recordingCoordinator = new RecordingCoordinator();
     // State tracking for enforcement
     this.lastBrowserAction = null;
     this.awaitingVerification = false;
     this.currentStepVerified = false;
     this.kimiHeaderRuleOk = false;
+    this.kimiHeaderMode = 'none';
     this.kimiWarningSent = false;
 
     this.relay = new RelayBridge({
@@ -112,7 +122,7 @@ export class BackgroundService {
           agentId,
           name: 'parchi-extension',
           version: String(manifest.version || ''),
-          browser: typeof (globalThis as any).browser !== 'undefined' ? 'firefox' : 'chrome',
+          browser: getRuntimeFeatureFlags().browser,
           userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
           capabilities: { tools: true, agentRun: true },
         };
@@ -176,59 +186,32 @@ export class BackgroundService {
   }
 
   init() {
-    if (chrome.sidePanel?.setPanelBehavior) {
-      chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((error) => console.error(error));
-    } else if (chrome.sidebarAction?.open && chrome.action?.onClicked) {
-      chrome.action.onClicked.addListener((tab) => {
-        const options = typeof tab?.windowId === 'number' ? { windowId: tab.windowId } : undefined;
-        chrome.sidebarAction.open(options).catch((error) => console.error('Failed to open sidebar:', error));
-      });
-    }
-
-    // Kimi API requires a coding-agent User-Agent header.
-    // Chrome MV3 service workers cannot set User-Agent via fetch(),
-    // so we use declarativeNetRequest to inject it at the network level.
-    if (chrome.declarativeNetRequest?.updateDynamicRules) {
-      chrome.declarativeNetRequest
-        .updateDynamicRules({
-          removeRuleIds: [9000],
-          addRules: [
-            {
-              id: 9000,
-              priority: 1,
-              action: {
-                type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
-                requestHeaders: [
-                  {
-                    header: 'User-Agent',
-                    operation: chrome.declarativeNetRequest.HeaderOperation.SET,
-                    value: 'coding-agent',
-                  },
-                ],
-              },
-              condition: {
-                urlFilter: '||api.kimi.com',
-                resourceTypes: [chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST],
-              },
-            },
-          ],
-        })
-        .then(() => {
-          this.kimiHeaderRuleOk = true;
-        })
-        .catch((e) => {
-          this.kimiHeaderRuleOk = false;
-          console.warn('Failed to set Kimi UA rule:', e);
-        });
-    } else {
-      this.kimiHeaderRuleOk = false;
-      console.warn('declarativeNetRequest not available; skipping Kimi UA header rule.');
-    }
-
+    // Register message listeners first so optional browser-specific setup
+    // failures cannot break the core request/response path.
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       void this.handleMessage(message, sender, sendResponse);
       return true;
     });
+
+    setupActionClickOpensPanel();
+
+    // Kimi API requires a coding-agent User-Agent header.
+    // Use a browser-capability based strategy:
+    // - Chrome/Chromium: declarativeNetRequest dynamic rule
+    // - Firefox: webRequest onBeforeSendHeaders listener
+    void setupKimiUserAgentHeaderSupport()
+      .then((result) => {
+        this.kimiHeaderRuleOk = result.ok;
+        this.kimiHeaderMode = result.mode;
+        if (!result.ok) {
+          console.warn('Failed to configure Kimi User-Agent header support:', result.reason || 'Unknown reason');
+        }
+      })
+      .catch((error) => {
+        this.kimiHeaderRuleOk = false;
+        this.kimiHeaderMode = 'none';
+        console.warn('Failed to configure Kimi User-Agent header support:', error);
+      });
 
     // Ensure relay can come up after a browser restart without needing the UI opened first.
     chrome.runtime.onStartup?.addListener(() => {
@@ -293,9 +276,9 @@ export class BackgroundService {
           'allowedDomains',
         ]);
         const activeProfileName = (settings as any).activeConfig || 'default';
-        const activeProfile = this.resolveProfile((settings as any), activeProfileName);
+        const activeProfile = this.resolveProfile(settings as any, activeProfileName);
         const orchestratorEnabled = (settings as any).useOrchestrator === true;
-        const teamProfiles = this.resolveTeamProfiles((settings as any));
+        const teamProfiles = this.resolveTeamProfiles(settings as any);
         const visionToolsEnabled = this.isVisionModelProfile(activeProfile);
         return this.getToolsForSession(settings as any, orchestratorEnabled, teamProfiles, visionToolsEnabled);
 
@@ -397,7 +380,14 @@ export class BackgroundService {
           const sessionId = message.sessionId || `session-${Date.now()}`;
           const userMessage = typeof message.message === 'string' ? message.message : '';
           sendResponse({ success: true, accepted: true, sessionId });
-          void this.processUserMessage(userMessage, message.conversationHistory, message.selectedTabs || [], sessionId);
+          void this.processUserMessage(
+            userMessage,
+            message.conversationHistory,
+            message.selectedTabs || [],
+            sessionId,
+            undefined,
+            message.recordedContext,
+          );
           break;
         }
 
@@ -449,10 +439,7 @@ export class BackgroundService {
         }
 
         case 'generate_workflow': {
-          const result = await this.generateWorkflowPrompt(
-            message.sessionContext || '',
-            message.maxOutputTokens,
-          );
+          const result = await this.generateWorkflowPrompt(message.sessionContext || '', message.maxOutputTokens);
           sendResponse({ success: true, result });
           break;
         }
@@ -460,6 +447,41 @@ export class BackgroundService {
         case 'ping_test': {
           // Simple test to verify messaging works
           sendResponse({ success: true, pong: true, time: Date.now() });
+          break;
+        }
+
+        case 'recording_start': {
+          try {
+            await this.recordingCoordinator.startRecording(message.tabId);
+            sendResponse({ success: true });
+          } catch (err: any) {
+            this.sendToSidePanel({ type: 'recording_error', message: err.message || 'Recording failed' });
+            sendResponse({ success: false, error: err.message || 'Recording failed' });
+          }
+          break;
+        }
+
+        case 'recording_stop': {
+          await this.recordingCoordinator.stopRecording();
+          sendResponse({ success: true });
+          break;
+        }
+
+        case 'recording_select_images': {
+          await this.recordingCoordinator.selectImages(message.selectedIds);
+          sendResponse({ success: true });
+          break;
+        }
+
+        case 'recording_discard': {
+          this.recordingCoordinator.discard();
+          sendResponse({ success: true });
+          break;
+        }
+
+        case 'recording_event': {
+          this.recordingCoordinator.handleContentEvent(message.event);
+          sendResponse({ success: true });
           break;
         }
 
@@ -482,6 +504,7 @@ export class BackgroundService {
     selectedTabs: chrome.tabs.Tab[],
     sessionId: string,
     meta?: Partial<RunMeta> & { origin?: 'sidepanel' | 'relay' },
+    recordedContext?: any,
   ) {
     const runMeta: RunMeta = {
       runId:
@@ -583,7 +606,7 @@ export class BackgroundService {
         this.sendRuntime(runMeta, {
           type: 'run_warning',
           message:
-            'Kimi requires a User-Agent header. Some Chromium forks (e.g., Brave) block UA overrides, which can break requests. Try Chrome, or use a proxy that adds the header.',
+            'Kimi requires User-Agent "coding-agent". This browser runtime could not configure a compatible header rewrite path (DNR/webRequest), so requests may fail. Use a build with header rewrite support or route through a proxy that sets this header.',
         });
       }
 
@@ -623,12 +646,23 @@ export class BackgroundService {
 
       const historyInput = Array.isArray(conversationHistory) ? conversationHistory : [];
       const trimmedUserMessage = typeof userMessage === 'string' ? userMessage.trim() : '';
+
+      // Enrich with recorded context if present
+      let enrichedUserMessage = userMessage;
+      let recordedImages: Array<{ dataUrl: string }> = [];
+      if (recordedContext && typeof recordedContext === 'object' && recordedContext.summary) {
+        enrichedUserMessage = `${userMessage}\n\n${recordedContext.summary}`;
+        if (Array.isArray(recordedContext.selectedImages)) {
+          recordedImages = recordedContext.selectedImages;
+        }
+      }
+
       const lastMessage = historyInput[historyInput.length - 1];
       const lastContentText = typeof lastMessage?.content === 'string' ? lastMessage.content : '';
       const shouldAppendUserMessage =
         trimmedUserMessage && (!lastMessage || lastMessage.role !== 'user' || lastContentText !== userMessage);
       const normalizedHistory = normalizeConversationHistory(
-        shouldAppendUserMessage ? [...historyInput, { role: 'user', content: userMessage }] : historyInput,
+        shouldAppendUserMessage ? [...historyInput, { role: 'user', content: enrichedUserMessage }] : historyInput,
       );
       const model = resolveLanguageModel(orchestratorProfile);
 
@@ -701,6 +735,30 @@ export class BackgroundService {
 
       const runModelPass = async (messages: Message[]) => {
         const modelMessages = toModelMessages(messages);
+
+        // Inject recorded context images into the last user message if the model supports vision
+        if (recordedImages.length > 0 && this.isVisionModelProfile(orchestratorProfile)) {
+          for (let i = modelMessages.length - 1; i >= 0; i--) {
+            const msg = modelMessages[i];
+            if (msg.role === 'user') {
+              const existingContent = typeof msg.content === 'string' ? msg.content : '';
+              const parts: any[] = [];
+              if (existingContent) {
+                parts.push({ type: 'text', text: existingContent });
+              }
+              for (const img of recordedImages) {
+                if (img.dataUrl && typeof img.dataUrl === 'string') {
+                  parts.push({ type: 'image', image: img.dataUrl });
+                }
+              }
+              if (parts.length > 0) {
+                (msg as any).content = parts;
+              }
+              break;
+            }
+          }
+        }
+
         let streamStopSent = false;
         let textDeltaCount = 0;
         let reasoningDeltaCount = 0;
@@ -1291,7 +1349,8 @@ export class BackgroundService {
     maxOutputTokens?: number,
   ): Promise<{ prompt: string; error?: string }> {
     try {
-      const settings = this.currentSettings || await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[]);
+      const settings =
+        this.currentSettings || (await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[]));
       const runtimeProfile = this.resolveRuntimeModelProfile(
         {
           provider: settings.provider,
@@ -2095,7 +2154,7 @@ After marking step ${currentIndex} done, proceed to step ${currentIndex + 1}.
       }
     }
 
-  return `${basePrompt}
+    return `${basePrompt}
  ${stateSection}${thinkingSection}
 ${toolCatalogSection}
 ${visionToolSection}
@@ -2129,6 +2188,10 @@ When a tool fails:
     return Boolean(String(profile?.apiKey || '').trim());
   }
 
+  hasConfiguredModel(profile: Record<string, any> | null | undefined) {
+    return Boolean(String(profile?.model || '').trim());
+  }
+
   hasActivePaidSubscription(settings: Record<string, any> = {}) {
     const mode = String(settings.accountModeChoice || '').toLowerCase();
     const status = String(settings.convexSubscriptionStatus || '').toLowerCase();
@@ -2146,7 +2209,7 @@ When a tool fails:
     return {
       provider: preferredProvider,
       apiKey: profile?.apiKey || '',
-      model: profile?.model || settings.model || 'gpt-4o',
+      model: profile?.model || settings.model || '',
       customEndpoint: profile?.customEndpoint || '',
       extraHeaders: profile?.extraHeaders || {},
       useProxy: true,
@@ -2157,6 +2220,14 @@ When a tool fails:
   }
 
   resolveRuntimeModelProfile(profile: Record<string, any>, settings: Record<string, any>) {
+    if (!this.hasConfiguredModel(profile)) {
+      return {
+        allowed: false,
+        route: 'none',
+        profile,
+        errorMessage: 'No model configured. Open Settings and choose a model to continue.',
+      };
+    }
     if (this.hasOwnApiKey(profile)) {
       return { allowed: true, route: 'byok', profile };
     }
@@ -2165,7 +2236,7 @@ When a tool fails:
         allowed: false,
         route: 'none',
         profile,
-        errorMessage: 'Add an API key in settings or subscribe to the paid plan.',
+        errorMessage: 'No API key configured. Open Settings and add your API key to get started.',
       };
     }
     if (!this.canUseConvexProxy(settings)) {

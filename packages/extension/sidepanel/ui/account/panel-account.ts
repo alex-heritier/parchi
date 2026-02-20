@@ -1,3 +1,4 @@
+import { ACCOUNT_MODE_BYOK, ACCOUNT_MODE_KEY, ACCOUNT_MODE_PAID, hasConfiguredByokProvider } from './account-mode.js';
 import {
   CONVEX_DEPLOYMENT_URL,
   createCheckoutSession,
@@ -10,10 +11,6 @@ import {
   signUpWithPassword,
 } from '../../../convex/client.js';
 import { SidePanelUI } from '../core/panel-ui.js';
-
-const ACCOUNT_MODE_KEY = 'accountModeChoice';
-const ACCOUNT_MODE_BYOK = 'byok';
-const ACCOUNT_MODE_PAID = 'paid';
 
 const setHidden = (element: Element | null | undefined, hidden: boolean) => {
   if (!element) return;
@@ -100,20 +97,40 @@ const updateStatusCopy = (ui: any, text: string) => {
 };
 
 (SidePanelUI.prototype as any).showAccountOnboardingIfNeeded = async function showAccountOnboardingIfNeeded() {
-  const stored = await chrome.storage.local.get([ACCOUNT_MODE_KEY]);
+  const stored = await chrome.storage.local.get([
+    ACCOUNT_MODE_KEY,
+    'configs',
+    'activeConfig',
+    'provider',
+    'apiKey',
+    'model',
+    'customEndpoint',
+  ]);
   const hasChoice = stored[ACCOUNT_MODE_KEY] === ACCOUNT_MODE_BYOK || stored[ACCOUNT_MODE_KEY] === ACCOUNT_MODE_PAID;
-  setHidden(this.elements.accountOnboardingModal, hasChoice);
-  if (!hasChoice) {
-    updateStatusCopy(this, 'Choose BYOK or paid mode to continue setup.');
+  if (hasChoice) {
+    setHidden(this.elements.accountOnboardingModal, true);
+    return;
   }
+
+  const hasConfiguredProvider = hasConfiguredByokProvider(stored);
+  if (hasConfiguredProvider) {
+    await chrome.storage.local.set({ [ACCOUNT_MODE_KEY]: ACCOUNT_MODE_BYOK });
+    setHidden(this.elements.accountOnboardingModal, true);
+    return;
+  }
+
+  updateStatusCopy(this, 'Choose Add provider or Paid plan to continue.');
+  setHidden(this.elements.accountOnboardingModal, false);
 };
 
 (SidePanelUI.prototype as any).chooseAccountMode = async function chooseAccountMode(mode: 'byok' | 'paid') {
   await chrome.storage.local.set({ [ACCOUNT_MODE_KEY]: mode });
   setHidden(this.elements.accountOnboardingModal, true);
   if (mode === ACCOUNT_MODE_BYOK) {
-    this.updateStatus('BYOK selected. Add your API key in Setup.', 'success');
-    updateStatusCopy(this, 'BYOK mode active.');
+    this.openSettingsPanel?.();
+    this.switchSettingsTab?.('setup');
+    this.updateStatus('Provider setup selected. Add your API key in Setup.', 'success');
+    updateStatusCopy(this, 'Add provider mode selected.');
     return;
   }
   this.openSettingsPanel?.();
@@ -154,6 +171,8 @@ const updateStatusCopy = (ui: any, text: string) => {
 (SidePanelUI.prototype as any).handleAccountOAuth = async function handleAccountOAuth(provider: 'google' | 'github') {
   this.setAccountUiBusy(true);
   try {
+    // OAuth is the paid/proxy path; persist explicit mode to keep runtime gating in sync.
+    await chrome.storage.local.set({ [ACCOUNT_MODE_KEY]: ACCOUNT_MODE_PAID });
     const result = await signInWithOAuth(provider);
     const redirect = result?.redirect || '';
     if (redirect) {
@@ -258,6 +277,13 @@ const updateStatusCopy = (ui: any, text: string) => {
     if (this.elements.accountUserValue) this.elements.accountUserValue.textContent = userEmail;
     if (this.elements.accountPlanValue) this.elements.accountPlanValue.textContent = planLabel;
     if (this.elements.accountUsageValue) this.elements.accountUsageValue.textContent = toUsageLabel(sub?.usage);
+
+    if (paidActive) {
+      const stored = await chrome.storage.local.get([ACCOUNT_MODE_KEY]);
+      if (stored[ACCOUNT_MODE_KEY] !== ACCOUNT_MODE_PAID) {
+        await chrome.storage.local.set({ [ACCOUNT_MODE_KEY]: ACCOUNT_MODE_PAID });
+      }
+    }
 
     setHidden(this.elements.accountUpgradeBtn, paidActive);
     setHidden(this.elements.accountManageBtn, !paidActive);

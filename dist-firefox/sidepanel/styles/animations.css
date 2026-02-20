@@ -362,7 +362,7 @@
 
 
 .composer.running {
-  animation: borderGlow 2s ease-in-out infinite;
+  /* glow removed — mascot is enough */
 }
 
 .composer.running::before {
@@ -445,11 +445,17 @@
 }
 
 .form-group input:focus,
-.form-group select:focus,
 .form-group textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.15);
   transform: translateY(-1px);
+}
+
+/* Select elements must NOT have transform — it creates a containing block
+   in Firefox that clips the native dropdown popup. */
+.form-group select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.15);
 }
 
 /* --------------------------------------------------------------------------
@@ -539,13 +545,8 @@
 }
 
 .status-dot.active::after {
-  content: "";
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  background: var(--accent);
-  opacity: 0.4;
-  animation: pulse-ring 1.5s ease-out infinite;
+  /* pulse ring removed — mascot handles status */
+  display: none;
 }
 
 /* --------------------------------------------------------------------------

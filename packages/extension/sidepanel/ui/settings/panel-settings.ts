@@ -205,9 +205,9 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
 
   const storedConfigs = settings.configs || {};
   const baseConfig = {
-    provider: 'openai',
+    provider: '',
     apiKey: '',
-    model: 'gpt-4o',
+    model: '',
     customEndpoint: '',
     extraHeaders: {},
     systemPrompt: this.getDefaultSystemPrompt(),
@@ -395,10 +395,10 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
     }
   }
   return {
-    provider: this.elements.provider?.value || current.provider || 'openai',
-    apiKey: this.elements.apiKey?.value || current.apiKey || '',
-    model: this.elements.model?.value || current.model || 'gpt-4o',
-    customEndpoint: this.elements.customEndpoint?.value || current.customEndpoint || '',
+    provider: this.elements.provider?.value ?? current.provider ?? '',
+    apiKey: this.elements.apiKey?.value ?? current.apiKey ?? '',
+    model: this.elements.model?.value ?? current.model ?? '',
+    customEndpoint: this.elements.customEndpoint?.value ?? current.customEndpoint ?? '',
     extraHeaders,
     systemPrompt: this.elements.systemPrompt?.value || current.systemPrompt || '',
     temperature: Number.parseFloat(this.elements.temperature?.value) || current.temperature || 0.7,
@@ -446,10 +446,10 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
     const rawRelayUrl = (this.elements.relayUrl?.value || '').trim();
     const normalizedRelayUrl = rawRelayUrl && !rawRelayUrl.includes('://') ? `http://${rawRelayUrl}` : rawRelayUrl;
     const payload = {
-      provider: activeProfile.provider || 'openai',
-      apiKey: activeProfile.apiKey || '',
-      model: activeProfile.model || 'gpt-4o',
-      customEndpoint: activeProfile.customEndpoint || '',
+      provider: activeProfile.provider ?? '',
+      apiKey: activeProfile.apiKey ?? '',
+      model: activeProfile.model ?? '',
+      customEndpoint: activeProfile.customEndpoint ?? '',
       extraHeaders: activeProfile.extraHeaders || {},
       systemPrompt: activeProfile.systemPrompt || this.getDefaultSystemPrompt(),
       temperature: activeProfile.temperature ?? 0.7,
@@ -549,9 +549,13 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
 (SidePanelUI.prototype as any).updatePromptSections = function updatePromptSections() {
   // Re-query elements in case they weren't available at constructor time (loaded via template)
   const orchSection = this.elements.orchestratorPromptSection || document.getElementById('orchestratorPromptSection');
-  const orchTextarea = this.elements.orchestratorPromptTextarea || document.getElementById('orchestratorPromptTextarea') as HTMLTextAreaElement | null;
+  const orchTextarea =
+    this.elements.orchestratorPromptTextarea ||
+    (document.getElementById('orchestratorPromptTextarea') as HTMLTextAreaElement | null);
   const visSection = this.elements.visionPromptSection || document.getElementById('visionPromptSection');
-  const visTextarea = this.elements.visionPromptTextarea || document.getElementById('visionPromptTextarea') as HTMLTextAreaElement | null;
+  const visTextarea =
+    this.elements.visionPromptTextarea ||
+    (document.getElementById('visionPromptTextarea') as HTMLTextAreaElement | null);
 
   // Cache
   if (orchSection) this.elements.orchestratorPromptSection = orchSection;

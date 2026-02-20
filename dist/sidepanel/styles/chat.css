@@ -1361,3 +1361,26 @@ body.sidebar-open .fab-group {
   content: "✗";
   color: hsla(0, 40%, 55%, 1);
 }
+
+/* ============================================================================
+   Stopped Divider
+   ============================================================================ */
+
+.stopped-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 20px;
+  color: hsla(0, 45%, 60%, 0.6);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.stopped-divider::before,
+.stopped-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: hsla(0, 40%, 55%, 0.2);
+}

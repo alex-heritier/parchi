@@ -72,6 +72,15 @@
                     <!-- Composer -->
                     <div class="composer-wrapper">
                         <div id="selectedTabsBar" class="selected-tabs content-column hidden"></div>
+                        <div id="recordingTimer" class="recording-timer hidden">
+                            <span class="recording-dot"></span>
+                            <span class="recording-time">0:00 / 1:00</span>
+                        </div>
+                        <div id="recordedContextBadge" class="recorded-context-badge hidden">
+                            <span class="recording-dot"></span>
+                            <span class="recorded-context-label">Recording attached</span>
+                            <button id="recordedContextRemove" class="recorded-context-remove">&times;</button>
+                        </div>
                         <div id="composer" class="composer content-column">
                             <textarea
                                 id="userInput"
@@ -129,6 +138,11 @@
                                         accept=".md,.txt,.csv,.json,.log"
                                         class="hidden"
                                     />
+                                    <button id="recordBtn" class="icon-btn record-btn" title="Record context">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                            <circle cx="12" cy="12" r="7"/>
+                                        </svg>
+                                    </button>
                                     <button
                                         id="tabSelectorBtn"
                                         class="icon-btn tab-selector-btn"
@@ -286,15 +300,30 @@
                 </div>
                 <div id="historyDrawerScrim" class="history-drawer-scrim hidden"></div>
 
+                <div id="imagePickerModal" class="image-picker-modal hidden">
+                    <div class="image-picker-backdrop"></div>
+                    <div class="image-picker-content">
+                        <div class="image-picker-header">
+                            <span>Select up to 5 screenshots</span>
+                            <span id="imagePickerCount">0 / 5</span>
+                        </div>
+                        <div id="imagePickerGrid" class="image-picker-grid"></div>
+                        <div class="image-picker-footer">
+                            <button id="imagePickerCancel" class="btn btn-secondary">Cancel</button>
+                            <button id="imagePickerConfirm" class="btn btn-primary">Attach context</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="accountOnboardingModal" class="account-onboarding-modal hidden">
                     <div class="account-onboarding-card">
                         <div class="account-onboarding-title">Choose your setup</div>
                         <div class="account-onboarding-subtitle">
-                            Use your own API keys for free, or subscribe for managed keys and billing.
+                            Add your own provider keys, or use a paid plan with managed access.
                         </div>
                         <div class="account-onboarding-actions">
-                            <button id="accountChooseByokBtn" class="btn btn-secondary">Use your own API keys</button>
-                            <button id="accountChoosePaidBtn" class="btn btn-primary">Get a subscription</button>
+                            <button id="accountChooseByokBtn" class="btn btn-secondary">Add provider</button>
+                            <button id="accountChoosePaidBtn" class="btn btn-primary">Use paid plan</button>
                         </div>
                     </div>
                 </div>

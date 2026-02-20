@@ -21,9 +21,11 @@
     "test:api": "node scripts/build.mjs && node dist/tests/api/run-api-tests.js",
     "test:e2e": "node scripts/build.mjs && node dist/tests/e2e/run-e2e.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check:repo-standards": "node scripts/check-repo-standards.mjs",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
+    "check:all": "npm run lint && npm run typecheck && npm run build && npm run check:repo-standards",
     "dev": "echo 'Run npm run build, then load the dist/ folder in Chrome://extensions'"
   },
   "keywords": [

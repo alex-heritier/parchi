@@ -20,10 +20,14 @@ export type SDKModelSettings = {
 
 export function resolveLanguageModel(settings: SDKModelSettings) {
   const provider = settings.provider || 'openai';
-  const modelId = settings.model || 'gpt-4o';
+  const modelId = String(settings.model || '').trim();
   const apiKey = settings.apiKey || '';
   const extraHeaders =
     settings.extraHeaders && typeof settings.extraHeaders === 'object' ? settings.extraHeaders : undefined;
+
+  if (!modelId) {
+    throw new Error('No model configured. Open Settings and choose a model before running.');
+  }
 
   if (settings.useProxy && settings.proxyBaseUrl && settings.proxyAuthToken) {
     const normalizedBase = settings.proxyBaseUrl.replace(/\/+$/, '');

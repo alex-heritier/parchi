@@ -56,6 +56,28 @@ const sanitizeForMessaging = (value: any, depth = 0): any => {
   return String(value);
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isMissingReceiverError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /Receiving end does not exist|Could not establish connection/i.test(message);
+};
+
+const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, retries = 1) => {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await chrome.runtime.sendMessage(payload);
+    } catch (error) {
+      if (attempt >= retries || !isMissingReceiverError(error)) {
+        throw error;
+      }
+      attempt += 1;
+      await sleep(250);
+    }
+  }
+};
+
 (SidePanelUI.prototype as any).sendMessage = async function sendMessage() {
   const userMessage = this.elements.userInput.value.trim();
   if (!userMessage) return;
@@ -118,13 +140,19 @@ const sanitizeForMessaging = (value: any, depth = 0): any => {
   try {
     // Avoid sending huge tool payloads; also ensures errors are caught (promise-based APIs).
     const sendableHistory = sanitizeForMessaging(this.contextHistory || []);
-    const response = await chrome.runtime.sendMessage({
+    const payload: Record<string, unknown> = {
       type: 'user_message',
       message: fullMessage,
       conversationHistory: sendableHistory,
       selectedTabs: selectedTabsPayload,
       sessionId: this.sessionId,
-    });
+    };
+    if (this.pendingRecordedContext) {
+      payload.recordedContext = this.pendingRecordedContext;
+      this.pendingRecordedContext = null;
+      this.hideRecordedContextBadge?.();
+    }
+    const response = await sendRuntimeMessageWithRetry(payload);
     if (response?.sessionId && typeof response.sessionId === 'string') {
       this.sessionId = response.sessionId;
     }
@@ -135,6 +163,8 @@ const sanitizeForMessaging = (value: any, depth = 0): any => {
     this.stopRunTimer?.();
     this.stopWatchdog?.();
     this.pendingTurnDraft = null;
+    this.pendingRecordedContext = null;
+    this.hideRecordedContextBadge?.();
     this.updateStatus('Error: ' + error.message, 'error');
     this.elements.composer?.classList.remove('running');
     this.displayAssistantMessage('Sorry, an error occurred: ' + error.message);

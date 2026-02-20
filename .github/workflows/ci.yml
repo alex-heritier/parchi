@@ -7,6 +7,28 @@ on:
     branches: [main]
 
 jobs:
+  repo-standards:
+    name: Repo Standards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Resolve standards base
+        id: standards-base
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "value=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+          fi
+      - run: npm run check:repo-standards -- --base=${{ steps.standards-base.outputs.value }}
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

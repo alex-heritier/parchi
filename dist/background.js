@@ -29146,6 +29146,147 @@ var PARCHI_STORAGE_KEYS = [
   "workflows"
 ];
 
+// packages/extension/background/browser-compat.ts
+var KIMI_DNR_RULE_ID = 9e3;
+var KIMI_UA_VALUE = "coding-agent";
+var KIMI_URL_PATTERN = "*://api.kimi.com/*";
+var kimiWebRequestHeaderListener = (details) => {
+  const input = Array.isArray(details.requestHeaders) ? details.requestHeaders : [];
+  let sawUserAgent = false;
+  const requestHeaders = input.map((header) => {
+    const name17 = String(header.name || "");
+    if (name17.toLowerCase() === "user-agent") {
+      sawUserAgent = true;
+      return {
+        ...header,
+        value: KIMI_UA_VALUE
+      };
+    }
+    return header;
+  });
+  if (!sawUserAgent) {
+    requestHeaders.push({
+      name: "User-Agent",
+      value: KIMI_UA_VALUE
+    });
+  }
+  return { requestHeaders };
+};
+var getBrowserSidebarAction = () => {
+  return chrome?.sidebarAction || globalThis.browser?.sidebarAction;
+};
+var getRuntimeFeatureFlags = () => {
+  const runtimeChrome = chrome;
+  const isFirefox = typeof globalThis.browser !== "undefined";
+  const dnr = runtimeChrome?.declarativeNetRequest;
+  const sidePanelApi = runtimeChrome?.sidePanel;
+  const sidebarActionApi = getBrowserSidebarAction();
+  const webRequestApi = runtimeChrome?.webRequest;
+  return {
+    browser: isFirefox ? "firefox" : "chrome",
+    sidePanelBehavior: typeof sidePanelApi?.setPanelBehavior === "function",
+    sidebarActionOpen: typeof sidebarActionApi?.open === "function",
+    kimiHeaderViaDnr: typeof dnr?.updateDynamicRules === "function" && Boolean(dnr?.RuleActionType?.MODIFY_HEADERS) && Boolean(dnr?.HeaderOperation?.SET) && Boolean(dnr?.ResourceType?.XMLHTTPREQUEST),
+    kimiHeaderViaWebRequest: Boolean(webRequestApi?.onBeforeSendHeaders?.addListener)
+  };
+};
+var setupActionClickOpensPanel = () => {
+  const features = getRuntimeFeatureFlags();
+  const runtimeChrome = chrome;
+  if (features.sidePanelBehavior) {
+    try {
+      const maybePromise = runtimeChrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+      maybePromise?.catch((error48) => console.warn("Failed to set side panel behavior:", error48));
+    } catch (error48) {
+      console.warn("Failed to set side panel behavior:", error48);
+    }
+    return;
+  }
+  if (features.sidebarActionOpen && chrome.action?.onClicked) {
+    const sidebarApi = getBrowserSidebarAction();
+    chrome.action.onClicked.addListener((tab) => {
+      const options = typeof tab?.windowId === "number" ? { windowId: tab.windowId } : void 0;
+      try {
+        const maybePromise = sidebarApi.open(options);
+        maybePromise?.catch((error48) => console.error("Failed to open sidebar:", error48));
+      } catch (error48) {
+        console.error("Failed to open sidebar:", error48);
+      }
+    });
+  }
+};
+var setupKimiUserAgentHeaderSupport = async () => {
+  const features = getRuntimeFeatureFlags();
+  if (features.kimiHeaderViaDnr) {
+    const dnr = chrome.declarativeNetRequest;
+    try {
+      const maybePromise = dnr.updateDynamicRules({
+        removeRuleIds: [KIMI_DNR_RULE_ID],
+        addRules: [
+          {
+            id: KIMI_DNR_RULE_ID,
+            priority: 1,
+            action: {
+              type: dnr.RuleActionType.MODIFY_HEADERS,
+              requestHeaders: [
+                {
+                  header: "User-Agent",
+                  operation: dnr.HeaderOperation.SET,
+                  value: KIMI_UA_VALUE
+                }
+              ]
+            },
+            condition: {
+              urlFilter: "||api.kimi.com",
+              resourceTypes: [dnr.ResourceType.XMLHTTPREQUEST]
+            }
+          }
+        ]
+      });
+      await maybePromise;
+      return { ok: true, mode: "dnr" };
+    } catch (error48) {
+      return {
+        ok: false,
+        mode: "none",
+        reason: error48 instanceof Error ? error48.message : String(error48 ?? "Failed to set DNR rule")
+      };
+    }
+  }
+  if (features.kimiHeaderViaWebRequest) {
+    try {
+      if (chrome.webRequest.onBeforeSendHeaders.hasListener(kimiWebRequestHeaderListener)) {
+        return { ok: true, mode: "webRequest" };
+      }
+      try {
+        chrome.webRequest.onBeforeSendHeaders.addListener(
+          kimiWebRequestHeaderListener,
+          { urls: [KIMI_URL_PATTERN] },
+          ["blocking", "requestHeaders", "extraHeaders"]
+        );
+      } catch {
+        chrome.webRequest.onBeforeSendHeaders.addListener(
+          kimiWebRequestHeaderListener,
+          { urls: [KIMI_URL_PATTERN] },
+          ["blocking", "requestHeaders"]
+        );
+      }
+      return { ok: true, mode: "webRequest" };
+    } catch (error48) {
+      return {
+        ok: false,
+        mode: "none",
+        reason: error48 instanceof Error ? error48.message : String(error48 ?? "Failed to set webRequest listener")
+      };
+    }
+  }
+  return {
+    ok: false,
+    mode: "none",
+    reason: "No supported header rewrite API found"
+  };
+};
+
 // packages/extension/ai/message-utils.ts
 function extractTextFromResponseMessages(messages) {
   if (!Array.isArray(messages)) return "";
@@ -41248,9 +41389,12 @@ function createOpenAICompatible(options) {
 // packages/extension/ai/sdk-client.ts
 function resolveLanguageModel2(settings) {
   const provider = settings.provider || "openai";
-  const modelId = settings.model || "gpt-4o";
+  const modelId = String(settings.model || "").trim();
   const apiKey = settings.apiKey || "";
   const extraHeaders = settings.extraHeaders && typeof settings.extraHeaders === "object" ? settings.extraHeaders : void 0;
+  if (!modelId) {
+    throw new Error("No model configured. Open Settings and choose a model before running.");
+  }
   if (settings.useProxy && settings.proxyBaseUrl && settings.proxyAuthToken) {
     const normalizedBase = settings.proxyBaseUrl.replace(/\/+$/, "");
     const proxyProvider = settings.proxyProvider || (provider === "anthropic" || provider === "kimi" ? "anthropic" : "openai");
@@ -41358,6 +41502,310 @@ async function describeImageWithModel({
   });
   return result.text;
 }
+
+// packages/extension/recording/recording-coordinator.ts
+var MAX_DURATION_MS = 6e4;
+var SCREENSHOT_INTERVAL_MS = 3e3;
+var MAX_SCREENSHOTS = 20;
+var MAX_EVENTS = 100;
+var RESTRICTED_URL_PATTERN = /^(chrome|chrome-extension|edge|about|devtools|file):/;
+var CLICK_DEDUP_MS = 500;
+var SCROLL_MERGE_MS = 2e3;
+var INPUT_MERGE_MS = 1e3;
+var MUTATION_MERGE_MS = 1e3;
+var EVENT_PRIORITY = {
+  navigation: 5,
+  click: 4,
+  input: 3,
+  dom_mutation: 2,
+  scroll: 1
+};
+var RecordingCoordinator = class {
+  state = null;
+  screenshotBuffer = [];
+  eventBuffer = [];
+  screenshotTimer = null;
+  maxDurationTimer = null;
+  tickTimer = null;
+  tabUpdateListener = null;
+  tabRemovedListener = null;
+  async startRecording(tabId) {
+    if (this.state && this.state.status === "recording") {
+      throw new Error("Already recording");
+    }
+    let resolvedTabId = tabId;
+    if (!resolvedTabId) {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!activeTab?.id) throw new Error("No active tab found");
+      resolvedTabId = activeTab.id;
+    }
+    const tab = await chrome.tabs.get(resolvedTabId);
+    if (!tab.url || RESTRICTED_URL_PATTERN.test(tab.url)) {
+      throw new Error("Cannot record on this page (restricted URL)");
+    }
+    this.screenshotBuffer = [];
+    this.eventBuffer = [];
+    this.state = {
+      status: "recording",
+      tabId: resolvedTabId,
+      startedAt: Date.now(),
+      elapsedMs: 0,
+      screenshotCount: 0,
+      eventCount: 0
+    };
+    await this.injectContentScript(resolvedTabId);
+    await this.captureScreenshot();
+    this.screenshotTimer = setInterval(async () => {
+      if (this.screenshotBuffer.length >= MAX_SCREENSHOTS) {
+        await this.stopRecording();
+        return;
+      }
+      await this.captureScreenshot();
+    }, SCREENSHOT_INTERVAL_MS);
+    this.tickTimer = setInterval(() => {
+      if (!this.state) return;
+      this.state.elapsedMs = Date.now() - this.state.startedAt;
+      this.sendToSidePanel({
+        type: "recording_tick",
+        elapsedMs: this.state.elapsedMs,
+        screenshotCount: this.state.screenshotCount,
+        eventCount: this.state.eventCount
+      });
+    }, 1e3);
+    this.maxDurationTimer = setTimeout(() => this.stopRecording(), MAX_DURATION_MS);
+    this.tabUpdateListener = (changedTabId, changeInfo) => {
+      if (changedTabId === this.state?.tabId && changeInfo.status === "complete") {
+        this.injectContentScript(changedTabId).catch(() => {
+        });
+      }
+    };
+    chrome.tabs.onUpdated.addListener(this.tabUpdateListener);
+    this.tabRemovedListener = (removedTabId) => {
+      if (removedTabId === this.state?.tabId) {
+        this.stopRecording().catch(() => {
+        });
+      }
+    };
+    chrome.tabs.onRemoved.addListener(this.tabRemovedListener);
+  }
+  async stopRecording() {
+    if (!this.state || this.state.status !== "recording") return;
+    this.state.status = "selecting";
+    this.state.elapsedMs = Date.now() - this.state.startedAt;
+    this.clearTimers();
+    this.removeTabListeners();
+    if (this.state.tabId) {
+      try {
+        await chrome.tabs.sendMessage(this.state.tabId, { type: "recording_content_stop" });
+      } catch {
+      }
+    }
+    const dedupedEvents = this.deduplicateEvents();
+    this.sendToSidePanel({
+      type: "recording_complete",
+      screenshots: this.screenshotBuffer,
+      events: dedupedEvents
+    });
+  }
+  handleContentEvent(event) {
+    if (!this.state || this.state.status !== "recording") return;
+    const last = this.eventBuffer[this.eventBuffer.length - 1];
+    if (last && last.type === event.type && last.selector === event.selector) {
+      const timeDiff = event.timestamp - last.timestamp;
+      if (event.type === "click" && timeDiff < CLICK_DEDUP_MS) return;
+      if (event.type === "input" && timeDiff < INPUT_MERGE_MS) return;
+    }
+    this.eventBuffer.push(event);
+    this.state.eventCount = this.eventBuffer.length;
+  }
+  async selectImages(selectedIds) {
+    if (!this.state) throw new Error("No active recording session");
+    const selected = this.screenshotBuffer.filter((s) => selectedIds.includes(s.id)).map((s) => ({
+      dataUrl: s.dataUrl,
+      timestamp: s.timestamp,
+      url: s.url,
+      index: s.index
+    }));
+    const events = this.deduplicateEvents();
+    const urlTimeline = this.buildUrlTimeline(events);
+    const summary = this.generateSummary(events, urlTimeline, selected.length);
+    const context2 = {
+      id: `rec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      createdAt: Date.now(),
+      duration: this.state?.elapsedMs || 0,
+      selectedImages: selected,
+      events,
+      urlTimeline,
+      summary
+    };
+    this.state = { ...this.state, status: "ready" };
+    this.sendToSidePanel({
+      type: "recording_context_ready",
+      context: context2
+    });
+    return context2;
+  }
+  discard() {
+    this.clearTimers();
+    this.removeTabListeners();
+    this.screenshotBuffer = [];
+    this.eventBuffer = [];
+    this.state = null;
+  }
+  async injectContentScript(tabId) {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ["content-recording.js"]
+      });
+    } catch (err) {
+      console.warn("[RecordingCoordinator] Failed to inject content script:", err);
+    }
+  }
+  async captureScreenshot() {
+    if (!this.state || this.state.status !== "recording") return;
+    if (this.screenshotBuffer.length >= MAX_SCREENSHOTS) return;
+    try {
+      const tab = await chrome.tabs.get(this.state.tabId);
+      if (!tab.windowId) return;
+      const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+        format: "jpeg",
+        quality: 50
+      });
+      const screenshot = {
+        id: `ss-${Date.now()}-${this.screenshotBuffer.length}`,
+        timestamp: Date.now(),
+        dataUrl,
+        url: tab.url || "",
+        index: this.screenshotBuffer.length
+      };
+      this.screenshotBuffer.push(screenshot);
+      this.state.screenshotCount = this.screenshotBuffer.length;
+    } catch (err) {
+      console.warn("[RecordingCoordinator] Screenshot capture failed:", err);
+    }
+  }
+  deduplicateEvents() {
+    const events = [...this.eventBuffer];
+    const merged = [];
+    for (let i = 0; i < events.length; i++) {
+      const curr = events[i];
+      const prev = merged[merged.length - 1];
+      if (!prev) {
+        merged.push(curr);
+        continue;
+      }
+      const timeDiff = curr.timestamp - prev.timestamp;
+      if (curr.type === "scroll" && prev.type === "scroll" && timeDiff < SCROLL_MERGE_MS) {
+        prev.scrollY = curr.scrollY;
+        prev.direction = curr.direction;
+        continue;
+      }
+      if (curr.type === "click" && prev.type === "click" && curr.selector === prev.selector && timeDiff < CLICK_DEDUP_MS) {
+        continue;
+      }
+      if (curr.type === "input" && prev.type === "input" && curr.selector === prev.selector && timeDiff < INPUT_MERGE_MS) {
+        continue;
+      }
+      if (curr.type === "dom_mutation" && prev.type === "dom_mutation" && timeDiff < MUTATION_MERGE_MS) {
+        prev.addedCount = (prev.addedCount || 0) + (curr.addedCount || 0);
+        prev.removedCount = (prev.removedCount || 0) + (curr.removedCount || 0);
+        prev.attributeChanges = (prev.attributeChanges || 0) + (curr.attributeChanges || 0);
+        prev.summary = `+${prev.addedCount} nodes, -${prev.removedCount} nodes, ${prev.attributeChanges} attr changes`;
+        continue;
+      }
+      merged.push(curr);
+    }
+    if (merged.length > MAX_EVENTS) {
+      merged.sort((a, b) => (EVENT_PRIORITY[b.type] || 0) - (EVENT_PRIORITY[a.type] || 0));
+      const capped = merged.slice(0, MAX_EVENTS);
+      capped.sort((a, b) => a.timestamp - b.timestamp);
+      return capped;
+    }
+    return merged;
+  }
+  buildUrlTimeline(events) {
+    const timeline = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (const ev of events) {
+      if (ev.type === "navigation" && ev.toUrl && !seen.has(ev.toUrl)) {
+        seen.add(ev.toUrl);
+        timeline.push({ url: ev.toUrl, timestamp: ev.timestamp });
+      }
+    }
+    if (events.length > 0 && !seen.has(events[0].url)) {
+      timeline.unshift({ url: events[0].url, timestamp: events[0].timestamp });
+    }
+    return timeline;
+  }
+  generateSummary(events, urlTimeline, imageCount) {
+    const clicks = events.filter((e) => e.type === "click");
+    const inputs = events.filter((e) => e.type === "input");
+    const scrolls = events.filter((e) => e.type === "scroll");
+    const navigations = events.filter((e) => e.type === "navigation");
+    const mutations = events.filter((e) => e.type === "dom_mutation");
+    const lines = [];
+    lines.push(`[Recorded context: ${imageCount} screenshots, ${events.length} events]`);
+    if (urlTimeline.length > 0) {
+      lines.push(`Pages visited: ${urlTimeline.map((u) => u.url).join(" -> ")}`);
+    }
+    if (clicks.length > 0) {
+      const targets = clicks.slice(0, 5).map((c) => {
+        const label = c.textContent ? `"${c.textContent.slice(0, 30)}"` : c.selector || c.tagName || "element";
+        return label;
+      });
+      lines.push(`Clicked: ${targets.join(", ")}${clicks.length > 5 ? ` (+${clicks.length - 5} more)` : ""}`);
+    }
+    if (inputs.length > 0) {
+      const fields = inputs.slice(0, 3).map((i) => i.placeholder || i.selector || "field");
+      lines.push(`Typed in: ${fields.join(", ")}${inputs.length > 3 ? ` (+${inputs.length - 3} more)` : ""}`);
+    }
+    if (navigations.length > 0) {
+      lines.push(`Navigated ${navigations.length} time(s)`);
+    }
+    if (scrolls.length > 0) {
+      lines.push(`Scrolled ${scrolls.length} time(s)`);
+    }
+    if (mutations.length > 0) {
+      const totalAdded = mutations.reduce((sum, m) => sum + (m.addedCount || 0), 0);
+      const totalRemoved = mutations.reduce((sum, m) => sum + (m.removedCount || 0), 0);
+      if (totalAdded > 0 || totalRemoved > 0) {
+        lines.push(`DOM changes: +${totalAdded} / -${totalRemoved} nodes`);
+      }
+    }
+    return lines.join("\n");
+  }
+  sendToSidePanel(message) {
+    try {
+      chrome.runtime.sendMessage(message);
+    } catch {
+    }
+  }
+  clearTimers() {
+    if (this.screenshotTimer) {
+      clearInterval(this.screenshotTimer);
+      this.screenshotTimer = null;
+    }
+    if (this.maxDurationTimer) {
+      clearTimeout(this.maxDurationTimer);
+      this.maxDurationTimer = null;
+    }
+    if (this.tickTimer) {
+      clearInterval(this.tickTimer);
+      this.tickTimer = null;
+    }
+  }
+  removeTabListeners() {
+    if (this.tabUpdateListener) {
+      chrome.tabs.onUpdated.removeListener(this.tabUpdateListener);
+      this.tabUpdateListener = null;
+    }
+    if (this.tabRemovedListener) {
+      chrome.tabs.onRemoved.removeListener(this.tabRemovedListener);
+      this.tabRemovedListener = null;
+    }
+  }
+};
 
 // packages/shared/src/json-rpc.ts
 function isObject2(value) {
@@ -43200,7 +43648,9 @@ var BackgroundService = class {
   awaitingVerification;
   currentStepVerified;
   kimiHeaderRuleOk;
+  kimiHeaderMode;
   kimiWarningSent;
+  recordingCoordinator;
   // Run coordination: background messages are global, so we keep explicit run
   // state to support stopping/cancelling in-flight runs and preventing output
   // from "spilling" into new sessions.
@@ -43223,10 +43673,12 @@ var BackgroundService = class {
     this.cancelledRunIds = /* @__PURE__ */ new Set();
     this.sessionStateById = /* @__PURE__ */ new Map();
     this.browserToolsBySessionId = /* @__PURE__ */ new Map();
+    this.recordingCoordinator = new RecordingCoordinator();
     this.lastBrowserAction = null;
     this.awaitingVerification = false;
     this.currentStepVerified = false;
     this.kimiHeaderRuleOk = false;
+    this.kimiHeaderMode = "none";
     this.kimiWarningSent = false;
     this.relay = new RelayBridge({
       getHelloPayload: async () => {
@@ -43241,7 +43693,7 @@ var BackgroundService = class {
           agentId,
           name: "parchi-extension",
           version: String(manifest.version || ""),
-          browser: typeof globalThis.browser !== "undefined" ? "firefox" : "chrome",
+          browser: getRuntimeFeatureFlags().browser,
           userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
           capabilities: { tools: true, agentRun: true }
         };
@@ -43299,50 +43751,21 @@ var BackgroundService = class {
     }
   }
   init() {
-    if (chrome.sidePanel?.setPanelBehavior) {
-      chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((error48) => console.error(error48));
-    } else if (chrome.sidebarAction?.open && chrome.action?.onClicked) {
-      chrome.action.onClicked.addListener((tab) => {
-        const options = typeof tab?.windowId === "number" ? { windowId: tab.windowId } : void 0;
-        chrome.sidebarAction.open(options).catch((error48) => console.error("Failed to open sidebar:", error48));
-      });
-    }
-    if (chrome.declarativeNetRequest?.updateDynamicRules) {
-      chrome.declarativeNetRequest.updateDynamicRules({
-        removeRuleIds: [9e3],
-        addRules: [
-          {
-            id: 9e3,
-            priority: 1,
-            action: {
-              type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
-              requestHeaders: [
-                {
-                  header: "User-Agent",
-                  operation: chrome.declarativeNetRequest.HeaderOperation.SET,
-                  value: "coding-agent"
-                }
-              ]
-            },
-            condition: {
-              urlFilter: "||api.kimi.com",
-              resourceTypes: [chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST]
-            }
-          }
-        ]
-      }).then(() => {
-        this.kimiHeaderRuleOk = true;
-      }).catch((e) => {
-        this.kimiHeaderRuleOk = false;
-        console.warn("Failed to set Kimi UA rule:", e);
-      });
-    } else {
-      this.kimiHeaderRuleOk = false;
-      console.warn("declarativeNetRequest not available; skipping Kimi UA header rule.");
-    }
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       void this.handleMessage(message, sender, sendResponse);
       return true;
+    });
+    setupActionClickOpensPanel();
+    void setupKimiUserAgentHeaderSupport().then((result) => {
+      this.kimiHeaderRuleOk = result.ok;
+      this.kimiHeaderMode = result.mode;
+      if (!result.ok) {
+        console.warn("Failed to configure Kimi User-Agent header support:", result.reason || "Unknown reason");
+      }
+    }).catch((error48) => {
+      this.kimiHeaderRuleOk = false;
+      this.kimiHeaderMode = "none";
+      console.warn("Failed to configure Kimi User-Agent header support:", error48);
     });
     chrome.runtime.onStartup?.addListener(() => {
       void this.applyRelayConfig();
@@ -43488,7 +43911,14 @@ var BackgroundService = class {
           const sessionId = message.sessionId || `session-${Date.now()}`;
           const userMessage = typeof message.message === "string" ? message.message : "";
           sendResponse({ success: true, accepted: true, sessionId });
-          void this.processUserMessage(userMessage, message.conversationHistory, message.selectedTabs || [], sessionId);
+          void this.processUserMessage(
+            userMessage,
+            message.conversationHistory,
+            message.selectedTabs || [],
+            sessionId,
+            void 0,
+            message.recordedContext
+          );
           break;
         }
         case "stop_run": {
@@ -43529,15 +43959,42 @@ var BackgroundService = class {
           break;
         }
         case "generate_workflow": {
-          const result = await this.generateWorkflowPrompt(
-            message.sessionContext || "",
-            message.maxOutputTokens
-          );
+          const result = await this.generateWorkflowPrompt(message.sessionContext || "", message.maxOutputTokens);
           sendResponse({ success: true, result });
           break;
         }
         case "ping_test": {
           sendResponse({ success: true, pong: true, time: Date.now() });
+          break;
+        }
+        case "recording_start": {
+          try {
+            await this.recordingCoordinator.startRecording(message.tabId);
+            sendResponse({ success: true });
+          } catch (err) {
+            this.sendToSidePanel({ type: "recording_error", message: err.message || "Recording failed" });
+            sendResponse({ success: false, error: err.message || "Recording failed" });
+          }
+          break;
+        }
+        case "recording_stop": {
+          await this.recordingCoordinator.stopRecording();
+          sendResponse({ success: true });
+          break;
+        }
+        case "recording_select_images": {
+          await this.recordingCoordinator.selectImages(message.selectedIds);
+          sendResponse({ success: true });
+          break;
+        }
+        case "recording_discard": {
+          this.recordingCoordinator.discard();
+          sendResponse({ success: true });
+          break;
+        }
+        case "recording_event": {
+          this.recordingCoordinator.handleContentEvent(message.event);
+          sendResponse({ success: true });
           break;
         }
         default:
@@ -43552,7 +44009,7 @@ var BackgroundService = class {
       sendResponse({ success: false, error: error48.message });
     }
   }
-  async processUserMessage(userMessage, conversationHistory, selectedTabs, sessionId, meta3) {
+  async processUserMessage(userMessage, conversationHistory, selectedTabs, sessionId, meta3, recordedContext) {
     const runMeta = {
       runId: typeof meta3?.runId === "string" && meta3.runId ? meta3.runId : `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       turnId: typeof meta3?.turnId === "string" && meta3.turnId ? meta3.turnId : `turn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -43626,7 +44083,7 @@ var BackgroundService = class {
         sessionState.kimiWarningSent = true;
         this.sendRuntime(runMeta, {
           type: "run_warning",
-          message: "Kimi requires a User-Agent header. Some Chromium forks (e.g., Brave) block UA overrides, which can break requests. Try Chrome, or use a proxy that adds the header."
+          message: 'Kimi requires User-Agent "coding-agent". This browser runtime could not configure a compatible header rewrite path (DNR/webRequest), so requests may fail. Use a build with header rewrite support or route through a proxy that sets this header.'
         });
       }
       const visionToolsEnabled = this.isVisionModelProfile(orchestratorProfile);
@@ -43660,11 +44117,21 @@ var BackgroundService = class {
       };
       const historyInput = Array.isArray(conversationHistory) ? conversationHistory : [];
       const trimmedUserMessage = typeof userMessage === "string" ? userMessage.trim() : "";
+      let enrichedUserMessage = userMessage;
+      let recordedImages = [];
+      if (recordedContext && typeof recordedContext === "object" && recordedContext.summary) {
+        enrichedUserMessage = `${userMessage}
+
+${recordedContext.summary}`;
+        if (Array.isArray(recordedContext.selectedImages)) {
+          recordedImages = recordedContext.selectedImages;
+        }
+      }
       const lastMessage = historyInput[historyInput.length - 1];
       const lastContentText = typeof lastMessage?.content === "string" ? lastMessage.content : "";
       const shouldAppendUserMessage = trimmedUserMessage && (!lastMessage || lastMessage.role !== "user" || lastContentText !== userMessage);
       const normalizedHistory = normalizeConversationHistory(
-        shouldAppendUserMessage ? [...historyInput, { role: "user", content: userMessage }] : historyInput
+        shouldAppendUserMessage ? [...historyInput, { role: "user", content: enrichedUserMessage }] : historyInput
       );
       const model = resolveLanguageModel2(orchestratorProfile);
       const toolSet = buildToolSet(
@@ -43731,6 +44198,27 @@ var BackgroundService = class {
       let responseMessages = [];
       const runModelPass = async (messages) => {
         const modelMessages = toModelMessages(messages);
+        if (recordedImages.length > 0 && this.isVisionModelProfile(orchestratorProfile)) {
+          for (let i = modelMessages.length - 1; i >= 0; i--) {
+            const msg = modelMessages[i];
+            if (msg.role === "user") {
+              const existingContent = typeof msg.content === "string" ? msg.content : "";
+              const parts = [];
+              if (existingContent) {
+                parts.push({ type: "text", text: existingContent });
+              }
+              for (const img of recordedImages) {
+                if (img.dataUrl && typeof img.dataUrl === "string") {
+                  parts.push({ type: "image", image: img.dataUrl });
+                }
+              }
+              if (parts.length > 0) {
+                msg.content = parts;
+              }
+              break;
+            }
+          }
+        }
         let streamStopSent = false;
         let textDeltaCount = 0;
         let reasoningDeltaCount = 0;
@@ -44937,6 +45425,9 @@ When a tool fails:
   hasOwnApiKey(profile) {
     return Boolean(String(profile?.apiKey || "").trim());
   }
+  hasConfiguredModel(profile) {
+    return Boolean(String(profile?.model || "").trim());
+  }
   hasActivePaidSubscription(settings = {}) {
     const mode = String(settings.accountModeChoice || "").toLowerCase();
     const status = String(settings.convexSubscriptionStatus || "").toLowerCase();
@@ -44951,7 +45442,7 @@ When a tool fails:
     return {
       provider: preferredProvider,
       apiKey: profile?.apiKey || "",
-      model: profile?.model || settings.model || "gpt-4o",
+      model: profile?.model || settings.model || "",
       customEndpoint: profile?.customEndpoint || "",
       extraHeaders: profile?.extraHeaders || {},
       useProxy: true,
@@ -44961,6 +45452,14 @@ When a tool fails:
     };
   }
   resolveRuntimeModelProfile(profile, settings) {
+    if (!this.hasConfiguredModel(profile)) {
+      return {
+        allowed: false,
+        route: "none",
+        profile,
+        errorMessage: "No model configured. Open Settings and choose a model to continue."
+      };
+    }
     if (this.hasOwnApiKey(profile)) {
       return { allowed: true, route: "byok", profile };
     }
@@ -44969,7 +45468,7 @@ When a tool fails:
         allowed: false,
         route: "none",
         profile,
-        errorMessage: "Add an API key in settings or subscribe to the paid plan."
+        errorMessage: "No API key configured. Open Settings and add your API key to get started."
       };
     }
     if (!this.canUseConvexProxy(settings)) {

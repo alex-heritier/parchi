@@ -190,8 +190,18 @@ var getSidePanelElements = () => ({
   planChecklist: byId("planChecklist"),
   planStepCount: byId("planStepCount"),
   planClearBtn: byId("planClearBtn"),
-  stopRunBtn: byId("stopRunBtn")
+  stopRunBtn: byId("stopRunBtn"),
   // legacy, stop is now handled by sendBtn
+  // Recording
+  recordBtn: byId("recordBtn"),
+  recordingTimer: byId("recordingTimer"),
+  recordedContextBadge: byId("recordedContextBadge"),
+  recordedContextRemove: byId("recordedContextRemove"),
+  imagePickerModal: byId("imagePickerModal"),
+  imagePickerGrid: byId("imagePickerGrid"),
+  imagePickerCount: byId("imagePickerCount"),
+  imagePickerCancel: byId("imagePickerCancel"),
+  imagePickerConfirm: byId("imagePickerConfirm")
 });
 
 // packages/extension/sidepanel/ui/core/panel-ui.ts
@@ -254,6 +264,8 @@ var SidePanelUI = class {
   _typingCheckTimerId;
   _mascotBubbleOpen;
   _currentVerb;
+  recordingState;
+  pendingRecordedContext;
   constructor() {
     this.elements = getSidePanelElements();
     this.displayHistory = [];
@@ -338,6 +350,8 @@ var SidePanelUI = class {
     this._typingCheckTimerId = null;
     this._mascotBubbleOpen = false;
     this._currentVerb = null;
+    this.recordingState = { status: "idle", elapsedMs: 0, timerId: null };
+    this.pendingRecordedContext = null;
     void this.init();
   }
 };
@@ -685,6 +699,25 @@ var sanitizeForMessaging = (value, depth = 0) => {
   }
   return String(value);
 };
+var sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+var isMissingReceiverError = (error) => {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /Receiving end does not exist|Could not establish connection/i.test(message);
+};
+var sendRuntimeMessageWithRetry = async (payload, retries = 1) => {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await chrome.runtime.sendMessage(payload);
+    } catch (error) {
+      if (attempt >= retries || !isMissingReceiverError(error)) {
+        throw error;
+      }
+      attempt += 1;
+      await sleep(250);
+    }
+  }
+};
 SidePanelUI.prototype.sendMessage = async function sendMessage() {
   const userMessage = this.elements.userInput.value.trim();
   if (!userMessage) return;
@@ -735,13 +768,19 @@ SidePanelUI.prototype.sendMessage = async function sendMessage() {
   this.startWatchdog?.();
   try {
     const sendableHistory = sanitizeForMessaging(this.contextHistory || []);
-    const response = await chrome.runtime.sendMessage({
+    const payload = {
       type: "user_message",
       message: fullMessage,
       conversationHistory: sendableHistory,
       selectedTabs: selectedTabsPayload,
       sessionId: this.sessionId
-    });
+    };
+    if (this.pendingRecordedContext) {
+      payload.recordedContext = this.pendingRecordedContext;
+      this.pendingRecordedContext = null;
+      this.hideRecordedContextBadge?.();
+    }
+    const response = await sendRuntimeMessageWithRetry(payload);
     if (response?.sessionId && typeof response.sessionId === "string") {
       this.sessionId = response.sessionId;
     }
@@ -750,6 +789,8 @@ SidePanelUI.prototype.sendMessage = async function sendMessage() {
     this.stopRunTimer?.();
     this.stopWatchdog?.();
     this.pendingTurnDraft = null;
+    this.pendingRecordedContext = null;
+    this.hideRecordedContextBadge?.();
     this.updateStatus("Error: " + error.message, "error");
     this.elements.composer?.classList.remove("running");
     this.displayAssistantMessage("Sorry, an error occurred: " + error.message);
@@ -1288,12 +1329,15 @@ export PARCHI_RELAY_PORT="${port}"`;
       this.stopRunTimer?.();
       this.elements.composer?.classList.remove("running");
       this.pendingTurnDraft = null;
+      this.pendingRecordedContext = null;
+      this.hideRecordedContextBadge?.();
       this.pendingToolCount = 0;
       this.isStreaming = false;
       this.activeToolName = null;
       this.updateActivityState();
       this.finishStreamingMessage();
       this.clearErrorBanner?.();
+      this.insertStoppedDivider();
       this.updateStatus("Stopped", "warning");
     } else {
       this.sendMessage();
@@ -1329,6 +1373,16 @@ export PARCHI_RELAY_PORT="${port}"`;
     this.elements.fileInput?.click();
   });
   this.elements.fileInput?.addEventListener("change", (event) => this.handleFileSelection(event));
+  this.elements.recordBtn?.addEventListener("click", () => {
+    if (this.recordingState.status === "idle") {
+      this.startRecording();
+    } else if (this.recordingState.status === "recording") {
+      this.stopRecording();
+    }
+  });
+  this.elements.recordedContextRemove?.addEventListener("click", () => {
+    this.removeRecordedContext();
+  });
   this.elements.zoomInBtn?.addEventListener("click", () => this.adjustUiZoom(0.05));
   this.elements.zoomOutBtn?.addEventListener("click", () => this.adjustUiZoom(-0.05));
   this.elements.zoomResetBtn?.addEventListener("click", () => this.applyUiZoom(1));
@@ -1360,6 +1414,11 @@ export PARCHI_RELAY_PORT="${port}"`;
   chrome.runtime.onMessage.addListener((message) => {
     if (isRuntimeMessage(message)) {
       this.handleRuntimeMessage(message);
+      return;
+    }
+    const recordingTypes = ["recording_tick", "recording_complete", "recording_context_ready", "recording_error"];
+    if (message?.type && recordingTypes.includes(message.type)) {
+      this.handleRecordingMessage?.(message);
     }
   });
   chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -1401,12 +1460,21 @@ SidePanelUI.prototype.stopWatchdog = function stopWatchdog() {
     this._watchdogTimerId = null;
   }
 };
+SidePanelUI.prototype.insertStoppedDivider = function insertStoppedDivider() {
+  const el = document.createElement("div");
+  el.className = "stopped-divider";
+  el.innerHTML = "<span>Stopped</span>";
+  this.elements.chatMessages?.appendChild(el);
+  this.scrollToBottom();
+};
 SidePanelUI.prototype.recoverFromStuckState = function recoverFromStuckState() {
   this.stopWatchdog();
   this.stopThinkingTimer?.();
   this.stopRunTimer?.();
   this.elements.composer?.classList.remove("running");
   this.pendingTurnDraft = null;
+  this.pendingRecordedContext = null;
+  this.hideRecordedContextBadge?.();
   this.pendingToolCount = 0;
   this.isStreaming = false;
   this.activeToolName = null;
@@ -1454,6 +1522,8 @@ SidePanelUI.prototype.handleRuntimeMessage = function handleRuntimeMessage(messa
       this.stopRunTimer?.();
       this.elements.composer?.classList.remove("running");
       this.pendingTurnDraft = null;
+      this.pendingRecordedContext = null;
+      this.hideRecordedContextBadge?.();
       this.pendingToolCount = 0;
       this.isStreaming = false;
       this.activeToolName = null;
@@ -2816,6 +2886,208 @@ SidePanelUI.prototype.togglePlanStep = function togglePlanStep(index) {
   this.renderPlanDrawer(this.currentPlan);
 };
 
+// packages/extension/sidepanel/ui/chat/panel-recorder.ts
+var formatTime = (ms) => {
+  const totalSec = Math.floor(ms / 1e3);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${String(sec).padStart(2, "0")}`;
+};
+SidePanelUI.prototype.startRecording = async function startRecording() {
+  if (this.recordingState.status !== "idle") return;
+  this.recordingState.status = "recording";
+  this.recordingState.elapsedMs = 0;
+  this.elements.recordBtn?.classList.add("recording");
+  this.showRecordingTimer();
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "recording_start" });
+    if (response && response.success === false) {
+      throw new Error(response.error || "Recording failed");
+    }
+  } catch (err) {
+    this.cleanupRecordingUI();
+    this.updateStatus("Recording failed: " + (err.message || err), "error");
+    return;
+  }
+  this.recordingState.timerId = window.setInterval(() => {
+    this.recordingState.elapsedMs += 1e3;
+    this.renderRecordingTimer(this.recordingState.elapsedMs);
+    if (this.recordingState.elapsedMs >= 6e4) {
+      this.stopRecording();
+    }
+  }, 1e3);
+};
+SidePanelUI.prototype.stopRecording = async function stopRecording() {
+  if (this.recordingState.status !== "recording") return;
+  this.recordingState.status = "selecting";
+  if (this.recordingState.timerId) {
+    clearInterval(this.recordingState.timerId);
+    this.recordingState.timerId = null;
+  }
+  this.elements.recordBtn?.classList.remove("recording");
+  this.hideRecordingTimer();
+  try {
+    await chrome.runtime.sendMessage({ type: "recording_stop" });
+  } catch (err) {
+    this.cleanupRecordingUI();
+    this.updateStatus("Stop failed: " + (err.message || err), "error");
+  }
+};
+SidePanelUI.prototype.cleanupRecordingUI = function cleanupRecordingUI() {
+  if (this.recordingState.timerId) {
+    clearInterval(this.recordingState.timerId);
+  }
+  this.recordingState = { status: "idle", elapsedMs: 0, timerId: null };
+  this.elements.recordBtn?.classList.remove("recording");
+  this.hideRecordingTimer();
+};
+SidePanelUI.prototype.showRecordingTimer = function showRecordingTimer() {
+  const el = this.elements.recordingTimer;
+  if (el) {
+    el.classList.remove("hidden");
+    this.renderRecordingTimer(0);
+  }
+};
+SidePanelUI.prototype.hideRecordingTimer = function hideRecordingTimer() {
+  const el = this.elements.recordingTimer;
+  if (el) el.classList.add("hidden");
+};
+SidePanelUI.prototype.renderRecordingTimer = function renderRecordingTimer(elapsedMs) {
+  const timeEl = this.elements.recordingTimer?.querySelector(".recording-time");
+  if (timeEl) {
+    timeEl.textContent = `${formatTime(elapsedMs)} / 1:00`;
+  }
+};
+SidePanelUI.prototype.showImagePicker = function showImagePicker(screenshots) {
+  const modal = this.elements.imagePickerModal;
+  const grid = this.elements.imagePickerGrid;
+  if (!modal || !grid) return;
+  grid.innerHTML = "";
+  const selected = /* @__PURE__ */ new Set();
+  for (const ss of screenshots) {
+    const cell = document.createElement("div");
+    cell.className = "image-picker-cell";
+    cell.dataset.id = ss.id;
+    const img = document.createElement("img");
+    img.src = ss.dataUrl;
+    img.alt = `Screenshot ${ss.index + 1}`;
+    const timestamp = document.createElement("span");
+    timestamp.className = "image-picker-timestamp";
+    timestamp.textContent = formatTime(ss.timestamp - (screenshots[0]?.timestamp || ss.timestamp));
+    const badge = document.createElement("span");
+    badge.className = "image-picker-badge hidden";
+    cell.appendChild(img);
+    cell.appendChild(timestamp);
+    cell.appendChild(badge);
+    cell.addEventListener("click", () => {
+      if (selected.has(ss.id)) {
+        selected.delete(ss.id);
+        cell.classList.remove("selected");
+        badge.classList.add("hidden");
+      } else if (selected.size < 5) {
+        selected.add(ss.id);
+        cell.classList.add("selected");
+        badge.classList.remove("hidden");
+      }
+      let n = 1;
+      for (const s of screenshots) {
+        if (selected.has(s.id)) {
+          const c = grid.querySelector(`[data-id="${s.id}"] .image-picker-badge`);
+          if (c) {
+            c.textContent = String(n);
+            c.classList.remove("hidden");
+          }
+          n++;
+        }
+      }
+      this.updateImagePickerCount(selected.size);
+    });
+    grid.appendChild(cell);
+  }
+  this.updateImagePickerCount(0);
+  modal.classList.remove("hidden");
+  const cancel = this.elements.imagePickerCancel;
+  const confirm = this.elements.imagePickerConfirm;
+  const backdrop = modal.querySelector(".image-picker-backdrop");
+  const close = () => {
+    modal.classList.add("hidden");
+    this.cleanupRecordingUI();
+    chrome.runtime.sendMessage({ type: "recording_discard" }).catch(() => {
+    });
+  };
+  const doConfirm = () => {
+    modal.classList.add("hidden");
+    const ids = Array.from(selected);
+    if (ids.length === 0) {
+      close();
+      return;
+    }
+    chrome.runtime.sendMessage({ type: "recording_select_images", selectedIds: ids }).catch(() => {
+    });
+  };
+  if (cancel) {
+    const newCancel = cancel.cloneNode(true);
+    cancel.replaceWith(newCancel);
+    this.elements.imagePickerCancel = newCancel;
+    newCancel.addEventListener("click", close);
+  }
+  if (confirm) {
+    const newConfirm = confirm.cloneNode(true);
+    confirm.replaceWith(newConfirm);
+    this.elements.imagePickerConfirm = newConfirm;
+    newConfirm.addEventListener("click", doConfirm);
+  }
+  if (backdrop) {
+    const newBackdrop = backdrop.cloneNode(true);
+    backdrop.replaceWith(newBackdrop);
+    newBackdrop.addEventListener("click", close, { once: true });
+  }
+};
+SidePanelUI.prototype.updateImagePickerCount = function updateImagePickerCount(count) {
+  const el = this.elements.imagePickerCount;
+  if (el) el.textContent = `${count} / 5`;
+};
+SidePanelUI.prototype.attachRecordedContext = function attachRecordedContext(context) {
+  this.pendingRecordedContext = context;
+  this.showRecordedContextBadge();
+};
+SidePanelUI.prototype.removeRecordedContext = function removeRecordedContext() {
+  this.pendingRecordedContext = null;
+  this.hideRecordedContextBadge();
+};
+SidePanelUI.prototype.showRecordedContextBadge = function showRecordedContextBadge() {
+  const badge = this.elements.recordedContextBadge;
+  if (badge) badge.classList.remove("hidden");
+};
+SidePanelUI.prototype.hideRecordedContextBadge = function hideRecordedContextBadge() {
+  const badge = this.elements.recordedContextBadge;
+  if (badge) badge.classList.add("hidden");
+};
+SidePanelUI.prototype.handleRecordingMessage = function handleRecordingMessage(message) {
+  switch (message.type) {
+    case "recording_tick": {
+      if (this.recordingState.status === "recording") {
+        this.recordingState.elapsedMs = message.elapsedMs;
+      }
+      break;
+    }
+    case "recording_complete": {
+      this.showImagePicker(message.screenshots);
+      break;
+    }
+    case "recording_context_ready": {
+      this.attachRecordedContext(message.context);
+      this.updateStatus("Recording attached", "success");
+      break;
+    }
+    case "recording_error": {
+      this.cleanupRecordingUI();
+      this.updateStatus("Recording error: " + message.message, "error");
+      break;
+    }
+  }
+};
+
 // packages/extension/sidepanel/ui/settings/panel-profiles.ts
 var parseHeadersJson = (raw) => {
   const trimmed = raw.trim();
@@ -2856,10 +3128,10 @@ SidePanelUI.prototype.createNewConfig = async function createNewConfig(name) {
   if (inputB) inputB.value = "";
   const current = this.configs[this.currentConfig] || {};
   this.configs[trimmedName] = {
-    provider: current.provider || "openai",
-    apiKey: current.apiKey || "",
-    model: current.model || "gpt-4o",
-    customEndpoint: current.customEndpoint || "",
+    provider: current.provider ?? "",
+    apiKey: current.apiKey ?? "",
+    model: current.model ?? "",
+    customEndpoint: current.customEndpoint ?? "",
     extraHeaders: current.extraHeaders || {},
     systemPrompt: current.systemPrompt || "",
     temperature: current.temperature ?? 0.7,
@@ -3046,7 +3318,7 @@ SidePanelUI.prototype.editProfile = function editProfile(name, silent = false) {
   const config = this.configs[name];
   if (this.elements.profileEditorTitle) this.elements.profileEditorTitle.textContent = `Editing: ${name}`;
   if (this.elements.profileEditorName) this.elements.profileEditorName.value = name;
-  if (this.elements.profileEditorProvider) this.elements.profileEditorProvider.value = config.provider || "openai";
+  if (this.elements.profileEditorProvider) this.elements.profileEditorProvider.value = config.provider || "";
   if (this.elements.profileEditorApiKey) this.elements.profileEditorApiKey.value = config.apiKey || "";
   if (this.elements.profileEditorModel) this.elements.profileEditorModel.value = config.model || "";
   if (this.elements.profileEditorEndpoint) this.elements.profileEditorEndpoint.value = config.customEndpoint || "";
@@ -3171,9 +3443,9 @@ SidePanelUI.prototype.saveProfileEdits = async function saveProfileEdits() {
   }
 };
 SidePanelUI.prototype.populateFormFromConfig = function populateFormFromConfig(config = {}) {
-  if (this.elements.provider) this.elements.provider.value = config.provider || "openai";
+  if (this.elements.provider) this.elements.provider.value = config.provider || "";
   if (this.elements.apiKey) this.elements.apiKey.value = config.apiKey || "";
-  if (this.elements.model) this.elements.model.value = config.model || "gpt-4o";
+  if (this.elements.model) this.elements.model.value = config.model || "";
   if (this.elements.customEndpoint) this.elements.customEndpoint.value = config.customEndpoint || "";
   if (this.elements.customHeaders) this.elements.customHeaders.value = formatHeadersJson(config.extraHeaders) || "";
   if (this.elements.systemPrompt)
@@ -3912,9 +4184,9 @@ SidePanelUI.prototype.loadSettings = async function loadSettings() {
   }
   const storedConfigs = settings.configs || {};
   const baseConfig = {
-    provider: "openai",
+    provider: "",
     apiKey: "",
-    model: "gpt-4o",
+    model: "",
     customEndpoint: "",
     extraHeaders: {},
     systemPrompt: this.getDefaultSystemPrompt(),
@@ -4081,10 +4353,10 @@ SidePanelUI.prototype.collectCurrentFormProfile = function collectCurrentFormPro
     }
   }
   return {
-    provider: this.elements.provider?.value || current.provider || "openai",
-    apiKey: this.elements.apiKey?.value || current.apiKey || "",
-    model: this.elements.model?.value || current.model || "gpt-4o",
-    customEndpoint: this.elements.customEndpoint?.value || current.customEndpoint || "",
+    provider: this.elements.provider?.value ?? current.provider ?? "",
+    apiKey: this.elements.apiKey?.value ?? current.apiKey ?? "",
+    model: this.elements.model?.value ?? current.model ?? "",
+    customEndpoint: this.elements.customEndpoint?.value ?? current.customEndpoint ?? "",
     extraHeaders,
     systemPrompt: this.elements.systemPrompt?.value || current.systemPrompt || "",
     temperature: Number.parseFloat(this.elements.temperature?.value) || current.temperature || 0.7,
@@ -4123,10 +4395,10 @@ SidePanelUI.prototype.persistAllSettings = async function persistAllSettings({ s
     const rawRelayUrl = (this.elements.relayUrl?.value || "").trim();
     const normalizedRelayUrl = rawRelayUrl && !rawRelayUrl.includes("://") ? `http://${rawRelayUrl}` : rawRelayUrl;
     const payload = {
-      provider: activeProfile.provider || "openai",
-      apiKey: activeProfile.apiKey || "",
-      model: activeProfile.model || "gpt-4o",
-      customEndpoint: activeProfile.customEndpoint || "",
+      provider: activeProfile.provider ?? "",
+      apiKey: activeProfile.apiKey ?? "",
+      model: activeProfile.model ?? "",
+      customEndpoint: activeProfile.customEndpoint ?? "",
       extraHeaders: activeProfile.extraHeaders || {},
       systemPrompt: activeProfile.systemPrompt || this.getDefaultSystemPrompt(),
       temperature: activeProfile.temperature ?? 0.7,
@@ -4327,8 +4599,9 @@ SidePanelUI.prototype.populateModelSelect = function populateModelSelect() {
     const option = document.createElement("option");
     option.value = name;
     const providerIcon = this.getProviderIcon(config.provider);
+    const providerLabel = config.provider || "unconfigured";
     const modelShort = this.shortenModelName(config.model || "no-model");
-    option.textContent = `${providerIcon} ${config.provider}/${modelShort}`;
+    option.textContent = `${providerIcon} ${providerLabel}/${modelShort}`;
     if (name === this.currentConfig) {
       option.selected = true;
     }
@@ -4350,10 +4623,10 @@ SidePanelUI.prototype.handleModelSelectChange = async function handleModelSelect
   try {
     this.setActiveConfig(selectedProfile, true);
     await this.persistAllSettings({ silent: true });
-    this.updateStatus(
-      `Switched to ${this.configs[selectedProfile].provider}/${this.configs[selectedProfile].model}`,
-      "success"
-    );
+    const selected = this.configs[selectedProfile] || {};
+    const providerLabel = selected.provider || "unconfigured";
+    const modelLabel = selected.model || "no-model";
+    this.updateStatus(`Switched to ${providerLabel}/${modelLabel}`, "success");
   } catch (error) {
     console.error("[Parchi] Failed to persist selected profile:", error);
     this.updateStatus("Failed to switch profile", "error");
@@ -5945,6 +6218,29 @@ SidePanelUI.prototype.startNewSession = function startNewSession() {
   this.switchView("chat");
   this.updateContextUsage();
   this.scrollToBottom({ force: true });
+};
+
+// packages/extension/sidepanel/ui/account/account-mode.ts
+var ACCOUNT_MODE_KEY = "accountModeChoice";
+var ACCOUNT_MODE_BYOK = "byok";
+var ACCOUNT_MODE_PAID = "paid";
+var hasByokCredentialsInProfile = (profile) => {
+  const apiKey = String(profile?.apiKey || "").trim();
+  return apiKey.length > 0;
+};
+var hasConfiguredByokProvider = (stored) => {
+  const configs = stored?.configs && typeof stored.configs === "object" ? stored.configs : {};
+  const activeConfigName = String(stored?.activeConfig || "default");
+  const activeProfile = configs && typeof configs[activeConfigName] === "object" ? configs[activeConfigName] : typeof configs.default === "object" ? configs.default : null;
+  const topLevelProfile = {
+    provider: stored?.provider,
+    apiKey: stored?.apiKey,
+    model: stored?.model,
+    customEndpoint: stored?.customEndpoint
+  };
+  if (hasByokCredentialsInProfile(activeProfile)) return true;
+  if (hasByokCredentialsInProfile(topLevelProfile)) return true;
+  return Object.values(configs).some((profile) => hasByokCredentialsInProfile(profile));
 };
 
 // node_modules/convex/dist/esm/index.js
@@ -8058,9 +8354,6 @@ async function manageSubscription() {
 var hasActiveSubscription = (subscription) => Boolean(subscription && subscription.plan === "pro" && subscription.status === "active");
 
 // packages/extension/sidepanel/ui/account/panel-account.ts
-var ACCOUNT_MODE_KEY = "accountModeChoice";
-var ACCOUNT_MODE_BYOK = "byok";
-var ACCOUNT_MODE_PAID = "paid";
 var setHidden = (element, hidden) => {
   if (!element) return;
   element.classList.toggle("hidden", hidden);
@@ -8139,19 +8432,37 @@ SidePanelUI.prototype.initAccountPanel = async function initAccountPanel() {
   await this.showAccountOnboardingIfNeeded();
 };
 SidePanelUI.prototype.showAccountOnboardingIfNeeded = async function showAccountOnboardingIfNeeded() {
-  const stored = await chrome.storage.local.get([ACCOUNT_MODE_KEY]);
+  const stored = await chrome.storage.local.get([
+    ACCOUNT_MODE_KEY,
+    "configs",
+    "activeConfig",
+    "provider",
+    "apiKey",
+    "model",
+    "customEndpoint"
+  ]);
   const hasChoice = stored[ACCOUNT_MODE_KEY] === ACCOUNT_MODE_BYOK || stored[ACCOUNT_MODE_KEY] === ACCOUNT_MODE_PAID;
-  setHidden(this.elements.accountOnboardingModal, hasChoice);
-  if (!hasChoice) {
-    updateStatusCopy(this, "Choose BYOK or paid mode to continue setup.");
+  if (hasChoice) {
+    setHidden(this.elements.accountOnboardingModal, true);
+    return;
   }
+  const hasConfiguredProvider = hasConfiguredByokProvider(stored);
+  if (hasConfiguredProvider) {
+    await chrome.storage.local.set({ [ACCOUNT_MODE_KEY]: ACCOUNT_MODE_BYOK });
+    setHidden(this.elements.accountOnboardingModal, true);
+    return;
+  }
+  updateStatusCopy(this, "Choose Add provider or Paid plan to continue.");
+  setHidden(this.elements.accountOnboardingModal, false);
 };
 SidePanelUI.prototype.chooseAccountMode = async function chooseAccountMode(mode) {
   await chrome.storage.local.set({ [ACCOUNT_MODE_KEY]: mode });
   setHidden(this.elements.accountOnboardingModal, true);
   if (mode === ACCOUNT_MODE_BYOK) {
-    this.updateStatus("BYOK selected. Add your API key in Setup.", "success");
-    updateStatusCopy(this, "BYOK mode active.");
+    this.openSettingsPanel?.();
+    this.switchSettingsTab?.("setup");
+    this.updateStatus("Provider setup selected. Add your API key in Setup.", "success");
+    updateStatusCopy(this, "Add provider mode selected.");
     return;
   }
   this.openSettingsPanel?.();
@@ -8187,6 +8498,7 @@ SidePanelUI.prototype.handleAccountPasswordAuth = async function handleAccountPa
 SidePanelUI.prototype.handleAccountOAuth = async function handleAccountOAuth(provider) {
   this.setAccountUiBusy(true);
   try {
+    await chrome.storage.local.set({ [ACCOUNT_MODE_KEY]: ACCOUNT_MODE_PAID });
     const result = await signInWithOAuth(provider);
     const redirect = result?.redirect || "";
     if (redirect) {
@@ -8282,6 +8594,12 @@ SidePanelUI.prototype.refreshAccountPanel = async function refreshAccountPanel({
     if (this.elements.accountUserValue) this.elements.accountUserValue.textContent = userEmail;
     if (this.elements.accountPlanValue) this.elements.accountPlanValue.textContent = planLabel;
     if (this.elements.accountUsageValue) this.elements.accountUsageValue.textContent = toUsageLabel(sub?.usage);
+    if (paidActive) {
+      const stored = await chrome.storage.local.get([ACCOUNT_MODE_KEY]);
+      if (stored[ACCOUNT_MODE_KEY] !== ACCOUNT_MODE_PAID) {
+        await chrome.storage.local.set({ [ACCOUNT_MODE_KEY]: ACCOUNT_MODE_PAID });
+      }
+    }
     setHidden(this.elements.accountUpgradeBtn, paidActive);
     setHidden(this.elements.accountManageBtn, !paidActive);
     updateStatusCopy(this, paidActive ? "Paid plan active. Proxy mode available." : "Free plan active.");

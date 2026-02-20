@@ -4,20 +4,21 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "{01750513-9c5b-418a-af8e-31344dd293e3}",
-      "strict_min_version": "109.0",
+      "strict_min_version": "112.0",
       "data_collection_permissions": {
         "required": ["none"]
       }
     }
   },
-  "version": "0.3.10",
+  "version": "0.3.13",
   "description": "Warm-paper browser automation assistant with configurable LLM/vision profiles and enterprise-ready controls",
   "permissions": [
     "activeTab",
     "scripting",
     "tabs",
     "storage",
-    "declarativeNetRequest"
+    "webRequest",
+    "webRequestBlocking"
   ],
   "host_permissions": [
     "<all_urls>",

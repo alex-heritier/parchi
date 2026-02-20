@@ -42,7 +42,7 @@
   flex-direction: column;
   gap: 12px;
   min-height: 0;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 .settings-tabs {
@@ -326,11 +326,16 @@
 }
 
 .form-group input:focus,
-.form-group select:focus,
 .form-group textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.1);
   transform: translateY(-1px);
+}
+
+/* Select: no transform on focus — clips native dropdown in Firefox */
+.form-group select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.1);
 }
 
 .form-group input::placeholder,

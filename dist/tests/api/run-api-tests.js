@@ -40,9 +40,12 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText, jsonSchema, tool } from "ai";
 function resolveLanguageModel(settings) {
   const provider = settings.provider || "openai";
-  const modelId = settings.model || "gpt-4o";
+  const modelId = String(settings.model || "").trim();
   const apiKey = settings.apiKey || "";
   const extraHeaders = settings.extraHeaders && typeof settings.extraHeaders === "object" ? settings.extraHeaders : void 0;
+  if (!modelId) {
+    throw new Error("No model configured. Open Settings and choose a model before running.");
+  }
   if (settings.useProxy && settings.proxyBaseUrl && settings.proxyAuthToken) {
     const normalizedBase = settings.proxyBaseUrl.replace(/\/+$/, "");
     const proxyProvider = settings.proxyProvider || (provider === "anthropic" || provider === "kimi" ? "anthropic" : "openai");

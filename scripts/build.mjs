@@ -116,9 +116,12 @@ const run = async () => {
     define: buildDefines,
   });
 
-  // Build content script as IIFE (content scripts don't support ESM)
+  // Build content scripts as IIFE (content scripts don't support ESM)
   await esbuild.build({
-    entryPoints: [path.join(extensionRoot, 'content.ts')],
+    entryPoints: [
+      path.join(extensionRoot, 'content.ts'),
+      path.join(extensionRoot, 'content-recording.ts'),
+    ],
     outdir: distDir,
     outbase: extensionRoot,
     bundle: true,

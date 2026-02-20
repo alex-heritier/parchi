@@ -47,10 +47,10 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   // Clone the current active config so the new profile starts with sane defaults
   const current = this.configs[this.currentConfig] || {};
   this.configs[trimmedName] = {
-    provider: current.provider || 'openai',
-    apiKey: current.apiKey || '',
-    model: current.model || 'gpt-4o',
-    customEndpoint: current.customEndpoint || '',
+    provider: current.provider ?? '',
+    apiKey: current.apiKey ?? '',
+    model: current.model ?? '',
+    customEndpoint: current.customEndpoint ?? '',
     extraHeaders: current.extraHeaders || {},
     systemPrompt: current.systemPrompt || '',
     temperature: current.temperature ?? 0.7,
@@ -179,9 +179,10 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
       })
       .join('');
     const config = this.configs[name] || {};
-    const deleteBtn = name !== 'default'
-      ? `<button class="agent-card-delete" data-delete-profile="${this.escapeHtml(name)}" title="Delete profile">&times;</button>`
-      : '';
+    const deleteBtn =
+      name !== 'default'
+        ? `<button class="agent-card-delete" data-delete-profile="${this.escapeHtml(name)}" title="Delete profile">&times;</button>`
+        : '';
     card.innerHTML = `
         <div class="agent-card-header">
           <div>
@@ -263,7 +264,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   // Only update profile editor elements if they exist
   if (this.elements.profileEditorTitle) this.elements.profileEditorTitle.textContent = `Editing: ${name}`;
   if (this.elements.profileEditorName) this.elements.profileEditorName.value = name;
-  if (this.elements.profileEditorProvider) this.elements.profileEditorProvider.value = config.provider || 'openai';
+  if (this.elements.profileEditorProvider) this.elements.profileEditorProvider.value = config.provider || '';
   if (this.elements.profileEditorApiKey) this.elements.profileEditorApiKey.value = config.apiKey || '';
   if (this.elements.profileEditorModel) this.elements.profileEditorModel.value = config.model || '';
   if (this.elements.profileEditorEndpoint) this.elements.profileEditorEndpoint.value = config.customEndpoint || '';
@@ -405,9 +406,9 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   config: Record<string, any> = {},
 ) {
   // Use optional chaining for all element accesses since settings UI may be simplified
-  if (this.elements.provider) this.elements.provider.value = config.provider || 'openai';
+  if (this.elements.provider) this.elements.provider.value = config.provider || '';
   if (this.elements.apiKey) this.elements.apiKey.value = config.apiKey || '';
-  if (this.elements.model) this.elements.model.value = config.model || 'gpt-4o';
+  if (this.elements.model) this.elements.model.value = config.model || '';
   if (this.elements.customEndpoint) this.elements.customEndpoint.value = config.customEndpoint || '';
   if (this.elements.customHeaders) this.elements.customHeaders.value = formatHeadersJson(config.extraHeaders) || '';
   if (this.elements.systemPrompt)

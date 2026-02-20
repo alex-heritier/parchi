@@ -82,8 +82,9 @@ import { SidePanelUI } from '../core/panel-ui.js';
 
     // Format: icon provider/model (e.g., "🅒 anthropic/claude-sonnet")
     const providerIcon = this.getProviderIcon(config.provider);
+    const providerLabel = config.provider || 'unconfigured';
     const modelShort = this.shortenModelName(config.model || 'no-model');
-    option.textContent = `${providerIcon} ${config.provider}/${modelShort}`;
+    option.textContent = `${providerIcon} ${providerLabel}/${modelShort}`;
 
     if (name === this.currentConfig) {
       option.selected = true;
@@ -120,10 +121,10 @@ import { SidePanelUI } from '../core/panel-ui.js';
     // script (which reads from chrome.storage) uses the same active profile.
     this.setActiveConfig(selectedProfile, true);
     await this.persistAllSettings({ silent: true });
-    this.updateStatus(
-      `Switched to ${this.configs[selectedProfile].provider}/${this.configs[selectedProfile].model}`,
-      'success',
-    );
+    const selected = this.configs[selectedProfile] || {};
+    const providerLabel = selected.provider || 'unconfigured';
+    const modelLabel = selected.model || 'no-model';
+    this.updateStatus(`Switched to ${providerLabel}/${modelLabel}`, 'success');
   } catch (error) {
     console.error('[Parchi] Failed to persist selected profile:', error);
     this.updateStatus('Failed to switch profile', 'error');

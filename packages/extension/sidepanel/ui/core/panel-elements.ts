@@ -212,4 +212,15 @@ export const getSidePanelElements = (): SidePanelElements => ({
   planStepCount: byId<HTMLElement>('planStepCount'),
   planClearBtn: byId<HTMLButtonElement>('planClearBtn'),
   stopRunBtn: byId<HTMLButtonElement>('stopRunBtn'), // legacy, stop is now handled by sendBtn
+
+  // Recording
+  recordBtn: byId<HTMLButtonElement>('recordBtn'),
+  recordingTimer: byId<HTMLElement>('recordingTimer'),
+  recordedContextBadge: byId<HTMLElement>('recordedContextBadge'),
+  recordedContextRemove: byId<HTMLButtonElement>('recordedContextRemove'),
+  imagePickerModal: byId<HTMLElement>('imagePickerModal'),
+  imagePickerGrid: byId<HTMLElement>('imagePickerGrid'),
+  imagePickerCount: byId<HTMLElement>('imagePickerCount'),
+  imagePickerCancel: byId<HTMLButtonElement>('imagePickerCancel'),
+  imagePickerConfirm: byId<HTMLButtonElement>('imagePickerConfirm'),
 });

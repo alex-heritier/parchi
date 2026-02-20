@@ -1,4 +1,5 @@
 import type { RunPlan } from '../../../../shared/src/plan.js';
+import type { RecordedContext } from '../../../../shared/src/recording.js';
 import type { Message } from '../../../ai/message-schema.js';
 import type { UsageStats } from '../types/panel-types.js';
 import { getSidePanelElements } from './panel-elements.js';
@@ -108,6 +109,8 @@ export class SidePanelUI {
   _typingCheckTimerId: number | null;
   _mascotBubbleOpen: boolean;
   _currentVerb: string | null;
+  recordingState: { status: 'idle' | 'recording' | 'selecting'; elapsedMs: number; timerId: number | null };
+  pendingRecordedContext: RecordedContext | null;
 
   // Methods attached via prototype in panel-modules
   declare init: () => Promise<void>;
@@ -197,6 +200,8 @@ export class SidePanelUI {
     this._typingCheckTimerId = null;
     this._mascotBubbleOpen = false;
     this._currentVerb = null;
+    this.recordingState = { status: 'idle', elapsedMs: 0, timerId: null };
+    this.pendingRecordedContext = null;
     void this.init();
   }
 }
