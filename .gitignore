@@ -2,9 +2,13 @@
 node_modules/
 
 # Build artifacts
+dist/
+dist-firefox/
 dist-relay/
 build/
 server/dist/
+*.map
+*.xpi
 
 # OS files
 .DS_Store
