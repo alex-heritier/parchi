@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      
+      - name: Get version from package.json
+        id: get_version
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+      
+      - run: npm run build
+      - run: npm run build:firefox
+      
+      - name: Package Chrome Extension
+        run: |
+          cd dist && zip -r ../parchi-chrome-${{ steps.get_version.outputs.VERSION }}.zip . && cd ..
+      - name: Package Firefox Extension
+        run: |
+          cd dist-firefox && zip -r ../parchi-firefox-${{ steps.get_version.outputs.VERSION }}.xpi . && cd ..
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            parchi-chrome-*.zip
+            parchi-firefox-*.xpi
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

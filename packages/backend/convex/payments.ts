@@ -80,6 +80,76 @@ export const createCheckoutSession = actionGeneric(async (ctx) => {
   };
 });
 
+const CREDIT_PACKAGES_CENTS = [500, 1500, 5000] as const;
+
+export const createCreditCheckoutSession = actionGeneric(async (ctx, args: { packageCents: number }) => {
+  const userId = await getAuthUserId(ctx);
+  if (!userId) throw new Error('Unauthorized');
+
+  const packageCents = Number(args.packageCents);
+  if (!CREDIT_PACKAGES_CENTS.includes(packageCents as any)) {
+    throw new Error(`Invalid credit package. Choose from: ${CREDIT_PACKAGES_CENTS.map((c) => `$${c / 100}`).join(', ')}`);
+  }
+
+  const stripe = getStripeClient();
+  const user = await ctx.runQuery(anyApi.users.me, {});
+  const existing = await ctx.runQuery(anyApi.subscriptions.getByUserId, { userId });
+
+  let customerId = existing?.stripeCustomerId;
+  if (!customerId) {
+    const customer = await stripe.customers.create({
+      email: user?.email || undefined,
+      metadata: { convexUserId: String(userId) },
+    });
+    customerId = customer.id;
+  }
+
+  const siteUrl = baseSiteUrl();
+  const session = await stripe.checkout.sessions.create({
+    mode: 'payment',
+    customer: customerId,
+    line_items: [
+      {
+        price_data: {
+          currency: 'usd',
+          unit_amount: packageCents,
+          product_data: {
+            name: `Parchi Credits — $${(packageCents / 100).toFixed(0)}`,
+          },
+        },
+        quantity: 1,
+      },
+    ],
+    success_url: `${siteUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${siteUrl}/billing/cancel`,
+    metadata: {
+      userId: String(userId),
+      creditAmountCents: String(packageCents),
+    },
+  });
+
+  // Ensure a subscription record exists so the webhook can find it
+  if (!existing) {
+    await ctx.runMutation(anyApi.subscriptions.upsertForUser, {
+      userId,
+      plan: 'free',
+      status: 'inactive',
+      stripeCustomerId: customerId,
+    });
+  } else if (!existing.stripeCustomerId) {
+    await ctx.runMutation(anyApi.subscriptions.upsertForUser, {
+      userId,
+      plan: existing.plan || 'free',
+      status: existing.status || 'inactive',
+      stripeCustomerId: customerId,
+      stripeSubscriptionId: existing.stripeSubscriptionId,
+      currentPeriodEnd: existing.currentPeriodEnd,
+    });
+  }
+
+  return { id: session.id, url: session.url };
+});
+
 export const manageSubscription = actionGeneric(async (ctx) => {
   const userId = await getAuthUserId(ctx);
   if (!userId) throw new Error('Unauthorized');
@@ -124,7 +194,16 @@ export const stripeWebhook = httpActionGeneric(async (ctx, request) => {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
     const metadataUserId = session.metadata?.userId;
-    if (metadataUserId) {
+    const creditAmountCents = Number(session.metadata?.creditAmountCents || 0);
+
+    if (metadataUserId && creditAmountCents > 0) {
+      // One-time credit purchase — add credits to balance
+      await ctx.runMutation(anyApi.subscriptions.addCredits, {
+        userId: metadataUserId as any,
+        amountCents: creditAmountCents,
+      });
+    } else if (metadataUserId) {
+      // Subscription checkout — existing flow
       const subscriptionId =
         typeof session.subscription === 'string'
           ? session.subscription

@@ -12,6 +12,7 @@ export default defineSchema({
     stripeSubscriptionId: v.optional(v.string()),
     status: v.union(v.literal('active'), v.literal('canceled'), v.literal('past_due'), v.literal('inactive')),
     currentPeriodEnd: v.optional(v.number()),
+    creditBalanceCents: v.optional(v.number()),
   })
     .index('by_userId', ['userId'])
     .index('by_stripeCustomerId', ['stripeCustomerId'])

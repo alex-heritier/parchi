@@ -499,13 +499,12 @@
 }
 
 .btn:hover {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.035) 100%);
-  border-color: rgba(255, 255, 255, 0.11);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.16);
   transform: translateY(-1px);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 6px 20px rgba(0, 0, 0, 0.35),
-    0 0 0 1px rgba(255, 255, 255, 0.03);
+    0 0 10px rgba(255, 255, 255, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .btn:hover::after {
@@ -521,35 +520,33 @@
 }
 
 .btn-primary {
-  background: var(--accent);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: transparent;
+  border-color: rgb(var(--accent-rgb) / 0.45);
+  color: var(--accent-light);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.12),
-    0 2px 10px rgb(var(--accent-rgb) / 0.3),
-    0 0 24px rgb(var(--accent-rgb) / 0.1);
+    0 0 8px rgb(var(--accent-rgb) / 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .btn-primary::after {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 60%);
-  opacity: 1;
+  opacity: 0;
 }
 
 .btn-primary:hover {
-  background: var(--accent-light);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: rgb(var(--accent-rgb) / 0.06);
+  border-color: rgb(var(--accent-rgb) / 0.7);
+  color: var(--accent-light);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 6px 24px rgb(var(--accent-rgb) / 0.4),
-    0 0 48px rgb(var(--accent-rgb) / 0.12);
+    0 0 16px rgb(var(--accent-rgb) / 0.15),
+    0 0 4px rgb(var(--accent-rgb) / 0.08);
 }
 
 .btn-primary:active {
-  background: var(--accent-dark);
+  background: rgb(var(--accent-rgb) / 0.04);
+  border-color: rgb(var(--accent-rgb) / 0.5);
   box-shadow:
-    inset 0 2px 6px rgba(0, 0, 0, 0.3),
-    0 1px 4px rgb(var(--accent-rgb) / 0.2);
+    inset 0 1px 3px rgba(0, 0, 0, 0.2),
+    0 0 6px rgb(var(--accent-rgb) / 0.1);
 }
 
 .btn-secondary {
@@ -559,11 +556,9 @@
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 4px 14px rgba(0, 0, 0, 0.25);
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.03);
 }
 
 .btn-secondary:active {
@@ -633,12 +628,11 @@
 }
 
 .send-btn:hover {
-  background: var(--accent);
-  color: #fff;
+  background: var(--foreground);
+  color: var(--background);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    0 4px 16px rgb(var(--accent-rgb) / 0.4),
-    0 0 32px rgb(var(--accent-rgb) / 0.15);
+    0 0 0 2px rgb(var(--accent-rgb) / 0.5),
+    0 0 16px rgb(var(--accent-rgb) / 0.2);
 }
 
 .send-btn:hover::before {
@@ -881,10 +875,10 @@
 }
 
 .workflow-generate-btn:hover {
-  border-color: rgb(var(--accent-rgb) / 0.4);
+  border-color: rgb(var(--accent-rgb) / 0.5);
   color: var(--accent);
-  background: rgb(var(--accent-rgb) / 0.06);
-  box-shadow: 0 0 16px rgb(var(--accent-rgb) / 0.08);
+  background: transparent;
+  box-shadow: 0 0 12px rgb(var(--accent-rgb) / 0.08);
   transform: translateY(-1px);
 }
 
@@ -932,29 +926,26 @@
 
 .workflow-save-confirm {
   padding: 6px 12px;
-  background: var(--accent);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  border: 1px solid rgb(var(--accent-rgb) / 0.45);
   border-radius: 10px;
-  color: #fff;
+  color: var(--accent-light);
   font-size: 12px;
   font-weight: 550;
   cursor: pointer;
   transition: all 200ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.15),
-    0 2px 8px rgb(var(--accent-rgb) / 0.25);
+  box-shadow: 0 0 8px rgb(var(--accent-rgb) / 0.08);
 }
 
 .workflow-save-confirm:hover {
-  background: var(--accent-light);
+  background: rgb(var(--accent-rgb) / 0.06);
+  border-color: rgb(var(--accent-rgb) / 0.7);
   transform: translateY(-1px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    0 4px 16px rgb(var(--accent-rgb) / 0.35);
+  box-shadow: 0 0 16px rgb(var(--accent-rgb) / 0.15);
 }
 
 .workflow-save-confirm:active {
   transform: scale(0.97);
-  background: var(--accent-dark);
+  border-color: rgb(var(--accent-rgb) / 0.5);
   transition-duration: 80ms;
 }

@@ -46,6 +46,7 @@ const autoResizeTextArea = (textarea: HTMLTextAreaElement | null, maxHeight: num
     this.fetchAvailableModels();
     this.updateChatEmptyState?.();
     this.initMascotBubble?.();
+    this.initSessionTabsOrb?.();
   } catch (error) {
     console.error('[Parchi] init() failed:', error);
     this.updateStatus('Initialization failed - check console', 'error');

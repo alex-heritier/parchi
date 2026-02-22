@@ -75,10 +75,10 @@
 }
 
 .settings-tab-button.active {
-  background: rgb(var(--accent-rgb) / 0.1);
-  border-color: rgb(var(--accent-rgb) / 0.2);
+  background: transparent;
+  border-color: rgb(var(--accent-rgb) / 0.45);
   color: var(--accent-light);
-  box-shadow: 0 0 14px rgb(var(--accent-rgb) / 0.06);
+  box-shadow: 0 0 10px rgb(var(--accent-rgb) / 0.08);
 }
 
 .settings-tab-button:active {
@@ -209,8 +209,8 @@
 
 .status-pill.connected {
   color: var(--foreground);
-  border-color: rgb(var(--accent-rgb) / 0.35);
-  background: rgb(var(--accent-rgb) / 0.08);
+  border-color: rgb(var(--accent-rgb) / 0.45);
+  background: transparent;
 }
 
 .status-pill.connected::before {
@@ -477,10 +477,10 @@
 }
 
 .role-pill.active {
-  background: rgb(var(--accent-rgb) / 0.08);
-  border-color: rgb(var(--accent-rgb) / 0.25);
+  background: transparent;
+  border-color: rgb(var(--accent-rgb) / 0.45);
   color: var(--accent);
-  box-shadow: 0 0 10px rgb(var(--accent-rgb) / 0.06);
+  box-shadow: 0 0 8px rgb(var(--accent-rgb) / 0.08);
 }
 
 .profile-editor {
@@ -546,11 +546,9 @@
 }
 
 .theme-swatch.active {
-  border-color: rgb(var(--accent-rgb) / 0.4);
-  background: rgb(var(--accent-rgb) / 0.06);
-  box-shadow:
-    0 0 16px rgb(var(--accent-rgb) / 0.08),
-    inset 0 0 0 1px rgb(var(--accent-rgb) / 0.1);
+  border-color: rgb(var(--accent-rgb) / 0.5);
+  background: transparent;
+  box-shadow: 0 0 12px rgb(var(--accent-rgb) / 0.1);
 }
 
 .theme-swatch-color {
@@ -888,8 +886,8 @@
 }
 
 .tab-item.selected {
-  background: rgb(var(--accent-rgb) / 0.18);
-  border-color: rgb(var(--accent-rgb) / 0.45);
+  background: rgb(var(--accent-rgb) / 0.04);
+  border-color: rgb(var(--accent-rgb) / 0.5);
 }
 
 .tab-item-checkbox {

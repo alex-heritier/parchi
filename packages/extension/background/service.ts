@@ -2249,9 +2249,13 @@ When a tool fails:
 
   hasActivePaidSubscription(settings: Record<string, any> = {}) {
     const mode = String(settings.accountModeChoice || '').toLowerCase();
+    if (mode !== 'paid') return false;
+    // Support both legacy subscriptions AND prepaid credits
+    const hasCredits = Number(settings.convexCreditBalanceCents || 0) > 0;
     const status = String(settings.convexSubscriptionStatus || '').toLowerCase();
     const plan = String(settings.convexSubscriptionPlan || '').toLowerCase();
-    return mode === 'paid' && plan === 'pro' && status === 'active';
+    const hasLegacySub = plan === 'pro' && status === 'active';
+    return hasCredits || hasLegacySub;
   }
 
   canUseConvexProxy(settings: Record<string, any> = {}) {

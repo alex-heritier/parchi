@@ -18,7 +18,7 @@ const jsonResponse = (status: number, body: Record<string, unknown>) =>
   });
 
 type ProviderTarget = {
-  provider: 'openai' | 'anthropic' | 'kimi';
+  provider: 'openai' | 'anthropic' | 'kimi' | 'openrouter';
   upstreamBaseUrl: string;
   defaultPath: string;
   upstreamApiKey: string;
@@ -42,6 +42,14 @@ const resolveProviderTarget = (request: Request): ProviderTarget | null => {
       upstreamApiKey: String(process.env.KIMI_API_KEY || '').trim(),
     };
   }
+  if (requestPath.startsWith('/ai-proxy/openrouter')) {
+    return {
+      provider: 'openrouter',
+      upstreamBaseUrl: 'https://openrouter.ai/api',
+      defaultPath: '/v1/chat/completions',
+      upstreamApiKey: String(process.env.OPENROUTER_API_KEY || '').trim(),
+    };
+  }
   if (requestPath.startsWith('/ai-proxy/openai') || requestPath === '/ai-proxy') {
     return {
       provider: 'openai',
@@ -53,10 +61,16 @@ const resolveProviderTarget = (request: Request): ProviderTarget | null => {
   return null;
 };
 
-const resolveForwardPath = (request: Request, provider: 'openai' | 'anthropic' | 'kimi', defaultPath: string) => {
+const providerPrefixMap: Record<string, string> = {
+  anthropic: '/ai-proxy/anthropic',
+  kimi: '/ai-proxy/kimi',
+  openrouter: '/ai-proxy/openrouter',
+  openai: '/ai-proxy/openai',
+};
+
+const resolveForwardPath = (request: Request, provider: string, defaultPath: string) => {
   const requestPath = new URL(request.url).pathname;
-  const prefix =
-    provider === 'anthropic' ? '/ai-proxy/anthropic' : provider === 'kimi' ? '/ai-proxy/kimi' : '/ai-proxy/openai';
+  const prefix = providerPrefixMap[provider] || '/ai-proxy/openai';
   const suffix = requestPath.startsWith(prefix) ? requestPath.slice(prefix.length) : '';
   return suffix || defaultPath;
 };
@@ -80,9 +94,10 @@ export const aiProxy = httpActionGeneric(async (ctx, request) => {
   }
 
   const subscription = await ctx.runQuery(anyApi.subscriptions.getByUserId, { userId });
-  const isPaid = Boolean(subscription && subscription.plan === 'pro' && subscription.status === 'active');
-  if (!isPaid) {
-    return jsonResponse(402, { error: 'Active paid subscription required' });
+  const creditBalance = subscription?.creditBalanceCents ?? 0;
+  const hasLegacySub = Boolean(subscription && subscription.plan === 'pro' && subscription.status === 'active');
+  if (creditBalance <= 0 && !hasLegacySub) {
+    return jsonResponse(402, { error: 'Insufficient credits. Purchase credits to continue.' });
   }
 
   let payload: Record<string, any>;
@@ -92,10 +107,22 @@ export const aiProxy = httpActionGeneric(async (ctx, request) => {
     return jsonResponse(400, { error: 'Invalid JSON payload' });
   }
 
+  // Estimate cost: ~$0.03/1K tokens → 0.003 cents/token, minimum 1 cent
+  const maxTokens = Number(payload?.max_tokens || payload?.maxTokens || 4096);
+  const estimatedCostCents = Math.max(1, Math.ceil(maxTokens * 0.003));
+
+  // Deduct credits upfront (best-effort for streaming responses)
+  if (creditBalance > 0) {
+    await ctx.runMutation(anyApi.subscriptions.deductCredits, {
+      userId,
+      amountCents: Math.min(estimatedCostCents, creditBalance),
+    });
+  }
+
   await ctx.runMutation(anyApi.subscriptions.recordUsage, {
     userId,
     requestCountIncrement: 1,
-    tokenEstimate: Number(payload?.max_tokens || payload?.maxTokens || 0),
+    tokenEstimate: maxTokens,
   });
 
   const forwardPath = resolveForwardPath(request, providerTarget.provider, providerTarget.defaultPath);
@@ -106,6 +133,10 @@ export const aiProxy = httpActionGeneric(async (ctx, request) => {
 
   if (providerTarget.provider === 'openai') {
     upstreamHeaders.set('authorization', `Bearer ${providerTarget.upstreamApiKey}`);
+  } else if (providerTarget.provider === 'openrouter') {
+    upstreamHeaders.set('authorization', `Bearer ${providerTarget.upstreamApiKey}`);
+    upstreamHeaders.set('http-referer', 'https://parchi.app');
+    upstreamHeaders.set('x-title', 'Parchi');
   } else if (providerTarget.provider === 'anthropic') {
     upstreamHeaders.set('x-api-key', providerTarget.upstreamApiKey);
     upstreamHeaders.set('anthropic-version', request.headers.get('anthropic-version') || '2023-06-01');

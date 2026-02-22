@@ -29,6 +29,7 @@ const STORAGE_KEYS = {
   subscriptionStatus: 'convexSubscriptionStatus',
   subscriptionCurrentPeriodEnd: 'convexSubscriptionCurrentPeriodEnd',
   subscriptionCheckedAt: 'convexSubscriptionCheckedAt',
+  creditBalanceCents: 'convexCreditBalanceCents',
   convexUrl: 'convexUrl',
 } as const;
 
@@ -115,6 +116,7 @@ const clearAuthStorage = async () => {
     STORAGE_KEYS.subscriptionStatus,
     STORAGE_KEYS.subscriptionCurrentPeriodEnd,
     STORAGE_KEYS.subscriptionCheckedAt,
+    STORAGE_KEYS.creditBalanceCents,
   ]);
   applyAuthTokenToClient(undefined);
 };
@@ -164,6 +166,7 @@ const syncAccountSnapshotToStorage = async (user: any, subscription: any) => {
     [STORAGE_KEYS.subscriptionStatus]: subscription?.status || 'inactive',
     [STORAGE_KEYS.subscriptionCurrentPeriodEnd]: subscription?.currentPeriodEnd || null,
     [STORAGE_KEYS.subscriptionCheckedAt]: Date.now(),
+    [STORAGE_KEYS.creditBalanceCents]: subscription?.creditBalanceCents ?? 0,
   });
 };
 
@@ -207,12 +210,10 @@ export async function signUpWithPassword(email: string, password: string) {
 export async function signInWithOAuth(provider: 'google' | 'github') {
   await ensureAuthReady();
   const client = await ensureClient();
-  const redirectBase =
-    typeof location !== 'undefined' && location.origin ? location.origin : 'https://example.com';
   const result = (await client.action(anyApi.auth.signIn, {
     provider,
     params: {
-      redirectTo: `${redirectBase}/billing`,
+      redirectTo: `https://parchi.ai/billing/success`,
     },
   })) as AuthSignInResult;
   await maybePersistAuthResult(result);
@@ -262,3 +263,18 @@ export async function manageSubscription() {
 
 export const hasActiveSubscription = (subscription: any) =>
   Boolean(subscription && subscription.plan === 'pro' && subscription.status === 'active');
+
+export const hasCreditBalance = (subscription: any) =>
+  Number(subscription?.creditBalanceCents ?? 0) > 0;
+
+export async function getCreditBalance() {
+  await ensureAuthReady();
+  const client = await ensureClient();
+  return client.query(anyApi.subscriptions.getBalance, {});
+}
+
+export async function createCreditCheckout(packageCents: number) {
+  await ensureAuthReady();
+  const client = await ensureClient();
+  return client.action(anyApi.payments.createCreditCheckoutSession, { packageCents });
+}

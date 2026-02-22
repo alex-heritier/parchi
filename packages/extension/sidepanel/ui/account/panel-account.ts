@@ -1,7 +1,7 @@
 import { ACCOUNT_MODE_BYOK, ACCOUNT_MODE_KEY, ACCOUNT_MODE_PAID, hasConfiguredByokProvider } from './account-mode.js';
 import {
   CONVEX_DEPLOYMENT_URL,
-  createCheckoutSession,
+  createCreditCheckout,
   getAuthState,
   hasActiveSubscription,
   manageSubscription,
@@ -21,6 +21,11 @@ const toUsageLabel = (usage: any) => {
   const requestCount = Number(usage?.requestCount || 0);
   const tokensUsed = Number(usage?.tokensUsed || 0);
   return `${requestCount} req · ${tokensUsed} tokens`;
+};
+
+const formatCreditBalance = (cents: number) => {
+  const dollars = (cents / 100).toFixed(2);
+  return `$${dollars}`;
 };
 
 const updateStatusCopy = (ui: any, text: string) => {
@@ -87,6 +92,14 @@ const updateStatusCopy = (ui: any, text: string) => {
   });
   this.elements.accountSignOutBtn?.addEventListener('click', () => {
     void this.signOutFromAccount();
+  });
+
+  // Credit buy buttons (delegated from the row)
+  this.elements.accountBuyCreditsRow?.addEventListener('click', (e: Event) => {
+    const btn = (e.target as HTMLElement)?.closest('.credit-buy-btn') as HTMLElement | null;
+    if (!btn) return;
+    const cents = Number(btn.dataset.cents || 0);
+    if (cents > 0) void this.startCreditCheckout(cents);
   });
 };
 
@@ -191,9 +204,14 @@ const updateStatusCopy = (ui: any, text: string) => {
 };
 
 (SidePanelUI.prototype as any).startAccountCheckout = async function startAccountCheckout() {
+  // Default upgrade goes to $15 credit pack
+  return this.startCreditCheckout(1500);
+};
+
+(SidePanelUI.prototype as any).startCreditCheckout = async function startCreditCheckout(packageCents: number) {
   this.setAccountUiBusy(true);
   try {
-    const result = await createCheckoutSession();
+    const result = await createCreditCheckout(packageCents);
     if (result?.url) {
       await chrome.tabs.create({ url: String(result.url) });
       updateStatusCopy(this, 'Stripe checkout opened in a new tab.');
@@ -271,23 +289,33 @@ const updateStatusCopy = (ui: any, text: string) => {
 
     const userEmail = String(state.user?.email || 'Unknown user');
     const sub = state.subscription || null;
+    const creditCents = Number(sub?.creditBalanceCents ?? 0);
+    const hasCredits = creditCents > 0;
     const paidActive = hasActiveSubscription(sub);
-    const planLabel = paidActive ? 'Pro (active)' : `Free (${sub?.status || 'inactive'})`;
+    const hasAccess = hasCredits || paidActive;
+    const planLabel = paidActive ? 'Pro (active)' : hasCredits ? 'Credits' : `Free (${sub?.status || 'inactive'})`;
 
     if (this.elements.accountUserValue) this.elements.accountUserValue.textContent = userEmail;
+    if (this.elements.accountCreditBalance) this.elements.accountCreditBalance.textContent = formatCreditBalance(creditCents);
     if (this.elements.accountPlanValue) this.elements.accountPlanValue.textContent = planLabel;
     if (this.elements.accountUsageValue) this.elements.accountUsageValue.textContent = toUsageLabel(sub?.usage);
 
-    if (paidActive) {
+    if (hasAccess) {
       const stored = await chrome.storage.local.get([ACCOUNT_MODE_KEY]);
       if (stored[ACCOUNT_MODE_KEY] !== ACCOUNT_MODE_PAID) {
         await chrome.storage.local.set({ [ACCOUNT_MODE_KEY]: ACCOUNT_MODE_PAID });
       }
     }
 
-    setHidden(this.elements.accountUpgradeBtn, paidActive);
+    // Show "Buy Credits" row always; hide legacy upgrade if user has credits or a subscription
+    setHidden(this.elements.accountUpgradeBtn, hasAccess);
     setHidden(this.elements.accountManageBtn, !paidActive);
-    updateStatusCopy(this, paidActive ? 'Paid plan active. Proxy mode available.' : 'Free plan active.');
+    const statusMsg = hasCredits
+      ? `${formatCreditBalance(creditCents)} remaining. Proxy mode available.`
+      : paidActive
+        ? 'Paid plan active. Proxy mode available.'
+        : 'No credits. Buy credits to enable proxy mode.';
+    updateStatusCopy(this, statusMsg);
     if (!silent) this.updateStatus('Account refreshed', 'success');
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error ?? 'Failed to refresh account');

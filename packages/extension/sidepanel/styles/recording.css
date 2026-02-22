@@ -189,8 +189,157 @@
 .image-picker-footer {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 8px;
   padding: 10px 16px;
   border-top: 1px solid var(--border);
+}
+
+.review-footer-right {
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Review Tabs ─────────────────────────────────────────────────────── */
+
+.review-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+}
+
+.review-tab {
+  flex: 1;
+  padding: 8px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  text-align: center;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.review-tab:hover {
+  color: var(--text-secondary);
+}
+
+.review-tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
+}
+
+.review-panel {
+  overflow-y: auto;
+  max-height: 55vh;
+}
+
+.review-action-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* ── Action Timeline ─────────────────────────────────────────────────── */
+
+.action-timeline {
+  padding: 8px 12px;
+}
+
+.action-timeline-list {
+  position: relative;
+  padding-left: 8px;
+}
+
+/* Vertical connecting line */
+.action-timeline-list::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* URL group separator */
+.action-timeline-separator {
+  font-size: 10px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: var(--text-muted);
+  padding: 6px 0 4px 26px;
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Single action node */
+.action-timeline-node {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 0;
+  position: relative;
+  transition: opacity 0.15s;
+}
+
+.action-timeline-node.excluded {
+  opacity: 0.3;
+}
+
+.action-node-icon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.action-node-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.action-node-primary {
+  font-size: 11px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.action-node-detail {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.action-node-time {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.action-node-toggle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.action-node-toggle input[type="checkbox"] {
+  width: 12px;
+  height: 12px;
+  accent-color: var(--accent);
+  cursor: pointer;
 }

@@ -29,6 +29,12 @@ logs/
 *.zip
 *.crx
 *.pem
+*.xpi
+
+# Release packages in repo root
+/parchi-*.zip
+/parchi-*.xpi
+/dist.crx
 
 # Environment files
 .env

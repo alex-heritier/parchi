@@ -30,6 +30,7 @@ export const getCurrent = queryGeneric({
         plan: 'free',
         status: 'inactive',
       }),
+      creditBalanceCents: subscription?.creditBalanceCents ?? 0,
       usage: usage || {
         requestCount: 0,
         tokensUsed: 0,
@@ -168,5 +169,71 @@ export const recordUsage = mutationGeneric({
       tokensUsed: tokens,
     });
     return ctx.db.get(createdId);
+  },
+});
+
+export const addCredits = mutationGeneric({
+  args: {
+    userId: v.id('users'),
+    amountCents: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('subscriptions')
+      .withIndex('by_userId', (q) => q.eq('userId', args.userId))
+      .first();
+
+    if (existing?._id) {
+      const newBalance = (existing.creditBalanceCents ?? 0) + args.amountCents;
+      await ctx.db.patch(existing._id, { creditBalanceCents: newBalance });
+      return { creditBalanceCents: newBalance };
+    }
+
+    await ctx.db.insert('subscriptions', {
+      userId: args.userId,
+      plan: 'free',
+      status: 'inactive',
+      creditBalanceCents: args.amountCents,
+    });
+    return { creditBalanceCents: args.amountCents };
+  },
+});
+
+export const deductCredits = mutationGeneric({
+  args: {
+    userId: v.id('users'),
+    amountCents: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('subscriptions')
+      .withIndex('by_userId', (q) => q.eq('userId', args.userId))
+      .first();
+
+    const currentBalance = existing?.creditBalanceCents ?? 0;
+    if (currentBalance < args.amountCents) {
+      return { success: false, remainingCents: currentBalance };
+    }
+
+    const newBalance = currentBalance - args.amountCents;
+    if (existing?._id) {
+      await ctx.db.patch(existing._id, { creditBalanceCents: newBalance });
+    }
+    return { success: true, remainingCents: newBalance };
+  },
+});
+
+export const getBalance = queryGeneric({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return { creditBalanceCents: 0 };
+
+    const subscription = await ctx.db
+      .query('subscriptions')
+      .withIndex('by_userId', (q) => q.eq('userId', userId))
+      .first();
+
+    return { creditBalanceCents: subscription?.creditBalanceCents ?? 0 };
   },
 });

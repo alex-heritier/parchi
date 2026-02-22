@@ -7,6 +7,7 @@ import './core/panel-helpers.js';
 import './history/panel-history.js';
 import './chat/panel-markdown.js';
 import './chat/panel-plan.js';
+import './chat/panel-action-timeline.js';
 import './chat/panel-recorder.js';
 import './settings/panel-profiles.js';
 import './core/panel-scroll.js';

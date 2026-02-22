@@ -111,6 +111,13 @@ export class SidePanelUI {
   _currentVerb: string | null;
   recordingState: { status: 'idle' | 'recording' | 'selecting'; elapsedMs: number; timerId: number | null };
   pendingRecordedContext: RecordedContext | null;
+  reviewState: {
+    events: import('../../../../shared/src/recording.js').RecordingEvent[];
+    screenshots: import('../../../../shared/src/recording.js').RecordingScreenshot[];
+    excludedEventIndices: Set<number>;
+    selectedScreenshotIds: Set<string>;
+    activeTab: 'actions' | 'screenshots';
+  } | null;
 
   // Methods attached via prototype in panel-modules
   declare init: () => Promise<void>;
@@ -202,6 +209,7 @@ export class SidePanelUI {
     this._currentVerb = null;
     this.recordingState = { status: 'idle', elapsedMs: 0, timerId: null };
     this.pendingRecordedContext = null;
+    this.reviewState = null;
     void this.init();
   }
 }

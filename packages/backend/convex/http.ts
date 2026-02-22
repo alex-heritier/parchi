@@ -56,6 +56,18 @@ http.route({
 });
 
 http.route({
+  pathPrefix: '/ai-proxy/openrouter/',
+  method: 'POST',
+  handler: aiProxy,
+});
+
+http.route({
+  pathPrefix: '/ai-proxy/openrouter/',
+  method: 'OPTIONS',
+  handler: aiProxy,
+});
+
+http.route({
   path: '/stripe-webhook',
   method: 'POST',
   handler: stripeWebhook,
