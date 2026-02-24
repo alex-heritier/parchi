@@ -13,6 +13,18 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   return Object.fromEntries(Object.entries(parsed).map(([key, value]) => [key, value == null ? '' : String(value)]));
 };
 
+const FONT_PRESET_STACKS: Record<string, string> = {
+  default: 'var(--font-sans-default)',
+  geist: 'var(--font-sans-geist)',
+  soft: 'var(--font-sans-soft)',
+};
+
+const FONT_STYLE_WEIGHTS: Record<string, string> = {
+  normal: '400',
+  medium: '500',
+  semibold: '600',
+};
+
 (SidePanelUI.prototype as any).applyUiZoom = function applyUiZoom(value: number, { persist = true } = {}) {
   const next = Number.isFinite(value) ? value : 1;
   const clamped = Math.min(1.25, Math.max(0.85, next));
@@ -22,6 +34,24 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   if (this.elements.uiZoomValue) this.elements.uiZoomValue.textContent = `${Math.round(clamped * 100)}%`;
   if (persist) {
     chrome.storage.local.set({ uiZoom: clamped }).catch(() => {});
+  }
+};
+
+(SidePanelUI.prototype as any).applyTypography = function applyTypography(
+  preset: string,
+  style: string,
+  { persist = true } = {},
+) {
+  const nextPreset = FONT_PRESET_STACKS[preset] ? preset : 'default';
+  const nextStyle = FONT_STYLE_WEIGHTS[style] ? style : 'normal';
+  this.fontPreset = nextPreset;
+  this.fontStylePreset = nextStyle;
+  document.documentElement.style.setProperty('--font-sans', FONT_PRESET_STACKS[nextPreset]);
+  document.documentElement.style.setProperty('--font-base-weight', FONT_STYLE_WEIGHTS[nextStyle]);
+  if (this.elements.fontPreset) this.elements.fontPreset.value = nextPreset;
+  if (this.elements.fontStylePreset) this.elements.fontStylePreset.value = nextStyle;
+  if (persist) {
+    chrome.storage.local.set({ fontPreset: nextPreset, fontStylePreset: nextStyle }).catch(() => {});
   }
 };
 
@@ -74,6 +104,9 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   const modelHint = document.getElementById('modelHint');
   if (modelHint) {
     switch (provider) {
+      case 'parchi':
+        modelHint.textContent = 'Managed routing via your credits. Default: moonshotai/kimi-k2.5.';
+        break;
       case 'anthropic':
         modelHint.textContent = 'Recommended: claude-sonnet-4-20250514';
         break;
@@ -243,6 +276,7 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
   this.currentConfig = this.configs[settings.activeConfig] ? settings.activeConfig : 'default';
   this.auxAgentProfiles = settings.auxAgentProfiles || [];
   this.applyUiZoom(settings.uiZoom ?? 1, { persist: false });
+  this.applyTypography(settings.fontPreset ?? 'default', settings.fontStylePreset ?? 'normal', { persist: false });
   this.currentTheme = settings.theme || DEFAULT_THEME_ID;
   applyTheme(this.currentTheme);
   this.renderThemeGrid?.();
@@ -483,6 +517,8 @@ const parseHeadersJson = (raw: string): Record<string, string> => {
       allowedDomains: this.elements.allowedDomains?.value || '',
       auxAgentProfiles: this.auxAgentProfiles,
       uiZoom: this.uiZoom ?? 1,
+      fontPreset: this.fontPreset || 'default',
+      fontStylePreset: this.fontStylePreset || 'normal',
       theme: this.currentTheme || DEFAULT_THEME_ID,
       relayEnabled: this.elements.relayEnabled?.value === 'true',
       relayUrl: normalizedRelayUrl,

@@ -200,6 +200,8 @@ import { SidePanelUI } from '../core/panel-ui.js';
     markdown += `- **Total tokens:** ${this.sessionTokenTotals.totalTokens.toLocaleString()}\n`;
   }
 
+  markdown = this.appendSelectedReportImagesMarkdown(markdown);
+
   // Download the file
   this.downloadMarkdown(markdown, filename);
 };
@@ -234,6 +236,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
   }
 
   markdown += `${this.extractTextContent(lastAssistant.content)}\n`;
+  markdown = this.appendSelectedReportImagesMarkdown(markdown);
 
   this.downloadMarkdown(markdown, filename);
 };
@@ -293,7 +296,41 @@ import { SidePanelUI } from '../core/panel-ui.js';
     markdown += '---\n\n';
   });
 
+  markdown = this.appendSelectedReportImagesMarkdown(markdown);
   this.downloadMarkdown(markdown, filename);
+};
+
+(SidePanelUI.prototype as any).getSelectedReportImagesForExport = function getSelectedReportImagesForExport() {
+  if (!this.reportImages || this.reportImages.size === 0) return [];
+  const order = Array.isArray(this.reportImageOrder) && this.reportImageOrder.length > 0
+    ? this.reportImageOrder
+    : Array.from(this.reportImages.keys());
+  const selected = this.selectedReportImageIds instanceof Set ? this.selectedReportImageIds : new Set<string>();
+
+  return order
+    .map((id: string) => this.reportImages.get(id))
+    .filter((image: any) => image && typeof image.dataUrl === 'string' && selected.has(image.id));
+};
+
+(SidePanelUI.prototype as any).appendSelectedReportImagesMarkdown = function appendSelectedReportImagesMarkdown(
+  markdown: string,
+) {
+  const images = this.getSelectedReportImagesForExport();
+  if (!images.length) return markdown;
+
+  let next = markdown;
+  next += '\n---\n\n## Selected Report Images\n\n';
+  images.forEach((image: any, index: number) => {
+    const label = image.title || image.url || image.id;
+    next += `### Image ${index + 1}: ${label}\n\n`;
+    next += `- **ID:** ${image.id}\n`;
+    next += `- **Captured:** ${new Date(Number(image.capturedAt || Date.now())).toLocaleString()}\n`;
+    if (image.url) next += `- **Source URL:** ${image.url}\n`;
+    if (image.visionDescription) next += `- **Vision Notes:** ${image.visionDescription}\n`;
+    next += '\n';
+    next += `![Report image ${index + 1}](${image.dataUrl})\n\n`;
+  });
+  return next;
 };
 
 /**

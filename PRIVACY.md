@@ -1,17 +1,21 @@
 # Privacy Policy — Parchi
 
-**Last updated:** 2026-02-15
+**Last updated:** 2026-02-23
 
 ## Summary
 
-Parchi does **not** collect, store, or transmit any personal data.
+Parchi is local-first, but some features use remote services for authentication and billing.
 
 ## Data Handling
 
 - **No analytics or telemetry.** Parchi does not include any tracking, analytics, or telemetry code.
-- **No remote servers.** All communication goes directly from your browser to the AI provider you configure (e.g. OpenAI, Anthropic, Google). Parchi never proxies requests through its own servers.
-- **API keys stay local.** Your API keys and settings are stored in your browser's local extension storage (`chrome.storage.local`) and are never sent anywhere except to the provider endpoint you configured.
-- **No data retention.** Conversation history exists only in your browser session memory and is not persisted or transmitted.
+- **BYOK mode is direct.** In BYOK mode, your prompts go directly from your browser to your configured provider (OpenAI, Anthropic, OpenRouter, and others).
+- **Managed billing uses backend services.** Paid credit and key-provisioning flows use Parchi backend endpoints plus Stripe webhooks.
+- **Limited billing data.** Parchi stores account email, subscription/credit state, and payment-linked identifiers needed for billing and entitlement checks.
+- **OpenRouter provisioning metadata only.** For managed OpenRouter key provisioning, we store key hash + guardrail/model metadata (not the key secret) in billing records.
+- **No prompt logging by default.** Parchi does not intentionally store prompt/response content for managed billing workflows.
+- **Local settings and keys.** Your extension settings and BYOK provider keys are stored in `chrome.storage.local`.
+- **Conversation retention depends on mode.** Local chat history lives in extension storage. Managed backend routing forwards request payloads to upstream providers and does not intentionally persist prompt content.
 - **No cookies or fingerprinting.** Parchi does not set cookies, use tracking pixels, or fingerprint your browser.
 
 ## Permissions
@@ -20,7 +24,11 @@ Parchi requests browser permissions (active tab, scripting, tabs, storage) solel
 
 ## Third-Party Services
 
-When you use Parchi, your prompts and page content are sent to whichever AI provider you have configured. Please review your provider's privacy policy for how they handle that data.
+- **Stripe** handles payment processing and billing events.
+- **Convex** powers authentication and billing/account APIs.
+- **AI providers** receive prompts/content when you send requests.
+
+Please review each provider's privacy policy for their data practices.
 
 ## Contact
 

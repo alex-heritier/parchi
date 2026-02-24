@@ -153,6 +153,39 @@ export type SessionTabsUpdate = RuntimeMessageBase & {
   groupTitle?: string;
 };
 
+export type ReportImageSummary = {
+  id: string;
+  capturedAt: number;
+  url?: string;
+  title?: string;
+  tabId?: number;
+  visionDescription?: string;
+  selected: boolean;
+};
+
+export type ReportImageCaptured = RuntimeMessageBase & {
+  type: 'report_image_captured';
+  image: {
+    id: string;
+    dataUrl: string;
+    capturedAt: number;
+    toolCallId?: string;
+    tabId?: number;
+    url?: string;
+    title?: string;
+    visionDescription?: string;
+    selected: boolean;
+  };
+  images: ReportImageSummary[];
+  selectedImageIds: string[];
+};
+
+export type ReportImagesSelection = RuntimeMessageBase & {
+  type: 'report_images_selection';
+  images: ReportImageSummary[];
+  selectedImageIds: string[];
+};
+
 export type SubagentComplete = RuntimeMessageBase & {
   type: 'subagent_complete';
   id: string;
@@ -177,6 +210,8 @@ export type RuntimeMessage =
   | RunWarning
   | ContextCompacted
   | SubagentStart
+  | ReportImageCaptured
+  | ReportImagesSelection
   | SubagentComplete
   | SessionTabsUpdate;
 
@@ -196,6 +231,8 @@ export const runtimeMessageTypes = [
   'run_warning',
   'context_compacted',
   'subagent_start',
+  'report_image_captured',
+  'report_images_selection',
   'subagent_complete',
   'session_tabs_update',
 ] as const;

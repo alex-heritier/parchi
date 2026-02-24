@@ -33,6 +33,7 @@ const autoResizeTextArea = (textarea: HTMLTextAreaElement | null, maxHeight: num
 
 (SidePanelUI.prototype as any).init = async function init() {
   try {
+    this.connectLifecyclePort();
     this.setupEventListeners();
     this.setupPlanDrawer();
     this.setupResizeObserver();
@@ -53,11 +54,49 @@ const autoResizeTextArea = (textarea: HTMLTextAreaElement | null, maxHeight: num
   }
 };
 
+(SidePanelUI.prototype as any).connectLifecyclePort = function connectLifecyclePort() {
+  if (this.lifecyclePort) return;
+  try {
+    const port = chrome.runtime.connect({ name: 'sidepanel-lifecycle' });
+    this.lifecyclePort = port;
+    port.onDisconnect.addListener(() => {
+      if (this.lifecyclePort === port) {
+        this.lifecyclePort = null;
+      }
+    });
+  } catch (error) {
+    console.warn('[Parchi] Failed to connect sidepanel lifecycle port:', error);
+  }
+};
+
+(SidePanelUI.prototype as any).requestRunStop = function requestRunStop(note = 'Stopped') {
+  if (!this.lifecyclePort) {
+    this.connectLifecyclePort?.();
+  }
+  const payload = {
+    type: 'stop_run',
+    sessionId: this.sessionId,
+    note,
+  };
+  try {
+    void chrome.runtime.sendMessage(payload);
+  } catch {}
+  try {
+    this.lifecyclePort?.postMessage(payload);
+  } catch {}
+};
+
 (SidePanelUI.prototype as any).setupEventListeners = function setupEventListeners() {
   bindSidebarNavigation(this.elements, {
     onOpen: () => this.openSettingsPanel(),
     onClose: () => this.closeSidebar(),
   });
+
+  const stopOnClose = () => {
+    this.requestRunStop('Stopped (panel closed)');
+  };
+  window.addEventListener('pagehide', stopOnClose);
+  window.addEventListener('beforeunload', stopOnClose);
 
   this.elements.startNewSessionBtn?.addEventListener('click', () => this.startNewSession());
   this.elements.newSessionFab?.addEventListener('click', () => this.startNewSession());
@@ -208,9 +247,7 @@ export PARCHI_RELAY_PORT="${port}"`;
   // Send message (or stop if running)
   this.elements.sendBtn?.addEventListener('click', () => {
     if (this.elements.composer?.classList.contains('running')) {
-      try {
-        void chrome.runtime.sendMessage({ type: 'stop_run', sessionId: this.sessionId });
-      } catch {}
+      this.requestRunStop('Stopped by user');
       this.stopWatchdog?.();
       this.stopThinkingTimer?.();
       this.stopRunTimer?.();
@@ -262,6 +299,9 @@ export PARCHI_RELAY_PORT="${port}"`;
   this.elements.modelSelect?.addEventListener('change', () => {
     void this.handleModelSelectChange();
   });
+  this.elements.setupAccessBtn?.addEventListener('click', () => {
+    void this.handleSetupAccessClick?.();
+  });
 
   // File upload
   this.elements.fileBtn?.addEventListener('click', () => {
@@ -288,6 +328,12 @@ export PARCHI_RELAY_PORT="${port}"`;
   this.elements.uiZoom?.addEventListener('input', () => {
     const value = Number.parseFloat(this.elements.uiZoom.value || '1');
     this.applyUiZoom(value);
+  });
+  this.elements.fontPreset?.addEventListener('change', () => {
+    this.applyTypography(this.elements.fontPreset?.value || 'default', this.fontStylePreset || 'normal');
+  });
+  this.elements.fontStylePreset?.addEventListener('change', () => {
+    this.applyTypography(this.fontPreset || 'default', this.elements.fontStylePreset?.value || 'normal');
   });
 
   // Tab selector
@@ -646,6 +692,8 @@ export PARCHI_RELAY_PORT="${port}"`;
       this.pendingTurnDraft = null;
     }
 
+    void this.clearParchiRuntimeHealth?.();
+
     return;
   }
 
@@ -670,15 +718,40 @@ export PARCHI_RELAY_PORT="${port}"`;
       action: (message as any).action,
       recoverable: (message as any).recoverable,
     });
+    void this.setParchiRuntimeHealth?.({
+      level: 'error',
+      summary: String(message.message || 'Paid runtime failed.'),
+      detail: String((message as any).action || ''),
+      category: String((message as any).errorCategory || ''),
+    });
     this.updateStatus('Error', 'error');
     return;
   }
   if (message.type === 'run_warning') {
     this.showErrorBanner(message.message);
+    const warningText = String(message.message || '');
+    if (warningText) {
+      const lower = warningText.toLowerCase();
+      if (lower.includes('model') || lower.includes('retrying') || lower.includes('unavailable')) {
+        void this.setParchiRuntimeHealth?.({
+          level: 'warning',
+          summary: warningText,
+        });
+      }
+    }
     return;
   }
   if (message.type === 'session_tabs_update') {
     this.handleSessionTabsUpdate(message);
+    return;
+  }
+  if (message.type === 'report_image_captured') {
+    this.recordReportImage?.(message.image);
+    this.updateReportImageSelection?.(message.selectedImageIds || []);
+    return;
+  }
+  if (message.type === 'report_images_selection') {
+    this.updateReportImageSelection?.(message.selectedImageIds || []);
     return;
   }
   if (message.type === 'subagent_start') {

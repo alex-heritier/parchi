@@ -27,7 +27,8 @@ import type { Message, ToolCall } from '../ai/message-schema.js';
 import { extractTextFromResponseMessages, extractThinking } from '../ai/message-utils.js';
 import { toModelMessages } from '../ai/model-convert.js';
 import { isValidFinalResponse } from '../ai/retry-engine.js';
-import { buildToolSet, describeImageWithModel, resolveLanguageModel } from '../ai/sdk-client.js';
+import { buildToolSet, describeImageWithModel, normalizeOpenRouterModelId, resolveLanguageModel } from '../ai/sdk-client.js';
+import { refreshRuntimeAuthSession } from '../convex/client.js';
 import type { ComposedSkill } from '../../shared/src/recording.js';
 import { RecordingCoordinator } from '../recording/recording-coordinator.js';
 import { RelayBridge } from '../relay/relay-bridge.js';
@@ -40,6 +41,17 @@ type RunMeta = {
   sessionId: string;
 };
 
+type ReportImage = {
+  id: string;
+  dataUrl: string;
+  capturedAt: number;
+  toolCallId?: string;
+  tabId?: number;
+  url?: string;
+  title?: string;
+  visionDescription?: string;
+};
+
 type SessionState = {
   sessionId: string;
   currentPlan: RunPlan | null;
@@ -50,6 +62,8 @@ type SessionState = {
   currentStepVerified: boolean;
   kimiWarningSent: boolean;
   failureTracker: Map<string, { count: number; lastError: string }>;
+  reportImages: ReportImage[];
+  selectedReportImageIds: Set<string>;
 };
 
 export class BackgroundService {
@@ -63,6 +77,7 @@ export class BackgroundService {
   relayActiveRunIds: Set<string>;
   private applyRelayConfig: () => Promise<void>;
   private relayKeepalivePorts: Set<chrome.runtime.Port>;
+  private sidepanelLifecyclePorts: Set<chrome.runtime.Port>;
   // State tracking for enforcement
   lastBrowserAction: string | null;
   awaitingVerification: boolean;
@@ -97,6 +112,7 @@ export class BackgroundService {
     this.subAgentProfileCursor = 0;
     this.relayActiveRunIds = new Set();
     this.relayKeepalivePorts = new Set();
+    this.sidepanelLifecyclePorts = new Set();
     this.activeRuns = new Map();
     this.activeRunIdBySessionId = new Map();
     this.cancelledRunIds = new Set();
@@ -224,13 +240,37 @@ export class BackgroundService {
     });
 
     chrome.runtime.onConnect.addListener((port) => {
-      if (port.name !== 'relay-keepalive') return;
-      this.relayKeepalivePorts.add(port);
-      port.onDisconnect.addListener(() => {
-        this.relayKeepalivePorts.delete(port);
-      });
-      // Optional: accept pings; no response required.
-      port.onMessage.addListener(() => {});
+      if (port.name === 'relay-keepalive') {
+        this.relayKeepalivePorts.add(port);
+        port.onDisconnect.addListener(() => {
+          this.relayKeepalivePorts.delete(port);
+        });
+        // Optional: accept pings; no response required.
+        port.onMessage.addListener(() => {});
+        return;
+      }
+
+      if (port.name === 'sidepanel-lifecycle') {
+        this.sidepanelLifecyclePorts.add(port);
+        port.onMessage.addListener((message) => {
+          if (!message || typeof message !== 'object') return;
+          if (message.type !== 'stop_run') return;
+          const sessionId = typeof (message as any).sessionId === 'string' ? (message as any).sessionId : '';
+          const note = typeof (message as any).note === 'string' && (message as any).note.trim()
+            ? String((message as any).note)
+            : 'Stopped';
+          const stopped = sessionId ? this.stopRunBySession(sessionId, note) : false;
+          if (!stopped) {
+            this.stopAllSidepanelRuns(note);
+          }
+        });
+        port.onDisconnect.addListener(() => {
+          this.sidepanelLifecyclePorts.delete(port);
+          if (this.sidepanelLifecyclePorts.size === 0) {
+            this.stopAllSidepanelRuns('Stopped (panel closed)');
+          }
+        });
+      }
     });
 
     void this.initRelay();
@@ -395,8 +435,11 @@ export class BackgroundService {
 
         case 'stop_run': {
           const sessionId = typeof message.sessionId === 'string' ? message.sessionId : '';
-          if (sessionId) {
-            this.stopRunBySession(sessionId, 'Stopped');
+          const note =
+            typeof message.note === 'string' && message.note.trim() ? message.note.trim() : 'Stopped';
+          const stopped = sessionId ? this.stopRunBySession(sessionId, note) : false;
+          if (!stopped) {
+            this.stopAllSidepanelRuns(note);
           }
           sendResponse({ success: true });
           break;
@@ -525,6 +568,13 @@ export class BackgroundService {
     const abortSignal = controller.signal;
     const sessionState = this.getSessionState(sessionId);
     const browserTools = this.getBrowserTools(sessionId);
+    let latestErrorContext: {
+      route?: string;
+      provider?: string;
+      proxyProvider?: string;
+      model?: string;
+      useProxy?: boolean;
+    } = {};
 
     // Reset enforcement state at the start of every turn so stale verification
     // requirements from the previous turn don't pollute the system prompt.
@@ -586,6 +636,12 @@ export class BackgroundService {
       let visionProfile =
         settings.visionBridge !== false ? this.resolveProfile(settings, visionProfileName || activeProfileName) : null;
 
+      // Paid-mode runs may happen long after the account tab refreshed auth.
+      // Rehydrate/refresh proxy auth in-place so chat runs don't rely on stale tokens.
+      if (!this.hasOwnApiKey(orchestratorProfile)) {
+        await this.refreshConvexProxyAuthSession(settings);
+      }
+
       const runtimeProfileResolution = this.resolveRuntimeModelProfile(orchestratorProfile, settings);
       if (!runtimeProfileResolution.allowed) {
         this.sendRuntime(runMeta, {
@@ -595,6 +651,13 @@ export class BackgroundService {
         return;
       }
       orchestratorProfile = runtimeProfileResolution.profile;
+      latestErrorContext = {
+        route: runtimeProfileResolution.route,
+        provider: String(orchestratorProfile?.provider || ''),
+        proxyProvider: String((orchestratorProfile as any)?.proxyProvider || ''),
+        model: String(orchestratorProfile?.model || settings.model || ''),
+        useProxy: Boolean((orchestratorProfile as any)?.useProxy),
+      };
       if (visionProfile && !this.hasOwnApiKey(visionProfile) && runtimeProfileResolution.route === 'proxy') {
         visionProfile = this.applyConvexProxyProfile(visionProfile, settings);
       }
@@ -618,7 +681,8 @@ export class BackgroundService {
       const showThinking = settings.showThinking !== false && settings.showThinking !== 'false';
       const enableAnthropicThinking =
         showThinking && (orchestratorProfile.provider === 'anthropic' || orchestratorProfile.provider === 'kimi' ||
-        (orchestratorProfile.provider === 'openrouter' && /claude/i.test(orchestratorProfile.model || '')));
+        ((orchestratorProfile.provider === 'openrouter' || orchestratorProfile.provider === 'parchi') &&
+          /claude/i.test(orchestratorProfile.model || '')));
 
       const [activeTab] = await chrome.tabs.query({
         active: true,
@@ -664,12 +728,85 @@ export class BackgroundService {
 
       const lastMessage = historyInput[historyInput.length - 1];
       const lastContentText = typeof lastMessage?.content === 'string' ? lastMessage.content : '';
+      const shouldReplaceLastUserMessage =
+        !!trimmedUserMessage &&
+        !!lastMessage &&
+        lastMessage.role === 'user' &&
+        lastContentText === userMessage &&
+        lastContentText !== enrichedUserMessage;
       const shouldAppendUserMessage =
-        trimmedUserMessage && (!lastMessage || lastMessage.role !== 'user' || lastContentText !== userMessage);
+        !!trimmedUserMessage &&
+        (!lastMessage || lastMessage.role !== 'user' || (lastContentText !== enrichedUserMessage &&
+          !shouldReplaceLastUserMessage));
+      const historyWithUserMessage = shouldReplaceLastUserMessage
+        ? [...historyInput.slice(0, -1), { role: 'user' as const, content: enrichedUserMessage }]
+        : shouldAppendUserMessage
+          ? [...historyInput, { role: 'user' as const, content: enrichedUserMessage }]
+          : historyInput;
       const normalizedHistory = normalizeConversationHistory(
-        shouldAppendUserMessage ? [...historyInput, { role: 'user', content: enrichedUserMessage }] : historyInput,
+        historyWithUserMessage,
       );
-      const model = resolveLanguageModel(orchestratorProfile);
+      let activeModelId = String(orchestratorProfile.model || settings.model || '').trim();
+      let model = resolveLanguageModel(orchestratorProfile);
+      const modelRetryOrder = [activeModelId];
+      const openRouterLikeProvider =
+        String(orchestratorProfile.provider || '').toLowerCase() === 'openrouter' ||
+        String(orchestratorProfile.provider || '').toLowerCase() === 'parchi';
+      if (openRouterLikeProvider) {
+        if (!modelRetryOrder.includes('openrouter/auto')) modelRetryOrder.push('openrouter/auto');
+        if (!modelRetryOrder.includes('openai/gpt-4o-mini')) modelRetryOrder.push('openai/gpt-4o-mini');
+      }
+
+      const switchActiveModel = (nextModelId: string) => {
+        const trimmed = String(nextModelId || '').trim();
+        if (!trimmed) return false;
+        if (trimmed === activeModelId) return true;
+        orchestratorProfile = {
+          ...orchestratorProfile,
+          model: trimmed,
+        };
+        activeModelId = trimmed;
+        model = resolveLanguageModel(orchestratorProfile);
+        return true;
+      };
+
+      const getErrorClassificationContext = () => ({
+        route: runtimeProfileResolution.route,
+        provider: String(orchestratorProfile?.provider || ''),
+        proxyProvider: String((orchestratorProfile as any)?.proxyProvider || ''),
+        model: activeModelId,
+        useProxy: Boolean((orchestratorProfile as any)?.useProxy),
+      });
+      const captureErrorClassificationContext = () => {
+        latestErrorContext = getErrorClassificationContext();
+        return latestErrorContext;
+      };
+
+      const persistRecoveredModelSelection = async (nextModelId: string) => {
+        if (!openRouterLikeProvider) return;
+        const trimmed = String(nextModelId || '').trim();
+        if (!trimmed) return;
+        try {
+          const stored = await chrome.storage.local.get(['activeConfig', 'configs', 'model']);
+          const activeConfig = String(stored.activeConfig || settings.activeConfig || 'default');
+          const configs =
+            stored.configs && typeof stored.configs === 'object' && !Array.isArray(stored.configs)
+              ? { ...stored.configs }
+              : {};
+          const activeProfile =
+            configs[activeConfig] && typeof configs[activeConfig] === 'object' && !Array.isArray(configs[activeConfig])
+              ? { ...configs[activeConfig] }
+              : {};
+          activeProfile.model = trimmed;
+          configs[activeConfig] = activeProfile;
+          await chrome.storage.local.set({
+            model: trimmed,
+            configs,
+          });
+        } catch {
+          // Ignore persistence failures; fallback still applies for this run.
+        }
+      };
 
       const toolSet = buildToolSet(tools, async (toolName, args, options) =>
         this.executeToolByName(
@@ -904,7 +1041,7 @@ export class BackgroundService {
           }
 
           if (!resolvedText && textStreamError) {
-            const streamClassified = classifyApiError(new Error(textStreamError));
+            const streamClassified = classifyApiError(new Error(textStreamError), captureErrorClassificationContext());
             const detail = streamClassified.action ? ` ${streamClassified.action}` : '';
             this.sendRuntime(runMeta, {
               type: 'run_warning',
@@ -931,6 +1068,11 @@ export class BackgroundService {
           if (abortSignal.aborted) {
             throw error;
           }
+          const classified = classifyApiError(error, captureErrorClassificationContext());
+          const statusCode = Number((error as any)?.statusCode ?? (error as any)?.status ?? 0);
+          if (classified.category === 'model' || APICallError.isInstance(error) || statusCode >= 400) {
+            throw error;
+          }
           console.error('[runModelPass] Error:', error);
           // Return empty result instead of throwing to prevent crash
           return {
@@ -942,9 +1084,62 @@ export class BackgroundService {
         }
       };
 
+      const runModelPassWithFallback = async (messages: Message[]) => {
+        let lastModelError: unknown = null;
+        let refreshedProxyAuthOnce = false;
+        for (let idx = 0; idx < modelRetryOrder.length; idx += 1) {
+          const candidateModelId = modelRetryOrder[idx];
+          if (!switchActiveModel(candidateModelId)) {
+            continue;
+          }
+          if (idx > 0) {
+            this.sendRuntime(runMeta, {
+              type: 'run_warning',
+              message: `Model "${modelRetryOrder[0]}" unavailable. Retrying with "${candidateModelId}".`,
+            });
+          }
+          try {
+            const pass = await runModelPass(messages);
+            if (idx > 0) {
+              await persistRecoveredModelSelection(candidateModelId);
+            }
+            return pass;
+          } catch (error) {
+            const classified = classifyApiError(error, captureErrorClassificationContext());
+            const statusCode = Number((error as any)?.statusCode ?? (error as any)?.status ?? 0);
+            const isProxyAuthFailure =
+              runtimeProfileResolution.route === 'proxy' &&
+              (classified.category === 'auth' || statusCode === 401 || statusCode === 403);
+            if (isProxyAuthFailure && !refreshedProxyAuthOnce) {
+              const refreshed = await this.refreshConvexProxyAuthSession(settings, { force: true });
+              if (refreshed) {
+                refreshedProxyAuthOnce = true;
+                if ((orchestratorProfile as any)?.useProxy) {
+                  (orchestratorProfile as any).proxyAuthToken = String(settings.convexAccessToken || '').trim();
+                }
+                if ((visionProfile as any)?.useProxy) {
+                  (visionProfile as any).proxyAuthToken = String(settings.convexAccessToken || '').trim();
+                }
+                this.sendRuntime(runMeta, {
+                  type: 'run_warning',
+                  message: 'Refreshing paid runtime session and retrying request.',
+                });
+                idx -= 1;
+                continue;
+              }
+            }
+            if (classified.category !== 'model') {
+              throw error;
+            }
+            lastModelError = error;
+          }
+        }
+        throw lastModelError || new Error('Model unavailable after fallback attempts.');
+      };
+
       while (true) {
         if (abortSignal.aborted) return;
-        const passResult = await runModelPass(currentHistory);
+        const passResult = await runModelPassWithFallback(currentHistory);
         const xmlToolCalls = this.extractXmlToolCalls(passResult.text);
         toolResults = passResult.toolResults || [];
 
@@ -1244,7 +1439,9 @@ export class BackgroundService {
         return;
       }
       console.error('Error processing user message:', error);
-      const classified = classifyApiError(error);
+      const classified = classifyApiError(error, {
+        ...latestErrorContext,
+      });
       let message = classified.message;
       if (classified.category === 'unknown' && APICallError.isInstance(error)) {
         const status = error.statusCode ? ` Status ${error.statusCode}.` : '';
@@ -1280,6 +1477,11 @@ export class BackgroundService {
     prompt: string,
   ) {
     try {
+      const runtimeSettings = settings as Record<string, any>;
+      if (!this.hasOwnApiKey({ apiKey: settings.apiKey || '' })) {
+        await this.refreshConvexProxyAuthSession(runtimeSettings);
+      }
+
       const runtimeProfile = this.resolveRuntimeModelProfile(
         {
           provider: settings.provider || 'openai',
@@ -1288,7 +1490,7 @@ export class BackgroundService {
           customEndpoint: settings.customEndpoint,
           extraHeaders: settings.extraHeaders,
         },
-        settings as Record<string, any>,
+        runtimeSettings,
       );
       if (!runtimeProfile.allowed) {
         return {
@@ -1535,6 +1737,51 @@ Rules:
       return result;
     }
 
+    if (toolName === 'list_report_images') {
+      const images = this.getReportImageSummary(sessionState);
+      const result = {
+        success: true,
+        images,
+        selectedImageIds: Array.from(sessionState.selectedReportImageIds),
+        selectedCount: sessionState.selectedReportImageIds.size,
+      };
+      sendResult(result);
+      return result;
+    }
+
+    if (toolName === 'select_report_images') {
+      const rawIds = Array.isArray(args?.imageIds)
+        ? args.imageIds
+        : Array.isArray(args?.ids)
+          ? args.ids
+          : [];
+      const imageIds = rawIds
+        .map((value: unknown) => String(value || '').trim())
+        .filter((value: string) => value.length > 0);
+      const requestedMode = String(args?.mode || '').toLowerCase();
+      const mode: 'replace' | 'add' | 'remove' | 'clear' =
+        requestedMode === 'add' || requestedMode === 'remove' || requestedMode === 'clear'
+          ? requestedMode
+          : 'replace';
+
+      const images = this.applyReportImageSelection(sessionState, imageIds, mode);
+      const selectedImageIds = Array.from(sessionState.selectedReportImageIds);
+      this.sendRuntime(options.runMeta, {
+        type: 'report_images_selection',
+        images,
+        selectedImageIds,
+      });
+      const result = {
+        success: true,
+        mode,
+        selectedImageIds,
+        selectedCount: selectedImageIds.length,
+        images,
+      };
+      sendResult(result);
+      return result;
+    }
+
     const available = browserTools?.tools ? Object.keys(browserTools.tools) : [];
     if (!available.includes(toolName)) {
       const errorResult = {
@@ -1624,28 +1871,51 @@ Rules:
     if (
       toolName === 'screenshot' &&
       finalResult?.success &&
-      finalResult.dataUrl &&
-      options.settings?.visionBridge &&
-      options.visionProfile?.apiKey
+      finalResult.dataUrl
     ) {
-      try {
-        const description = await describeImageWithModel({
-          settings: {
-            provider: options.visionProfile.provider,
-            apiKey: options.visionProfile.apiKey,
-            model: options.visionProfile.model,
-            customEndpoint: options.visionProfile.customEndpoint,
-          },
-          dataUrl: finalResult.dataUrl,
-          prompt: 'Provide a concise description of this screenshot for a non-vision model.',
-        });
-        finalResult.visionDescription = description;
-        finalResult.message = 'Screenshot captured and described by vision model.';
-        if (!options.settings?.sendScreenshotsAsImages) {
-          delete finalResult.dataUrl;
+      if (options.settings?.visionBridge && options.visionProfile?.apiKey) {
+        try {
+          const description = await describeImageWithModel({
+            settings: {
+              provider: options.visionProfile.provider,
+              apiKey: options.visionProfile.apiKey,
+              model: options.visionProfile.model,
+              customEndpoint: options.visionProfile.customEndpoint,
+            },
+            dataUrl: finalResult.dataUrl,
+            prompt: 'Provide a concise description of this screenshot for a non-vision model.',
+          });
+          finalResult.visionDescription = description;
+          finalResult.message = 'Screenshot captured and described by vision model.';
+        } catch (visionError) {
+          finalResult.visionError = visionError.message;
         }
-      } catch (visionError) {
-        finalResult.visionError = visionError.message;
+      }
+
+      const reportImage = this.captureReportImage(sessionState, finalResult, args, callId);
+      if (reportImage) {
+        const imagePayload = {
+          id: reportImage.id,
+          dataUrl: reportImage.dataUrl,
+          capturedAt: reportImage.capturedAt,
+          toolCallId: reportImage.toolCallId,
+          tabId: reportImage.tabId,
+          url: reportImage.url,
+          title: reportImage.title,
+          visionDescription: reportImage.visionDescription,
+          selected: sessionState.selectedReportImageIds.has(reportImage.id),
+        };
+        this.sendRuntime(options.runMeta, {
+          type: 'report_image_captured',
+          image: imagePayload,
+          images: this.getReportImageSummary(sessionState),
+          selectedImageIds: Array.from(sessionState.selectedReportImageIds),
+        });
+        finalResult.reportImageId = reportImage.id;
+      }
+
+      if (!options.settings?.sendScreenshotsAsImages) {
+        delete finalResult.dataUrl;
       }
     }
 
@@ -1731,6 +2001,63 @@ Rules:
       return { ...(result as Record<string, unknown>), plan: sessionState.currentPlan };
     }
     return { result, plan: sessionState.currentPlan };
+  }
+
+  private getReportImageSummary(sessionState: SessionState) {
+    return sessionState.reportImages.map((image) => ({
+      id: image.id,
+      capturedAt: image.capturedAt,
+      url: image.url,
+      title: image.title,
+      tabId: image.tabId,
+      visionDescription: image.visionDescription,
+      selected: sessionState.selectedReportImageIds.has(image.id),
+    }));
+  }
+
+  private captureReportImage(
+    sessionState: SessionState,
+    result: Record<string, any>,
+    args: Record<string, any>,
+    toolCallId: string,
+  ): ReportImage | null {
+    const dataUrl = typeof result?.dataUrl === 'string' ? result.dataUrl : '';
+    if (!dataUrl) return null;
+
+    const id = `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const image: ReportImage = {
+      id,
+      dataUrl,
+      capturedAt: Date.now(),
+      toolCallId,
+      tabId: typeof args?.tabId === 'number' ? args.tabId : undefined,
+      url: typeof result?.url === 'string' ? result.url : undefined,
+      title: typeof result?.title === 'string' ? result.title : undefined,
+      visionDescription: typeof result?.visionDescription === 'string' ? result.visionDescription : undefined,
+    };
+    sessionState.reportImages.push(image);
+    return image;
+  }
+
+  private applyReportImageSelection(
+    sessionState: SessionState,
+    imageIds: string[],
+    mode: 'replace' | 'add' | 'remove' | 'clear',
+  ) {
+    const validIds = new Set(sessionState.reportImages.map((image) => image.id));
+    const filteredIds = imageIds.filter((id) => validIds.has(id));
+
+    if (mode === 'clear') {
+      sessionState.selectedReportImageIds.clear();
+    } else if (mode === 'replace') {
+      sessionState.selectedReportImageIds = new Set(filteredIds);
+    } else if (mode === 'add') {
+      filteredIds.forEach((id) => sessionState.selectedReportImageIds.add(id));
+    } else if (mode === 'remove') {
+      filteredIds.forEach((id) => sessionState.selectedReportImageIds.delete(id));
+    }
+
+    return this.getReportImageSummary(sessionState);
   }
 
   extractXmlToolCalls(text: string): Array<{ name: string; args: Record<string, unknown>; raw: string }> {
@@ -1975,7 +2302,18 @@ Rules:
 
   private stopRunBySession(sessionId: string, note = 'Stopped') {
     const runId = this.activeRunIdBySessionId.get(sessionId);
-    if (runId) this.stopRun(runId, note);
+    if (runId) {
+      this.stopRun(runId, note);
+      return true;
+    }
+    return false;
+  }
+
+  private stopAllSidepanelRuns(note = 'Stopped') {
+    for (const [runId, active] of this.activeRuns.entries()) {
+      if (active.origin !== 'sidepanel') continue;
+      this.stopRun(runId, note);
+    }
   }
 
   private getSessionState(sessionId: string): SessionState {
@@ -1992,6 +2330,8 @@ Rules:
       currentStepVerified: false,
       kimiWarningSent: false,
       failureTracker: new Map(),
+      reportImages: [],
+      selectedReportImageIds: new Set(),
     };
     this.sessionStateById.set(id, created);
     return created;
@@ -2247,6 +2587,13 @@ When a tool fails:
     return Boolean(String(profile?.model || '').trim());
   }
 
+  normalizeProxyModelId(provider: string, modelId: string) {
+    const model = String(modelId || '').trim();
+    if (!model) return '';
+    if (provider !== 'openrouter') return model;
+    return normalizeOpenRouterModelId(model);
+  }
+
   hasActivePaidSubscription(settings: Record<string, any> = {}) {
     const mode = String(settings.accountModeChoice || '').toLowerCase();
     if (mode !== 'paid') return false;
@@ -2258,24 +2605,61 @@ When a tool fails:
     return hasCredits || hasLegacySub;
   }
 
+  resolveConvexProxyBaseUrl(settings: Record<string, any> = {}) {
+    const explicitSite = String(settings.convexSiteUrl || '').trim();
+    const rawBase = explicitSite || String(settings.convexUrl || '').trim();
+    if (!rawBase) return '';
+    try {
+      const url = new URL(rawBase);
+      if (url.hostname.endsWith('.convex.cloud')) {
+        url.hostname = url.hostname.replace(/\.convex\.cloud$/i, '.convex.site');
+      }
+      return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
+    } catch {
+      return rawBase.replace(/\/+$/, '');
+    }
+  }
+
   canUseConvexProxy(settings: Record<string, any> = {}) {
-    return Boolean(String(settings.convexUrl || '').trim() && String(settings.convexAccessToken || '').trim());
+    return Boolean(this.resolveConvexProxyBaseUrl(settings) && String(settings.convexAccessToken || '').trim());
+  }
+
+  async refreshConvexProxyAuthSession(settings: Record<string, any>, options: { force?: boolean } = {}) {
+    const mode = String(settings.accountModeChoice || '').trim().toLowerCase();
+    if (mode !== 'paid') return false;
+    if (!this.resolveConvexProxyBaseUrl(settings)) return false;
+
+    try {
+      const session = await refreshRuntimeAuthSession({ force: options.force === true });
+      const accessToken = String(session.accessToken || '').trim();
+      if (!accessToken) return false;
+      settings.convexAccessToken = accessToken;
+      settings.convexRefreshToken = String(session.refreshToken || '').trim();
+      settings.convexTokenExpiresAt = Number(session.expiresAt || 0);
+      return true;
+    } catch (error) {
+      console.warn('[paid-auth] Failed to refresh convex proxy auth session:', error);
+      return false;
+    }
   }
 
   applyConvexProxyProfile(profile: Record<string, any>, settings: Record<string, any>) {
     const preferredProvider =
       profile?.provider === 'kimi' ? 'kimi'
       : profile?.provider === 'anthropic' ? 'anthropic'
-      : profile?.provider === 'openrouter' ? 'openrouter'
+      : profile?.provider === 'openrouter' || profile?.provider === 'parchi' ? 'openrouter'
       : 'openai';
+    const requestedModel = String(profile?.model || settings.model || '').trim();
+    const normalizedModel = this.normalizeProxyModelId(preferredProvider, requestedModel);
+    const proxyBaseUrl = this.resolveConvexProxyBaseUrl(settings);
     return {
       provider: preferredProvider,
       apiKey: profile?.apiKey || '',
-      model: profile?.model || settings.model || '',
+      model: normalizedModel,
       customEndpoint: profile?.customEndpoint || '',
       extraHeaders: profile?.extraHeaders || {},
       useProxy: true,
-      proxyBaseUrl: String(settings.convexUrl || '').trim(),
+      proxyBaseUrl,
       proxyAuthToken: String(settings.convexAccessToken || '').trim(),
       proxyProvider: preferredProvider,
     };
@@ -2298,7 +2682,7 @@ When a tool fails:
         allowed: false,
         route: 'none',
         profile,
-        errorMessage: 'No API key configured. Open Settings and add your API key to get started.',
+        errorMessage: 'No access configured. Add your own API key in Setup, or buy credits in Account & Billing.',
       };
     }
     if (!this.canUseConvexProxy(settings)) {
@@ -2306,7 +2690,7 @@ When a tool fails:
         allowed: false,
         route: 'none',
         profile,
-        errorMessage: 'Paid plan is active but auth is missing. Sign in again in Account & Billing.',
+        errorMessage: 'Paid access is selected but auth is missing. Sign in again in Account & Billing, then click Refresh.',
       };
     }
     return {
@@ -2360,7 +2744,7 @@ When a tool fails:
     if (!provider) return false;
     if (provider === 'anthropic') return true;
     if (provider === 'kimi') return true;
-    if (provider === 'openrouter') {
+    if (provider === 'openrouter' || provider === 'parchi') {
       return /(claude|gpt-4o|gpt-4-turbo|gemini|vision)/i.test(model);
     }
     if (provider === 'openai') {
@@ -2436,6 +2820,35 @@ When a tool fails:
             },
           },
           required: ['step_index'],
+        },
+      },
+      {
+        name: 'list_report_images',
+        description:
+          'List screenshots captured in this run session and whether they are selected for the final report.',
+        input_schema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'select_report_images',
+        description:
+          'Select which captured screenshots should be included in the final report export. Use mode add/remove/replace/clear.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            imageIds: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Screenshot IDs from list_report_images.',
+            },
+            mode: {
+              type: 'string',
+              enum: ['replace', 'add', 'remove', 'clear'],
+              description: 'Selection mode. replace is default.',
+            },
+          },
         },
       },
     ]);

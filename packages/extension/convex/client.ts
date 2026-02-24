@@ -17,6 +17,8 @@ type AuthSignInResult = {
   redirect?: string;
   started?: boolean;
   verifier?: string;
+  completed?: boolean;
+  callbackUrl?: string;
 };
 
 const STORAGE_KEYS = {
@@ -34,9 +36,20 @@ const STORAGE_KEYS = {
 } as const;
 
 export const CONVEX_DEPLOYMENT_URL = String(typeof __CONVEX_URL__ === 'string' ? __CONVEX_URL__ : '').trim();
+const OAUTH_FALLBACK_REDIRECT_URL = 'https://parchi.ai/';
+const CREDIT_RECONCILE_COOLDOWN_MS = 30_000;
 
 let runtimeConvexUrl = CONVEX_DEPLOYMENT_URL;
 export let convexClient = runtimeConvexUrl ? new ConvexHttpClient(runtimeConvexUrl) : null;
+let lastCreditReconcileAt = 0;
+
+const isMissingReconcileFunctionError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return (
+    message.includes("Could not find public function for 'payments:reconcileCreditPurchases'") ||
+    (message.includes('Could not find public function') && message.includes('reconcileCreditPurchases'))
+  );
+};
 
 const resolveStoredConvexUrl = async () => {
   const stored = await chrome.storage.local.get([STORAGE_KEYS.convexUrl]);
@@ -119,6 +132,7 @@ const clearAuthStorage = async () => {
     STORAGE_KEYS.creditBalanceCents,
   ]);
   applyAuthTokenToClient(undefined);
+  lastCreditReconcileAt = 0;
 };
 
 const maybePersistAuthResult = async (result: AuthSignInResult | null | undefined) => {
@@ -127,7 +141,7 @@ const maybePersistAuthResult = async (result: AuthSignInResult | null | undefine
   }
 };
 
-const refreshAccessTokenIfNeeded = async () => {
+const refreshAccessTokenIfNeeded = async (options: { force?: boolean } = {}) => {
   if (!convexClient) return;
   const stored = await readStoredAuth();
   const accessToken = stored.convexAccessToken;
@@ -136,8 +150,9 @@ const refreshAccessTokenIfNeeded = async () => {
     return;
   }
 
+  const forceRefresh = options.force === true;
   const expiresAt = Number(stored.convexTokenExpiresAt || 0);
-  if (Number.isFinite(expiresAt) && expiresAt > Date.now() + 60_000) {
+  if (!forceRefresh && Number.isFinite(expiresAt) && expiresAt > Date.now() + 60_000) {
     applyAuthTokenToClient(accessToken);
     return;
   }
@@ -176,6 +191,18 @@ const ensureAuthReady = async () => {
   await refreshAccessTokenIfNeeded();
 };
 
+export async function refreshRuntimeAuthSession(options: { force?: boolean } = {}) {
+  await ensureClient();
+  await setStorageDefaults();
+  await refreshAccessTokenIfNeeded({ force: options.force === true });
+  const stored = await readStoredAuth();
+  return {
+    accessToken: String(stored.convexAccessToken || '').trim(),
+    refreshToken: String(stored.convexRefreshToken || '').trim(),
+    expiresAt: Number(stored.convexTokenExpiresAt || 0),
+  };
+}
+
 export const chromeTokenStorage = {
   async get() {
     return readStoredAuth();
@@ -210,14 +237,63 @@ export async function signUpWithPassword(email: string, password: string) {
 export async function signInWithOAuth(provider: 'google' | 'github') {
   await ensureAuthReady();
   const client = await ensureClient();
+  let extensionRedirectTo = '';
+  try {
+    extensionRedirectTo = String(chrome.identity.getRedirectURL('convex-auth') || '');
+  } catch {
+    extensionRedirectTo = '';
+  }
+  const canLaunchWebAuthFlow = extensionRedirectTo.length > 0;
+  const redirectTo = extensionRedirectTo || OAUTH_FALLBACK_REDIRECT_URL;
+
   const result = (await client.action(anyApi.auth.signIn, {
     provider,
     params: {
-      redirectTo: `https://parchi.ai/billing/success`,
+      redirectTo,
     },
   })) as AuthSignInResult;
-  await maybePersistAuthResult(result);
-  return result;
+
+  if (result?.tokens) {
+    await maybePersistAuthResult(result);
+    return { ...result, completed: true };
+  }
+
+  const oauthRedirectUrl = String(result?.redirect || '');
+  const oauthVerifier = String(result?.verifier || '');
+  if (!canLaunchWebAuthFlow || !extensionRedirectTo || !oauthRedirectUrl || !oauthVerifier) {
+    return result;
+  }
+
+  const callbackUrl = await new Promise<string>((resolve, reject) => {
+    chrome.identity.launchWebAuthFlow({ url: oauthRedirectUrl, interactive: true }, (responseUrl) => {
+      const runtimeError = chrome.runtime?.lastError;
+      if (runtimeError) {
+        reject(new Error(runtimeError.message || 'OAuth sign-in was interrupted.'));
+        return;
+      }
+      if (!responseUrl) {
+        reject(new Error('OAuth sign-in did not return a callback URL.'));
+        return;
+      }
+      resolve(responseUrl);
+    });
+  });
+
+  const callbackCode = new URL(callbackUrl).searchParams.get('code');
+  if (!callbackCode) {
+    throw new Error('OAuth callback did not include a sign-in code.');
+  }
+
+  const finalizeResult = (await client.action(anyApi.auth.signIn, {
+    params: { code: callbackCode },
+    verifier: oauthVerifier,
+  })) as AuthSignInResult;
+  await maybePersistAuthResult(finalizeResult);
+  return {
+    ...finalizeResult,
+    completed: Boolean(finalizeResult?.tokens),
+    callbackUrl,
+  };
 }
 
 export async function signOutAccount() {
@@ -233,7 +309,29 @@ export async function getSubscription() {
   return client.query(anyApi.subscriptions.getCurrent, {});
 }
 
-export async function getAuthState() {
+export async function reconcileCreditPurchases({ force = false } = {}) {
+  await ensureAuthReady();
+  const now = Date.now();
+  if (!force && now - lastCreditReconcileAt < CREDIT_RECONCILE_COOLDOWN_MS) {
+    return { skipped: true, reason: 'cooldown' as const };
+  }
+
+  const client = await ensureClient();
+  lastCreditReconcileAt = now;
+  try {
+    return await client.action(anyApi.payments.reconcileCreditPurchases, {});
+  } catch (error) {
+    // Allow immediate retry if reconciliation failed.
+    lastCreditReconcileAt = 0;
+    if (isMissingReconcileFunctionError(error)) {
+      console.warn('[billing] reconcileCreditPurchases unavailable on backend deployment');
+      return { skipped: true, reason: 'function_unavailable' as const };
+    }
+    throw error;
+  }
+}
+
+export async function getAuthState(options: { reconcileCredits?: boolean; forceCreditReconcile?: boolean } = {}) {
   await ensureAuthReady();
   const client = await ensureClient();
   const authenticated = await client.query(anyApi.auth.isAuthenticated, {});
@@ -241,6 +339,19 @@ export async function getAuthState() {
     await clearAuthStorage();
     return { authenticated: false, user: null, subscription: null };
   }
+
+  if (options.reconcileCredits) {
+    try {
+      await reconcileCreditPurchases({ force: Boolean(options.forceCreditReconcile) });
+    } catch (error) {
+      // Keep auth state readable, but surface force-refresh reconciliation failures to the caller/UI.
+      if (options.forceCreditReconcile) {
+        throw error;
+      }
+      console.warn('[billing] reconcileCreditPurchases failed', error);
+    }
+  }
+
   const [user, subscription] = await Promise.all([
     client.query(anyApi.users.me, {}),
     client.query(anyApi.subscriptions.getCurrent, {}),

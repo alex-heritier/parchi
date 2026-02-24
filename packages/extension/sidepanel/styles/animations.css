@@ -315,26 +315,15 @@
 }
 
 .icon-btn::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.15), transparent 70%);
-  opacity: 0;
-  transform: scale(0.5);
-  transition: all var(--duration-fast);
+  display: none;
 }
 
 .icon-btn:hover {
-  transform: scale(1.05);
-}
-
-.icon-btn:hover::before {
-  opacity: 1;
-  transform: scale(1);
+  transform: none;
 }
 
 .icon-btn:active {
-  transform: scale(0.95);
+  transform: scale(0.98);
 }
 
 .send-btn {

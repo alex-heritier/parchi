@@ -17,6 +17,7 @@
             <label for="profileEditorProvider">Provider</label>
             <select id="profileEditorProvider">
                 <option value="">Add provider...</option>
+                <option value="parchi">Parchi (Managed)</option>
                 <option value="openai">OpenAI</option>
                 <option value="anthropic">Anthropic</option>
                 <option value="kimi">Kimi (Coding)</option>
@@ -30,7 +31,7 @@
         </div>
         <div class="form-group">
             <label for="profileEditorModel">Model</label>
-            <input type="text" id="profileEditorModel" placeholder="Enter model ID" />
+            <input type="text" id="profileEditorModel" list="modelSuggestions" placeholder="Enter model ID" />
         </div>
         <div class="form-group" id="profileEditorEndpointGroup" style="display: none">
             <label for="profileEditorEndpoint">Endpoint</label>

@@ -17,6 +17,7 @@ import {
   normalizeConversationHistory,
   toProviderMessages,
 } from '../../packages/extension/ai/message-schema.js';
+import { classifyApiError } from '../../packages/extension/ai/error-classifier.js';
 import type { Message } from '../../packages/extension/ai/message-schema.js';
 import { extractThinking } from '../../packages/extension/ai/message-utils.js';
 import { createExponentialBackoff, isValidFinalResponse } from '../../packages/extension/ai/retry-engine.js';
@@ -321,6 +322,105 @@ function testErrorHandling(runner: TestRunner) {
         runner.assertTrue(true);
       }
     });
+  });
+}
+
+// Test API Error Classification
+function testApiErrorClassification(runner: TestRunner) {
+  log('\n=== Testing API Error Classification ===', 'info');
+
+  runner.test('404 route errors are not mislabeled as model errors', () => {
+    const classified = classifyApiError({
+      statusCode: 404,
+      message: 'Not Found',
+      responseBody: '{"error":"Route not found: /ai-proxy/openrouter/chat/completions"}',
+    });
+    runner.assertEqual(classified.category, 'server');
+  });
+
+  runner.test('Model missing responses classify as model errors', () => {
+    const classified = classifyApiError({
+      statusCode: 404,
+      message: 'Not Found',
+      responseBody: '{"error":{"message":"The model `openai/not-real` does not exist"}}',
+    });
+    runner.assertEqual(classified.category, 'model');
+  });
+
+  runner.test('402 entitlement responses classify as managed-access issues', () => {
+    const classified = classifyApiError({
+      statusCode: 402,
+      message: 'Payment Required',
+      responseBody: '{"error":"Insufficient credits. Purchase credits to continue."}',
+    });
+    runner.assertEqual(classified.category, 'auth');
+    runner.assertTrue(String(classified.action || '').toLowerCase().includes('account & billing'));
+  });
+
+  runner.test('Managed proxy auth errors avoid BYOK-only guidance', () => {
+    const classified = classifyApiError({
+      statusCode: 401,
+      message: 'Unauthorized',
+      responseBody: '{"error":"Unauthorized at /ai-proxy/openrouter/v1/chat/completions"}',
+    });
+    runner.assertEqual(classified.category, 'auth');
+    runner.assertTrue(String(classified.message || '').toLowerCase().includes('managed runtime'));
+    runner.assertFalse(String(classified.action || '').toLowerCase().includes('check your api key in settings'));
+  });
+
+  runner.test('Paid/parchi auth errors avoid BYOK guidance even without ai-proxy text', () => {
+    const classified = classifyApiError(
+      {
+        statusCode: 401,
+        message: 'Incorrect API key provided',
+        responseBody: '{"error":{"message":"Incorrect API key provided"}}',
+      },
+      {
+        route: 'proxy',
+        provider: 'openrouter',
+        model: 'parchi/moonshotai/kimi-k2.5',
+        useProxy: true,
+      },
+    );
+    runner.assertEqual(classified.category, 'auth');
+    runner.assertTrue(String(classified.message || '').toLowerCase().includes('managed runtime'));
+    runner.assertFalse(String(classified.action || '').toLowerCase().includes('check your api key in settings'));
+  });
+
+  runner.test('Managed proxy invalid key points to backend OPENROUTER_API_KEY fix', () => {
+    const classified = classifyApiError(
+      {
+        statusCode: 401,
+        message: 'Unauthorized',
+        responseBody: '{"error":{"message":"Incorrect API key provided"}}',
+      },
+      {
+        route: 'proxy',
+        provider: 'openrouter',
+        model: 'parchi/moonshotai/kimi-k2.5',
+        useProxy: true,
+      },
+    );
+    runner.assertEqual(classified.category, 'auth');
+    runner.assertTrue(String(classified.message || '').toLowerCase().includes('managed runtime key'));
+    runner.assertTrue(String(classified.action || '').includes('OPENROUTER_API_KEY'));
+  });
+
+  runner.test('Missing managed server key points to backend env setup', () => {
+    const classified = classifyApiError(
+      {
+        statusCode: 500,
+        message: 'Missing OPENROUTER_API_KEY',
+      },
+      {
+        route: 'proxy',
+        provider: 'openrouter',
+        useProxy: true,
+      },
+    );
+    runner.assertEqual(classified.category, 'auth');
+    runner.assertTrue(String(classified.message || '').toLowerCase().includes('missing server credentials'));
+    runner.assertTrue(String(classified.action || '').includes('OPENROUTER_API_KEY'));
   });
 }
 
@@ -639,6 +739,7 @@ function main() {
   testToolSchemaConversion(runner);
   testInputValidation(runner);
   testErrorHandling(runner);
+  testApiErrorClassification(runner);
   testMessageSchema(runner);
 
   testConversationCompaction(runner);

@@ -15,28 +15,104 @@ export type ClassifiedError = {
   recoverable: boolean;
 };
 
-export function classifyApiError(error: unknown): ClassifiedError {
-  const msg = error instanceof Error ? error.message : String(error ?? '');
+export type ErrorClassificationContext = {
+  route?: string;
+  provider?: string;
+  proxyProvider?: string;
+  model?: string;
+  useProxy?: boolean;
+};
+
+export function classifyApiError(error: unknown, context: ErrorClassificationContext = {}): ClassifiedError {
+  const msg = error instanceof Error
+    ? error.message
+    : typeof (error as any)?.message === 'string'
+      ? String((error as any).message)
+      : String(error ?? '');
   const statusCode = (error as any)?.statusCode ?? (error as any)?.status ?? 0;
   const responseBody = String((error as any)?.responseBody ?? '');
-  const combined = `${msg} ${responseBody}`.toLowerCase();
+  const contextCombined = `${context.route || ''} ${context.provider || ''} ${context.proxyProvider || ''} ${context.model || ''}`.toLowerCase();
+  const combined = `${msg} ${responseBody} ${contextCombined}`.toLowerCase();
+  const contextSignalsManaged =
+    context.route === 'proxy' ||
+    context.useProxy === true ||
+    String(context.provider || '').toLowerCase() === 'parchi' ||
+    String(context.model || '').toLowerCase().startsWith('parchi/');
+  const hasManagedRouteSignal =
+    contextSignalsManaged ||
+    combined.includes('/ai-proxy') ||
+    combined.includes('convex') ||
+    combined.includes('parchi managed') ||
+    combined.includes('parchi/') ||
+    combined.includes('insufficient credits') ||
+    combined.includes('subscription is not active') ||
+    combined.includes('recovery token');
+  const hasAuthKeySignal =
+    combined.includes('invalid api key') ||
+    combined.includes('invalid x-api-key') ||
+    combined.includes('incorrect api key');
+  const hasModelSignal =
+    combined.includes('model not found') ||
+    combined.includes('invalid model') ||
+    combined.includes('model is unavailable') ||
+    combined.includes('model not available') ||
+    combined.includes('model is not available') ||
+    /model[^.\n]{0,120}(does not exist|not found|unavailable|invalid)/i.test(combined);
+
+  // Managed billing / entitlement issues
+  if (
+    statusCode === 402 ||
+    combined.includes('insufficient credits') ||
+    combined.includes('buy credits') ||
+    combined.includes('subscription is not active') ||
+    combined.includes('checkout session not paid')
+  ) {
+    return {
+      category: 'auth',
+      message: 'Managed access is unavailable for this request.',
+      action:
+        'Open Account & Billing to buy credits or reactivate your subscription. If a managed key expired, use Recover/Regenerate key.',
+      recoverable: true,
+    };
+  }
+
+  if (
+    hasManagedRouteSignal &&
+    (combined.includes('missing openrouter_api_key') || combined.includes('missing openrouter api key'))
+  ) {
+    return {
+      category: 'auth',
+      message: 'Managed runtime is missing server credentials.',
+      action:
+        'Set OPENROUTER_API_KEY in backend/Convex env, then deploy. Paid proxy mode uses the server key, not a user BYOK key.',
+      recoverable: false,
+    };
+  }
 
   // Auth errors
   if (
     statusCode === 401 ||
     statusCode === 403 ||
-    combined.includes('invalid api key') ||
-    combined.includes('invalid x-api-key') ||
-    combined.includes('incorrect api key') ||
+    hasAuthKeySignal ||
     combined.includes('authentication') ||
     combined.includes('unauthorized') ||
     combined.includes('forbidden') ||
     combined.includes('permission denied')
   ) {
+    const managedAuthMessage = hasAuthKeySignal
+      ? 'Managed runtime key is invalid or expired.'
+      : 'Managed runtime authentication failed.';
+    const managedAuthAction = hasAuthKeySignal
+      ? 'Fix OPENROUTER_API_KEY in backend/Convex env (use an inference key, not OPENROUTER_MANAGEMENT_KEY), then deploy.'
+      : 'If you are in Paid mode, this is not your BYOK key. Refresh Account & Billing. If needed, recover/regenerate your managed key.';
     return {
       category: 'auth',
-      message: 'Authentication failed. Your API key may be invalid or expired.',
-      action: 'Check your API key in Settings.',
+      message: hasManagedRouteSignal
+        ? managedAuthMessage
+        : 'Authentication failed. Credentials may be invalid or expired.',
+      action: hasManagedRouteSignal
+        ? managedAuthAction
+        : 'If using BYOK, check your API key in Settings.',
       recoverable: false,
     };
   }
@@ -74,17 +150,31 @@ export function classifyApiError(error: unknown): ClassifiedError {
     };
   }
 
-  // Model errors
+  // Endpoint/route errors (avoid mislabeling generic 404s as model failures)
   if (
-    statusCode === 404 ||
-    combined.includes('model not found') ||
-    combined.includes('does not exist') ||
-    combined.includes('invalid model') ||
-    combined.includes('not available')
+    statusCode === 404 &&
+    !hasModelSignal &&
+    (combined.includes('/ai-proxy') ||
+      combined.includes('route not found') ||
+      combined.includes('endpoint not found') ||
+      combined.includes('path not found') ||
+      combined.includes('deployment not found') ||
+      combined.includes('convex'))
   ) {
     return {
+      category: 'server',
+      message: 'Runtime endpoint was not found (404).',
+      action: 'Use your Convex HTTP URL (*.convex.site), and ensure ai-proxy routes are deployed.',
+      recoverable: false,
+    };
+  }
+
+  // Model errors
+  if (hasModelSignal) {
+    const detail = responseBody ? ` Upstream: ${responseBody.slice(0, 300)}` : '';
+    return {
       category: 'model',
-      message: 'Model not found or unavailable.',
+      message: `Model not found or unavailable.${detail}`,
       action: 'Check the model name in your profile settings.',
       recoverable: false,
     };

@@ -20,13 +20,21 @@ const formatTime = (ms: number): string => {
 
   this.elements.recordBtn?.classList.add('recording');
   this.showRecordingTimer();
+  this.updateStatus('Recording started. Click again to stop.', 'active');
 
   try {
-    const response = await chrome.runtime.sendMessage({ type: 'recording_start' });
+    // Resolve the active tab from the sidepanel context so the background
+    // service worker doesn't have to guess.
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tabId = activeTab?.id;
+    if (!tabId) throw new Error('No active tab found');
+
+    const response = await chrome.runtime.sendMessage({ type: 'recording_start', tabId });
     if (response && response.success === false) {
       throw new Error(response.error || 'Recording failed');
     }
   } catch (err: any) {
+    console.error('[Parchi] Recording start failed:', err);
     this.cleanupRecordingUI();
     this.updateStatus('Recording failed: ' + (err.message || err), 'error');
     return;
@@ -52,6 +60,7 @@ const formatTime = (ms: number): string => {
 
   this.elements.recordBtn?.classList.remove('recording');
   this.hideRecordingTimer();
+  this.updateStatus('Recording stopped. Preparing review...', 'active');
 
   try {
     await chrome.runtime.sendMessage({ type: 'recording_stop' });
@@ -371,6 +380,7 @@ const formatTime = (ms: number): string => {
       break;
     }
     case 'recording_context_ready': {
+      this.cleanupRecordingUI();
       this.attachRecordedContext(message.context);
       this.updateStatus('Recording attached', 'success');
       break;

@@ -9,7 +9,7 @@
   bottom: 120px;
   right: 16px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   padding: 10px 14px;
   background: var(--card);
@@ -45,6 +45,11 @@
 
 .error-banner .error-icon {
   flex-shrink: 0;
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  align-self: flex-start;
   color: var(--error);
 }
 
@@ -54,6 +59,7 @@
 
 .error-banner .error-dismiss {
   flex-shrink: 0;
+  align-self: flex-start;
   padding: 3px 10px;
   font-size: 11px;
   background: transparent;
@@ -92,6 +98,7 @@
 
 .error-banner .error-settings-btn {
   flex-shrink: 0;
+  align-self: flex-start;
   padding: 3px 10px;
   font-size: 11px;
   font-weight: 550;
@@ -172,6 +179,15 @@ select:focus-visible {
   outline: 2px solid rgb(var(--accent-rgb) / 0.5);
   outline-offset: 2px;
   box-shadow: 0 0 0 4px rgb(var(--accent-rgb) / 0.1);
+}
+
+.icon-btn:focus-visible,
+.settings-fab:focus-visible,
+.history-fab:focus-visible,
+.new-session-fab:focus-visible,
+.session-tabs-orb-btn:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 /* Disabled */

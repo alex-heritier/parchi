@@ -10,6 +10,7 @@
         <label for="provider">Provider</label>
         <select id="provider">
             <option value="">Add provider...</option>
+            <option value="parchi">Parchi (Managed)</option>
             <option value="anthropic">Anthropic (Claude)</option>
             <option value="openai">OpenAI</option>
             <option value="kimi">Kimi (Coding)</option>
@@ -24,7 +25,8 @@
     </div>
     <div class="form-group">
         <label for="model">Model</label>
-        <input type="text" id="model" placeholder="e.g., claude-sonnet-4-20250514" />
+        <input type="text" id="model" list="modelSuggestions" placeholder="e.g., claude-sonnet-4-20250514" />
+        <datalist id="modelSuggestions"></datalist>
         <small id="modelHint">Recommended: claude-sonnet-4-20250514</small>
     </div>
     <div class="form-group" id="customEndpointGroup">
@@ -50,7 +52,7 @@
             </div>
 
             <div id="accountAuthSignedOut" class="account-auth-block">
-                <div class="account-inline-note">Sign in to manage subscriptions and enable proxy mode.</div>
+                <div class="account-inline-note">No setup yet. Either sign in + buy credits, or switch to Setup and add your own API key.</div>
                 <div class="form-group">
                     <label for="accountEmailInput">Email</label>
                     <input type="email" id="accountEmailInput" placeholder="you@example.com" />
@@ -88,6 +90,55 @@
                         <span class="account-stat-label">Usage</span>
                         <span id="accountUsageValue" class="account-stat-value">0 req · 0 tokens</span>
                     </div>
+                    <div class="account-stat">
+                        <span class="account-stat-label">Spend (month)</span>
+                        <span id="accountCostMonthValue" class="account-stat-value">$0.00</span>
+                    </div>
+                    <div class="account-stat">
+                        <span class="account-stat-label">Last charge</span>
+                        <span id="accountLastChargeValue" class="account-stat-value">-</span>
+                    </div>
+                </div>
+                <div class="account-usage-panels">
+                    <div class="account-chart-card">
+                        <div class="account-chart-header">
+                            <span>Credit Flow (30d)</span>
+                            <span id="accountCreditFlowLabel" class="account-chart-meta">$0.00 / $0.00</span>
+                        </div>
+                        <div id="accountCreditFlowBar" class="account-credit-flow-bar">
+                            <span id="accountCreditDebitFill" class="account-credit-fill debit" style="width: 0%;"></span>
+                            <span id="accountCreditCreditFill" class="account-credit-fill credit" style="width: 0%;"></span>
+                        </div>
+                        <div class="account-chart-legend">
+                            <span class="account-legend-item"><i class="legend-swatch debit"></i>Debits</span>
+                            <span class="account-legend-item"><i class="legend-swatch credit"></i>Credits</span>
+                        </div>
+                    </div>
+                    <div class="account-chart-card">
+                        <div class="account-chart-header">
+                            <span>Spend Last 7 Days</span>
+                            <span id="accountSpend7dTotal" class="account-chart-meta">$0.00</span>
+                        </div>
+                        <div id="accountSpend7dChart" class="account-spend-chart"></div>
+                    </div>
+                    <div class="account-chart-card">
+                        <div class="account-chart-header">
+                            <span>Runtime Density</span>
+                            <span id="accountDensityLabel" class="account-chart-meta">0 req / 0 tok</span>
+                        </div>
+                        <div class="account-density-row">
+                            <span>Requests</span>
+                            <div class="account-density-track">
+                                <span id="accountRequestDensityFill" class="account-density-fill" style="width: 0%;"></span>
+                            </div>
+                        </div>
+                        <div class="account-density-row">
+                            <span>Tokens</span>
+                            <div class="account-density-track">
+                                <span id="accountTokenDensityFill" class="account-density-fill" style="width: 0%;"></span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div id="accountBuyCreditsRow" class="form-row">
                     <button class="btn btn-secondary credit-buy-btn" data-cents="500" style="flex: 1;">$5</button>
@@ -101,6 +152,15 @@
                 <div class="form-row">
                     <button id="accountRefreshBtn" class="btn btn-secondary" style="flex: 1;">Refresh</button>
                     <button id="accountSignOutBtn" class="btn btn-secondary" style="flex: 1;">Sign Out</button>
+                </div>
+                <div class="account-ledger">
+                    <div class="account-ledger-header">
+                        <span>Recent Cost Activity</span>
+                        <span class="account-ledger-subtitle">Reservations, settlements, refunds</span>
+                    </div>
+                    <div id="accountLedgerList" class="account-ledger-list">
+                        <div class="account-ledger-empty">No transactions yet.</div>
+                    </div>
                 </div>
                 <div id="accountStatusTextSignedIn" class="account-inline-note"></div>
             </div>
@@ -149,6 +209,22 @@
     <div class="form-group">
         <label for="uiZoom">Text Size <span class="form-value" id="uiZoomValue">100%</span></label>
         <input type="range" id="uiZoom" min="0.85" max="1.25" step="0.05" value="1" />
+    </div>
+    <div class="form-group">
+        <label for="fontPreset">Typography</label>
+        <select id="fontPreset">
+            <option value="default">Default</option>
+            <option value="geist">Geist</option>
+            <option value="soft">Soft</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="fontStylePreset">Font Style</label>
+        <select id="fontStylePreset">
+            <option value="normal">Regular</option>
+            <option value="medium">Medium</option>
+            <option value="semibold">Semibold</option>
+        </select>
     </div>
     <div class="settings-divider"></div>
     <div class="form-group">

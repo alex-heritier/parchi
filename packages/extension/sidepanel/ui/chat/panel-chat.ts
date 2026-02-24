@@ -256,6 +256,32 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
     this.updateUsageStats(normalizedUsage);
   }
   const messageMeta = this.buildMessageMeta(normalizedUsage, modelLabel);
+  const selectedReportImages = typeof this.getSelectedReportImagesForExport === 'function'
+    ? this.getSelectedReportImagesForExport()
+    : [];
+  const buildReportImagesHtml = () => {
+    if (!Array.isArray(selectedReportImages) || selectedReportImages.length === 0) return '';
+    const cards = selectedReportImages
+      .map((image: any, index: number) => {
+        const label = this.escapeHtml(image.title || image.url || image.id || `Image ${index + 1}`);
+        const src = String(image.dataUrl || '');
+        if (!src) return '';
+        return `
+          <figure class="report-image-card">
+            <img src="${src}" alt="${label}" loading="lazy" />
+            <figcaption>${label}</figcaption>
+          </figure>
+        `;
+      })
+      .join('');
+    if (!cards) return '';
+    return `
+      <div class="report-images-inline">
+        <div class="report-images-inline-title">Selected report images</div>
+        <div class="report-images-inline-grid">${cards}</div>
+      </div>
+    `;
+  };
 
   const assistantEntry = createMessage({
     role: 'assistant',
@@ -341,6 +367,16 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
         streamEventsEl.appendChild(textEvent);
       }
 
+      const reportImagesHtml = buildReportImagesHtml();
+      if (reportImagesHtml) {
+        const existing = streamEventsEl.querySelector('.report-images-inline');
+        existing?.remove();
+        const reportBlock = document.createElement('div');
+        reportBlock.className = 'stream-event stream-event-report-images';
+        reportBlock.innerHTML = reportImagesHtml;
+        streamEventsEl.appendChild(reportBlock);
+      }
+
       // Collapse tool rows by default with a summary toggle
       const toolRows = streamEventsEl.querySelectorAll('.tool-row');
       if (toolRows.length > 0) {
@@ -402,6 +438,11 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
   if (content && content.trim() !== '') {
     const renderedContent = this.renderMarkdown(content);
     html += `<div class="message-content markdown-body">${renderedContent}</div>`;
+  }
+
+  const reportImagesHtml = buildReportImagesHtml();
+  if (reportImagesHtml) {
+    html += reportImagesHtml;
   }
 
   messageDiv.innerHTML = html;

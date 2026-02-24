@@ -16,11 +16,11 @@
   flex-direction: column;
   gap: 0;
   background: var(--card);
-  border: none;
+  border: 1px solid var(--ink-2);
   border-radius: 16px;
   overflow: hidden;
   box-shadow: none;
-  transition: box-shadow 0.3s;
+  transition: box-shadow 0.3s, border-color 0.3s;
   position: relative;
 }
 
@@ -31,7 +31,7 @@
 
 /* Running state — model is working */
 .composer.running {
-  border: none;
+  border-color: var(--ink-2);
   box-shadow: none;
 }
 
@@ -235,14 +235,13 @@
   height: 28px;
   border-radius: 8px;
   background: transparent;
-  border: 1px solid transparent;
+  border: none;
   box-shadow: none;
   color: var(--muted-dim);
 }
 
 .composer .icon-btn:hover {
   background: rgba(255, 255, 255, 0.055);
-  border-color: rgba(255, 255, 255, 0.04);
   color: var(--foreground);
 }
 
@@ -253,7 +252,6 @@
 
 .tab-selector-btn.has-selection {
   background: rgb(var(--accent-rgb) / 0.08);
-  border-color: rgb(var(--accent-rgb) / 0.15);
   color: var(--foreground);
 }
 
@@ -347,6 +345,76 @@
   transform: translateY(-50%);
 }
 
+.setup-access-btn {
+  height: 28px;
+  border-radius: 9999px;
+  border: 1px solid rgb(var(--accent-rgb) / 0.45);
+  background: rgb(var(--accent-rgb) / 0.14);
+  color: var(--foreground);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 0 12px;
+  white-space: nowrap;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+}
+
+.setup-access-btn:hover {
+  background: rgb(var(--accent-rgb) / 0.22);
+  border-color: rgb(var(--accent-rgb) / 0.65);
+}
+
+.setup-access-btn:active {
+  transform: scale(0.98);
+}
+
+.paid-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  height: 22px;
+  width: 18px;
+  min-width: 18px;
+  border-radius: 9999px;
+  padding: 0;
+  border: none;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+}
+
+.paid-status-badge .paid-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.paid-status-badge .paid-status-text {
+  display: none;
+}
+
+.paid-status-badge.is-active {
+  color: rgb(var(--success-rgb, 86 194 106));
+  background: rgb(var(--success-rgb, 86 194 106) / 0.12);
+}
+
+.paid-status-badge.is-warning {
+  color: rgb(var(--warning-rgb, 245 171 53));
+  background: rgb(var(--warning-rgb, 245 171 53) / 0.12);
+}
+
+.paid-status-badge.is-error {
+  color: rgb(var(--error-rgb, 239 68 68));
+  background: rgb(var(--error-rgb, 239 68 68) / 0.12);
+}
+
 @media (max-width: 640px) {
   .model-selector {
     padding: 0 10px;
@@ -355,6 +423,10 @@
   .model-selector select {
     max-width: 120px;
     font-size: 11px;
+  }
+  .paid-status-badge {
+    width: 16px;
+    min-width: 16px;
   }
 }
 
@@ -370,6 +442,11 @@
 
   .model-selector {
     max-width: 160px;
+  }
+  .setup-access-btn {
+    max-width: 170px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
@@ -574,7 +651,7 @@
   align-items: center;
   justify-content: center;
   background: transparent;
-  border: 1px solid transparent;
+  border: none;
   border-radius: 10px;
   color: var(--muted);
   position: relative;
@@ -589,9 +666,8 @@
 
 .icon-btn:hover {
   background: rgba(255, 255, 255, 0.055);
-  border-color: rgba(255, 255, 255, 0.06);
   color: var(--foreground);
-  box-shadow: 0 0 14px rgba(255, 255, 255, 0.025);
+  box-shadow: none;
 }
 
 .icon-btn:active {

@@ -211,6 +211,129 @@ const toolIcons: Record<string, string> = {
 
   // Store result for potential expansion
   entry.result = result;
+  this.attachScreenshotPreview(entry, result);
+};
+
+(SidePanelUI.prototype as any).recordReportImage = function recordReportImage(image: any) {
+  if (!image || typeof image.id !== 'string' || typeof image.dataUrl !== 'string') return;
+  const normalized = {
+    id: image.id,
+    dataUrl: image.dataUrl,
+    capturedAt: Number(image.capturedAt || Date.now()),
+    toolCallId: typeof image.toolCallId === 'string' ? image.toolCallId : undefined,
+    tabId: typeof image.tabId === 'number' ? image.tabId : undefined,
+    url: typeof image.url === 'string' ? image.url : undefined,
+    title: typeof image.title === 'string' ? image.title : undefined,
+    visionDescription: typeof image.visionDescription === 'string' ? image.visionDescription : undefined,
+    selected: image.selected === true,
+  };
+  if (!this.reportImages.has(normalized.id)) {
+    this.reportImageOrder.push(normalized.id);
+  }
+  this.reportImages.set(normalized.id, normalized);
+  if (normalized.selected) {
+    this.selectedReportImageIds.add(normalized.id);
+  } else {
+    this.selectedReportImageIds.delete(normalized.id);
+  }
+
+  if (normalized.toolCallId) {
+    const entry = this.toolCallViews.get(normalized.toolCallId);
+    if (entry) {
+      this.attachScreenshotPreview(entry, { reportImageId: normalized.id });
+    }
+  }
+};
+
+(SidePanelUI.prototype as any).updateReportImageSelection = function updateReportImageSelection(ids: any[]) {
+  const nextSelected = new Set(
+    (Array.isArray(ids) ? ids : [])
+      .map((value: unknown) => String(value || '').trim())
+      .filter((value: string) => value.length > 0),
+  );
+  this.selectedReportImageIds = nextSelected;
+  this.reportImages.forEach((image: any, id: string) => {
+    image.selected = nextSelected.has(id);
+  });
+
+  const checkboxes = document.querySelectorAll<HTMLInputElement>('.report-image-toggle[data-report-image-id]');
+  checkboxes.forEach((checkbox) => {
+    const imageId = checkbox.dataset.reportImageId || '';
+    const isSelected = nextSelected.has(imageId);
+    checkbox.checked = isSelected;
+    checkbox.closest('.tool-screenshot-preview')?.classList.toggle('selected', isSelected);
+  });
+};
+
+(SidePanelUI.prototype as any).attachScreenshotPreview = function attachScreenshotPreview(entry: any, result: any) {
+  if (!entry?.element) return;
+
+  let image: any = null;
+  const imageId = typeof result?.reportImageId === 'string' ? result.reportImageId : '';
+  if (imageId) {
+    image = this.reportImages.get(imageId) || null;
+  }
+
+  if (!image && typeof result?.dataUrl === 'string' && result.dataUrl.startsWith('data:image/')) {
+    const fallbackId = imageId || `img-inline-${entry.id}`;
+    const fallbackImage = {
+      id: fallbackId,
+      dataUrl: result.dataUrl,
+      capturedAt: Date.now(),
+      toolCallId: entry.id,
+      tabId: typeof result?.tabId === 'number' ? result.tabId : undefined,
+      url: typeof result?.url === 'string' ? result.url : undefined,
+      title: typeof result?.title === 'string' ? result.title : undefined,
+      visionDescription: typeof result?.visionDescription === 'string' ? result.visionDescription : undefined,
+      selected: this.selectedReportImageIds.has(fallbackId),
+    };
+    this.recordReportImage(fallbackImage);
+    image = this.reportImages.get(fallbackId) || fallbackImage;
+  }
+
+  if (!image || typeof image.dataUrl !== 'string') return;
+
+  let preview = entry.element.querySelector('.tool-screenshot-preview') as HTMLElement | null;
+  if (!preview) {
+    preview = document.createElement('div');
+    preview.className = 'tool-screenshot-preview';
+    entry.element.appendChild(preview);
+  }
+  entry.element.classList.add('has-preview');
+
+  const imageLabel = this.truncateText(image.title || image.url || image.id, 46);
+  const isSelected = this.selectedReportImageIds.has(image.id) || image.selected === true;
+  preview.classList.toggle('selected', isSelected);
+  preview.innerHTML = `
+    <img class="tool-screenshot-image" src="${image.dataUrl}" alt="${this.escapeHtml(imageLabel)}" />
+    <div class="tool-screenshot-meta">
+      <span class="tool-screenshot-label">${this.escapeHtml(imageLabel)}</span>
+      <label class="tool-screenshot-toggle">
+        <input
+          type="checkbox"
+          class="report-image-toggle"
+          data-report-image-id="${this.escapeHtml(image.id)}"
+          ${isSelected ? 'checked' : ''}
+        />
+        Include in report
+      </label>
+    </div>
+  `;
+
+  preview.addEventListener('click', (event) => event.stopPropagation());
+  const checkbox = preview.querySelector('.report-image-toggle') as HTMLInputElement | null;
+  checkbox?.addEventListener('click', (event) => event.stopPropagation());
+  checkbox?.addEventListener('change', (event) => {
+    event.stopPropagation();
+    const checked = checkbox.checked;
+    if (checked) {
+      this.selectedReportImageIds.add(image.id);
+    } else {
+      this.selectedReportImageIds.delete(image.id);
+    }
+    image.selected = checked;
+    preview.classList.toggle('selected', checked);
+  });
 };
 
 (SidePanelUI.prototype as any).refreshTimelineHud = function refreshTimelineHud() {
@@ -376,6 +499,11 @@ const toolIcons: Record<string, string> = {
   const usageLabel = this.buildUsageLabel?.(this.lastUsage);
   if (usageLabel) {
     toolbarLabels.push(usageLabel);
+  }
+
+  const paidStatusHoverLabel = String(this.paidStatusHoverLabel || '').trim();
+  if (paidStatusHoverLabel) {
+    toolbarLabels.push(paidStatusHoverLabel);
   }
 
   if (this.elements.statusMeta) {

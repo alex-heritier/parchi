@@ -51,6 +51,9 @@ import { SidePanelUI } from './panel-ui.js';
 };
 
 (SidePanelUI.prototype as any).startNewSession = function startNewSession() {
+  if (this.elements.composer?.classList.contains('running')) {
+    this.requestRunStop?.('Stopped (new session)');
+  }
   this.displayHistory = [];
   this.contextHistory = [];
   const suffix = typeof crypto?.randomUUID === 'function' ? crypto.randomUUID() : String(Date.now());
@@ -81,6 +84,9 @@ import { SidePanelUI } from './panel-ui.js';
   this.subagents.clear();
   this.activeAgent = 'main';
   this.historyTurnMap.clear();
+  this.reportImages.clear();
+  this.reportImageOrder = [];
+  this.selectedReportImageIds.clear();
   this.pendingTurnDraft = null;
   this.elements.chatMessages.innerHTML = '';
   this.toolCallViews.clear();

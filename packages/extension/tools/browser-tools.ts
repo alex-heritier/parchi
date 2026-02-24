@@ -5,6 +5,8 @@ type SessionTabSummary = {
   id: number;
   title?: string;
   url?: string;
+  favIconUrl?: string;
+  windowId?: number;
 };
 
 type GroupOptions = {
@@ -334,18 +336,36 @@ export class BrowserTools {
     };
   }
 
+  private toSessionTabSummary(tab: chrome.tabs.Tab | null | undefined): SessionTabSummary | null {
+    if (!tab || typeof tab.id !== 'number') return null;
+    return {
+      id: tab.id,
+      title: tab.title,
+      url: tab.url,
+      favIconUrl: tab.favIconUrl,
+      windowId: typeof tab.windowId === 'number' ? tab.windowId : undefined,
+    };
+  }
+
   async configureSessionTabs(tabs: chrome.tabs.Tab[], options: GroupOptions = {}) {
     this.sessionTabs.clear();
     this.currentSessionTabId = null;
     this.sessionTabGroupId = null;
 
-    tabs.forEach((tab) => {
-      if (typeof tab.id !== 'number') return;
-      this.sessionTabs.set(tab.id, { id: tab.id, title: tab.title, url: tab.url });
-      if (!this.currentSessionTabId) {
-        this.currentSessionTabId = tab.id;
+    for (const candidate of tabs) {
+      if (typeof candidate?.id !== 'number') continue;
+      try {
+        const tab = await chrome.tabs.get(candidate.id);
+        const summary = this.toSessionTabSummary(tab);
+        if (!summary) continue;
+        this.sessionTabs.set(summary.id, summary);
+        if (!this.currentSessionTabId) {
+          this.currentSessionTabId = summary.id;
+        }
+      } catch {
+        // Ignore stale IDs from sidepanel state; only keep live browser tabs.
       }
-    });
+    }
 
     if (tabs.length > 0 && this.supportsTabGroups) {
       await this.ensureSessionTabGroup({
@@ -490,7 +510,12 @@ export class BrowserTools {
       const activeTab = await getActiveTab();
       if (!activeTab || typeof activeTab.id !== 'number') return null;
       if (!this.sessionTabs.has(activeTab.id)) {
-        this.sessionTabs.set(activeTab.id, { id: activeTab.id, title: activeTab.title, url: activeTab.url });
+        this.sessionTabs.set(activeTab.id, {
+          id: activeTab.id,
+          title: activeTab.title,
+          url: activeTab.url,
+          windowId: typeof activeTab.windowId === 'number' ? activeTab.windowId : undefined,
+        });
       }
       this.currentSessionTabId = activeTab.id;
       return activeTab.id;
@@ -595,6 +620,38 @@ export class BrowserTools {
     }
   }
 
+  private async resolveSessionWindowId(): Promise<number | undefined> {
+    const candidateTabIds: number[] = [];
+    if (typeof this.currentSessionTabId === 'number') {
+      candidateTabIds.push(this.currentSessionTabId);
+    }
+    for (const tabId of this.sessionTabs.keys()) {
+      if (!candidateTabIds.includes(tabId)) {
+        candidateTabIds.push(tabId);
+      }
+    }
+
+    for (const tabId of candidateTabIds) {
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        if (typeof tab.windowId === 'number') {
+          return tab.windowId;
+        }
+      } catch {
+        // Ignore closed tabs and continue resolving from remaining session tabs.
+      }
+    }
+
+    try {
+      const activeTab = await getActiveTab();
+      if (activeTab && typeof activeTab.windowId === 'number') {
+        return activeTab.windowId;
+      }
+    } catch {}
+
+    return undefined;
+  }
+
   private async openTab(args: Record<string, any>) {
     // Enforce tab limit to prevent runaway tab creation
     if (this.sessionTabs.size >= MAX_SESSION_TABS) {
@@ -621,9 +678,21 @@ export class BrowserTools {
     }
 
     try {
-      const tab = await chrome.tabs.create({ url, active: true });
+      const targetWindowId = await this.resolveSessionWindowId();
+      const createOptions: chrome.tabs.CreateProperties = { url, active: true };
+      if (typeof targetWindowId === 'number') {
+        createOptions.windowId = targetWindowId;
+      }
+
+      const tab = await chrome.tabs.create(createOptions);
       if (typeof tab.id === 'number') {
-        this.sessionTabs.set(tab.id, { id: tab.id, title: tab.title, url: tab.url });
+        this.sessionTabs.set(tab.id, {
+          id: tab.id,
+          title: tab.title,
+          url: tab.url,
+          favIconUrl: tab.favIconUrl,
+          windowId: typeof tab.windowId === 'number' ? tab.windowId : undefined,
+        });
         this.currentSessionTabId = tab.id;
 
         if (this.supportsTabGroups && this.sessionTabGroupId !== null) {
@@ -649,8 +718,23 @@ export class BrowserTools {
   private async focusTab(args: Record<string, any>) {
     const tabId = typeof args.tabId === 'number' ? args.tabId : null;
     if (!tabId) return { success: false, error: 'Missing tabId.' };
+    const tab = await chrome.tabs.get(tabId);
+    if (typeof tab.windowId === 'number') {
+      try {
+        await chrome.windows.update(tab.windowId, { focused: true });
+      } catch {
+        // Continue and at least activate the tab even if window focus fails.
+      }
+    }
     await chrome.tabs.update(tabId, { active: true });
     this.currentSessionTabId = tabId;
+    const existing = this.sessionTabs.get(tabId);
+    if (existing) {
+      existing.windowId = typeof tab.windowId === 'number' ? tab.windowId : existing.windowId;
+      existing.title = tab.title || existing.title;
+      existing.url = tab.url || existing.url;
+      existing.favIconUrl = tab.favIconUrl || existing.favIconUrl;
+    }
     await this.sendOverlay(tabId, { label: 'Focused tab', durationMs: 1200 }, 1);
     return { success: true, tabId };
   }

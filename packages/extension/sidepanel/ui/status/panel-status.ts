@@ -1,5 +1,99 @@
 import { SidePanelUI } from '../core/panel-ui.js';
 
+const MODEL_CATALOG_TTL_MS = 3 * 60 * 1000;
+const MODEL_FETCH_TIMEOUT_MS = 9000;
+const MAX_MODELS_PER_PROVIDER = 250;
+const MAX_MODELS_TOTAL = 600;
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
+
+type ModelCatalogTarget = {
+  key: string;
+  provider: string;
+  endpointBase: string;
+  headers: Record<string, string>;
+};
+
+const normalizeProvider = (provider: unknown) => String(provider || '').trim().toLowerCase();
+
+const normalizeHeaders = (value: unknown): Record<string, string> => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key.length > 0)
+      .map(([key, headerValue]) => [key, headerValue == null ? '' : String(headerValue)]),
+  );
+};
+
+const normalizeEndpointBase = (provider: string, customEndpoint: string) => {
+  const raw = String(customEndpoint || '').trim();
+  const fallback =
+    provider === 'openrouter' || provider === 'parchi'
+      ? OPENROUTER_BASE_URL
+      : provider === 'openai'
+        ? 'https://api.openai.com/v1'
+        : provider === 'anthropic'
+          ? 'https://api.anthropic.com/v1'
+          : provider === 'kimi'
+            ? 'https://api.kimi.com/coding/v1'
+            : '';
+
+  const base = (raw || fallback)
+    .replace(/\/chat\/completions\/?$/i, '')
+    .replace(/\/completions\/?$/i, '')
+    .replace(/\/v1\/messages\/?$/i, '')
+    .replace(/\/messages\/?$/i, '')
+    .replace(/\/+$/, '');
+  return base;
+};
+
+const buildModelEndpointCandidates = (base: string): string[] => {
+  const normalized = String(base || '').trim().replace(/\/+$/, '');
+  if (!normalized) return [];
+  if (/\/v1$/i.test(normalized) || /\/api\/v1$/i.test(normalized)) {
+    return [`${normalized}/models`];
+  }
+  return [`${normalized}/models`, `${normalized}/v1/models`];
+};
+
+const extractModelIds = (payload: any): string[] => {
+  if (!payload) return [];
+  const source = Array.isArray(payload?.data)
+    ? payload.data
+    : Array.isArray(payload?.models)
+      ? payload.models
+      : Array.isArray(payload)
+        ? payload
+        : [];
+
+  const ids = source
+    .map((entry: any) => {
+      if (typeof entry === 'string') return entry;
+      if (entry && typeof entry.id === 'string') return entry.id;
+      if (entry && typeof entry.name === 'string') return entry.name;
+      return '';
+    })
+    .map((id: string) => id.trim())
+    .filter((id: string) => id.length > 0);
+
+  return Array.from(new Set(ids));
+};
+
+const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+  let timerId: number | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timerId = window.setTimeout(() => reject(new Error('Timed out')), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timerId !== null) {
+      window.clearTimeout(timerId);
+    }
+  }
+};
+
 (SidePanelUI.prototype as any).updateStatus = function updateStatus(text: string, type = 'default') {
   if (this.elements.statusText) {
     this.elements.statusText.textContent = text;
@@ -43,9 +137,194 @@ import { SidePanelUI } from '../core/panel-ui.js';
 };
 
 (SidePanelUI.prototype as any).fetchAvailableModels = async function fetchAvailableModels() {
-  // The composer dropdown shows saved profiles (not provider model IDs).
   this.populateModelSelect();
   this.updateModelDisplay();
+  await this.refreshModelCatalog();
+};
+
+(SidePanelUI.prototype as any).collectConfiguredModelFallbacks = function collectConfiguredModelFallbacks() {
+  const fallbacks: Array<{ provider: string; model: string }> = [];
+  const configs = this.configs && typeof this.configs === 'object' ? this.configs : {};
+  for (const profile of Object.values(configs)) {
+    if (!profile || typeof profile !== 'object') continue;
+    const provider = normalizeProvider((profile as any).provider);
+    const model = String((profile as any).model || '').trim();
+    if (!provider || !model) continue;
+    fallbacks.push({ provider, model });
+  }
+  return fallbacks;
+};
+
+(SidePanelUI.prototype as any).collectModelCatalogTargets = async function collectModelCatalogTargets() {
+  const targets: ModelCatalogTarget[] = [];
+  const seen = new Set<string>();
+  const configs = this.configs && typeof this.configs === 'object' ? this.configs : {};
+
+  for (const profile of Object.values(configs)) {
+    if (!profile || typeof profile !== 'object') continue;
+    const provider = normalizeProvider((profile as any).provider);
+    if (!provider) continue;
+
+    const apiKey = String((profile as any).apiKey || '').trim();
+    const extraHeaders = normalizeHeaders((profile as any).extraHeaders);
+    const endpointBase = normalizeEndpointBase(provider, String((profile as any).customEndpoint || ''));
+    if (!endpointBase) continue;
+
+    const allowsUnauthedList = provider === 'openrouter' || provider === 'parchi';
+    if (!apiKey && !allowsUnauthedList) continue;
+
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      ...extraHeaders,
+    };
+
+    if (provider === 'anthropic' || provider === 'kimi') {
+      if (apiKey) {
+        headers['x-api-key'] = apiKey;
+        headers['anthropic-version'] = '2023-06-01';
+      }
+    } else if (apiKey) {
+      headers.Authorization = `Bearer ${apiKey}`;
+    }
+
+    if (provider === 'openrouter' || provider === 'parchi') {
+      headers['HTTP-Referer'] = headers['HTTP-Referer'] || 'https://parchi.ai';
+      headers['X-Title'] = headers['X-Title'] || 'Parchi';
+    }
+
+    const key = `${provider}|${endpointBase}|${Boolean(apiKey)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    targets.push({
+      key,
+      provider,
+      endpointBase,
+      headers,
+    });
+  }
+
+  return targets;
+};
+
+(SidePanelUI.prototype as any).fetchModelIdsForTarget = async function fetchModelIdsForTarget(
+  target: ModelCatalogTarget,
+) {
+  const urls = buildModelEndpointCandidates(target.endpointBase);
+  for (const url of urls) {
+    try {
+      const response = await withTimeout(
+        fetch(url, {
+          method: 'GET',
+          headers: target.headers,
+        }),
+        MODEL_FETCH_TIMEOUT_MS,
+      );
+      if (!response.ok) continue;
+      const payload = await response.json().catch(() => null);
+      const modelIds = extractModelIds(payload).slice(0, MAX_MODELS_PER_PROVIDER);
+      if (modelIds.length > 0) {
+        return modelIds;
+      }
+    } catch {}
+  }
+  return [];
+};
+
+(SidePanelUI.prototype as any).applyModelSuggestions = function applyModelSuggestions() {
+  const datalist = document.getElementById('modelSuggestions') as HTMLDataListElement | null;
+  if (!datalist) return;
+
+  const entries = Array.isArray(this.modelCatalogEntries) ? this.modelCatalogEntries : [];
+  const deduped = new Map<string, string>();
+  for (const entry of entries) {
+    const model = String(entry?.model || '').trim();
+    const provider = normalizeProvider(entry?.provider);
+    if (!model || !provider) continue;
+    if (!deduped.has(model)) {
+      deduped.set(model, provider);
+    }
+  }
+
+  const ordered = Array.from(deduped.entries())
+    .map(([model, provider]) => ({ model, provider }))
+    .sort((a, b) => a.model.localeCompare(b.model));
+
+  datalist.innerHTML = '';
+  for (const item of ordered.slice(0, MAX_MODELS_TOTAL)) {
+    const option = document.createElement('option');
+    option.value = item.model;
+    option.label = item.provider;
+    datalist.appendChild(option);
+  }
+
+  if (this.elements.model) this.elements.model.setAttribute('list', 'modelSuggestions');
+  if (this.elements.profileEditorModel) this.elements.profileEditorModel.setAttribute('list', 'modelSuggestions');
+
+  if (this.elements.modelHint && ordered.length > 0) {
+    const providerCount = new Set(ordered.map((item) => item.provider)).size;
+    this.elements.modelHint.textContent = `Discovered ${ordered.length} models across ${providerCount} providers.`;
+  }
+};
+
+(SidePanelUI.prototype as any).refreshModelCatalog = async function refreshModelCatalog({ force = false } = {}) {
+  const now = Date.now();
+  const hasFreshCatalog =
+    !force &&
+    Array.isArray(this.modelCatalogEntries) &&
+    this.modelCatalogEntries.length > 0 &&
+    now - Number(this.modelCatalogUpdatedAt || 0) < MODEL_CATALOG_TTL_MS;
+
+  if (hasFreshCatalog) {
+    this.applyModelSuggestions();
+    return;
+  }
+
+  if (this.modelCatalogRefreshPromise) {
+    await this.modelCatalogRefreshPromise;
+    return;
+  }
+
+  this.modelCatalogRefreshPromise = (async () => {
+    const discovered: Array<{ provider: string; model: string }> = this.collectConfiguredModelFallbacks();
+    const targets = await this.collectModelCatalogTargets();
+    const results = await Promise.all(
+      targets.map(async (target) => {
+        const modelIds = await this.fetchModelIdsForTarget(target);
+        return {
+          provider: target.provider,
+          modelIds,
+        };
+      }),
+    );
+
+    for (const result of results) {
+      for (const model of result.modelIds) {
+        discovered.push({ provider: result.provider, model });
+      }
+    }
+
+    const seen = new Set<string>();
+    const normalized: Array<{ provider: string; model: string }> = [];
+    for (const entry of discovered) {
+      const provider = normalizeProvider(entry.provider);
+      const model = String(entry.model || '').trim();
+      if (!provider || !model) continue;
+      const key = `${provider}|${model}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      normalized.push({ provider, model });
+    }
+
+    this.modelCatalogEntries = normalized.slice(0, MAX_MODELS_TOTAL);
+    this.modelCatalogUpdatedAt = Date.now();
+    this.applyModelSuggestions();
+  })();
+
+  try {
+    await this.modelCatalogRefreshPromise;
+  } finally {
+    this.modelCatalogRefreshPromise = null;
+  }
 };
 
 (SidePanelUI.prototype as any).populateModelSelect = function populateModelSelect() {
@@ -136,6 +415,8 @@ import { SidePanelUI } from '../core/panel-ui.js';
     anthropic: '🅒',
     openai: '🅞',
     kimi: '🅚',
+    openrouter: '🅡',
+    parchi: '🅟',
     custom: '⚙️',
   };
   return icons[provider] || '⚙️';
