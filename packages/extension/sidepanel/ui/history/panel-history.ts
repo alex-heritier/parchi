@@ -222,6 +222,9 @@ const resolveHistoryContainer = (self: any): HTMLElement | null => {
       this.firstUserMessage = session.title || '';
       this.elements.chatMessages.innerHTML = '';
       this.toolCallViews.clear();
+      this.reportImages.clear();
+      this.reportImageOrder = [];
+      this.selectedReportImageIds.clear();
       this.resetActivityPanel();
 
       turns.forEach((turn: any) => {
@@ -353,6 +356,9 @@ const resolveHistoryContainer = (self: any): HTMLElement | null => {
 (SidePanelUI.prototype as any).renderConversationHistory = function renderConversationHistory() {
   this.elements.chatMessages.innerHTML = '';
   this.toolCallViews.clear();
+  this.reportImages.clear();
+  this.reportImageOrder = [];
+  this.selectedReportImageIds.clear();
   this.lastChatTurn = null;
   this.resetActivityPanel();
 

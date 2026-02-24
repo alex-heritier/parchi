@@ -550,7 +550,10 @@
   position: relative;
   display: flex;
   align-items: center;
+  justify-content: center;
   height: 34px;
+  width: 34px;
+  min-width: 34px;
   max-width: 34px;
   border-radius: 999px;
   background: var(--card);
@@ -588,6 +591,8 @@
 }
 
 .session-tabs-orb.expanded {
+  width: auto;
+  min-width: 34px;
   max-width: 420px;
   overflow: hidden;
   opacity: 1;

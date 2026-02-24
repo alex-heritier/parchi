@@ -258,7 +258,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   }
 
   if (this.elements.model) this.elements.model.setAttribute('list', 'modelSuggestions');
-  if (this.elements.profileEditorModel) this.elements.profileEditorModel.setAttribute('list', 'modelSuggestions');
+  // Profile editor model uses its own picker, not the global datalist
 
   if (this.elements.modelHint && ordered.length > 0) {
     const providerCount = new Set(ordered.map((item) => item.provider)).size;
@@ -351,6 +351,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
     option.value = '';
     option.textContent = 'No profiles';
     select.appendChild(option);
+    this.updateModelSelectorGlow();
     return;
   }
 
@@ -371,7 +372,135 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
     select.appendChild(option);
   }
 
-  // (debug log removed)
+  this.updateModelSelectorGlow();
+};
+
+(SidePanelUI.prototype as any).refreshModelCatalogForProfileEditor = async function refreshModelCatalogForProfileEditor() {
+  const providerEl = this.elements.profileEditorProvider;
+  const apiKeyEl = this.elements.profileEditorApiKey;
+  const endpointEl = this.elements.profileEditorEndpoint;
+  if (!providerEl) return;
+
+  const provider = String(providerEl.value || '').trim().toLowerCase();
+  if (!provider) {
+    this._profileEditorModels = [];
+    this.renderModelPickerList();
+    return;
+  }
+
+  const apiKey = String(apiKeyEl?.value || '').trim();
+  const customEndpoint = String(endpointEl?.value || '').trim();
+
+  const endpointBase = normalizeEndpointBase(provider, customEndpoint);
+  if (!endpointBase) {
+    this._profileEditorModels = [];
+    this.renderModelPickerList();
+    return;
+  }
+
+  const allowsUnauthedList = provider === 'openrouter' || provider === 'parchi';
+  if (!apiKey && !allowsUnauthedList) {
+    this._profileEditorModels = [];
+    this.renderModelPickerList();
+    return;
+  }
+
+  // Show loading state
+  const listEl = document.getElementById('modelPickerList');
+  if (listEl) listEl.innerHTML = '<div class="model-picker-loading">Fetching models...</div>';
+
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (provider === 'anthropic' || provider === 'kimi') {
+    if (apiKey) {
+      headers['x-api-key'] = apiKey;
+      headers['anthropic-version'] = '2023-06-01';
+    }
+  } else if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+  if (provider === 'openrouter' || provider === 'parchi') {
+    headers['HTTP-Referer'] = 'https://parchi.ai';
+    headers['X-Title'] = 'Parchi';
+  }
+
+  const target = { key: `editor|${provider}`, provider, endpointBase, headers };
+  try {
+    const modelIds = await this.fetchModelIdsForTarget(target);
+    this._profileEditorModels = modelIds.sort((a: string, b: string) => a.localeCompare(b));
+  } catch {
+    this._profileEditorModels = [];
+  }
+  this.renderModelPickerList();
+};
+
+(SidePanelUI.prototype as any).renderModelPickerList = function renderModelPickerList(filter?: string) {
+  const listEl = document.getElementById('modelPickerList');
+  if (!listEl) return;
+
+  const models: string[] = Array.isArray(this._profileEditorModels) ? this._profileEditorModels : [];
+  const currentModel = String(this.elements.profileEditorModel?.value || '').trim();
+  const query = (filter ?? '').trim().toLowerCase();
+
+  if (!models.length) {
+    listEl.innerHTML = '<div class="model-picker-empty">No models found. Check provider, endpoint, and API key.</div>';
+    return;
+  }
+
+  const filtered = query ? models.filter((m: string) => m.toLowerCase().includes(query)) : models;
+
+  if (!filtered.length) {
+    listEl.innerHTML = '<div class="model-picker-empty">No models match filter</div>';
+    return;
+  }
+
+  listEl.innerHTML = '';
+  for (const model of filtered) {
+    const item = document.createElement('div');
+    item.className = 'model-picker-item';
+    if (model === currentModel) item.classList.add('selected');
+    item.dataset.model = model;
+
+    if (query) {
+      const idx = model.toLowerCase().indexOf(query);
+      const before = model.slice(0, idx);
+      const match = model.slice(idx, idx + query.length);
+      const after = model.slice(idx + query.length);
+      item.innerHTML = `${escapeModelHtml(before)}<mark>${escapeModelHtml(match)}</mark>${escapeModelHtml(after)}`;
+    } else {
+      item.textContent = model;
+    }
+
+    listEl.appendChild(item);
+  }
+};
+
+(SidePanelUI.prototype as any).showModelPicker = function showModelPicker() {
+  const dropdown = document.getElementById('modelPickerDropdown');
+  if (!dropdown || !dropdown.classList.contains('hidden')) return;
+  dropdown.classList.remove('hidden');
+  const filterInput = document.getElementById('modelPickerFilter') as HTMLInputElement | null;
+  if (filterInput) {
+    filterInput.value = '';
+    filterInput.focus();
+  }
+  this.renderModelPickerList();
+};
+
+(SidePanelUI.prototype as any).hideModelPicker = function hideModelPicker() {
+  const dropdown = document.getElementById('modelPickerDropdown');
+  if (dropdown) dropdown.classList.add('hidden');
+};
+
+const escapeModelHtml = (text: string) =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+(SidePanelUI.prototype as any).updateModelSelectorGlow = function updateModelSelectorGlow() {
+  const wrap = this.elements.modelSelectorWrap || document.getElementById('modelSelectorWrap');
+  if (!wrap) return;
+  const activeConfig = this.configs?.[this.currentConfig];
+  const provider = String(activeConfig?.provider || '').trim().toLowerCase();
+  const isParchi = provider === 'parchi' || provider === 'openrouter';
+  wrap.classList.toggle('parchi-glow', isParchi);
 };
 
 (SidePanelUI.prototype as any).shortenModelName = function shortenModelName(model: string): string {
@@ -407,6 +536,60 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   } catch (error) {
     console.error('[Parchi] Failed to persist selected profile:', error);
     this.updateStatus('Failed to switch profile', 'error');
+  }
+};
+
+(SidePanelUI.prototype as any).toggleBalancePopover = async function toggleBalancePopover() {
+  const popover = document.getElementById('balancePopover');
+  if (!popover) return;
+
+  if (!popover.classList.contains('hidden')) {
+    popover.classList.add('hidden');
+    return;
+  }
+
+  // Show with current data
+  popover.classList.remove('hidden');
+
+  // Populate with cached data first
+  const sessionIn = this.sessionTokenTotals?.inputTokens || 0;
+  const sessionOut = this.sessionTokenTotals?.outputTokens || 0;
+  const sessionTokensEl = document.getElementById('balanceSessionTokens');
+  if (sessionTokensEl) {
+    sessionTokensEl.textContent = `${this.formatTokenCount?.(sessionIn) || sessionIn} in / ${this.formatTokenCount?.(sessionOut) || sessionOut} out`;
+  }
+
+  // Try to fetch live balance from storage
+  try {
+    const stored = await chrome.storage.local.get([
+      'convexCreditBalanceCents',
+      'convexSubscriptionPlan',
+      'convexSubscriptionStatus',
+    ]);
+    const creditCents = Number(stored.convexCreditBalanceCents || 0);
+    const plan = String(stored.convexSubscriptionPlan || '').toLowerCase();
+    const status = String(stored.convexSubscriptionStatus || '').toLowerCase();
+    const planLabel = plan === 'pro' && status === 'active' ? 'Pro (active)' : creditCents > 0 ? 'Credits' : 'Free';
+
+    const creditsEl = document.getElementById('balanceCreditsValue');
+    const planEl = document.getElementById('balancePlanValue');
+    const spendEl = document.getElementById('balanceSpendValue');
+
+    if (creditsEl) creditsEl.textContent = creditCents > 0 ? `$${(creditCents / 100).toFixed(2)}` : '$0.00';
+    if (planEl) planEl.textContent = planLabel;
+
+    // Get active profile info for provider context
+    const activeConfig = this.configs?.[this.currentConfig];
+    const provider = String(activeConfig?.provider || '').trim().toLowerCase();
+    if (spendEl) {
+      if (provider === 'parchi' || provider === 'openrouter') {
+        spendEl.textContent = 'See Account tab';
+      } else {
+        spendEl.textContent = 'BYOK (no billing)';
+      }
+    }
+  } catch {
+    // Ignore storage read failures
   }
 };
 

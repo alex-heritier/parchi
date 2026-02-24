@@ -328,3 +328,160 @@
     flex-direction: column;
   }
 }
+
+/* ============================================================================
+   Usage Tab — OpenRouter usage tables
+   ============================================================================ */
+
+.usage-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.usage-period-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.usage-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.usage-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  background: var(--card);
+  border: 1px solid var(--ink-1);
+  border-radius: 10px;
+}
+
+.usage-stat-value {
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--foreground);
+  letter-spacing: -0.01em;
+}
+
+.usage-stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-dim);
+  font-weight: 500;
+}
+
+.usage-table-section {
+  border: 1px solid var(--ink-1);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--card);
+}
+
+.usage-table-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ink-1);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.usage-table-container {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.usage-table-empty {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted-dim);
+}
+
+.usage-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+}
+
+.usage-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.usage-table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  background: var(--background);
+  border-bottom: 1px solid var(--ink-2);
+  white-space: nowrap;
+}
+
+.usage-table th:last-child,
+.usage-table td:last-child {
+  text-align: right;
+}
+
+.usage-table td {
+  padding: 8px 12px;
+  color: var(--foreground);
+  border-bottom: 1px solid var(--ink-1);
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.usage-table td:first-child {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  color: var(--foreground);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.usage-table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.usage-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.usage-model-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.usage-model-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.usage-cost-cell {
+  color: var(--foreground);
+  font-weight: 600;
+}

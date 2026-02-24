@@ -2316,10 +2316,17 @@ Rules:
     }
   }
 
+  private static readonly MAX_SESSIONS = 10;
+
   private getSessionState(sessionId: string): SessionState {
     const id = typeof sessionId === 'string' && sessionId.trim() ? sessionId : 'default';
     const existing = this.sessionStateById.get(id);
     if (existing) return existing;
+    // Evict oldest sessions when at capacity
+    if (this.sessionStateById.size >= BackgroundService.MAX_SESSIONS) {
+      const oldestKey = this.sessionStateById.keys().next().value;
+      if (oldestKey !== undefined) this.sessionStateById.delete(oldestKey);
+    }
     const created: SessionState = {
       sessionId: id,
       currentPlan: null,
@@ -2341,6 +2348,11 @@ Rules:
     const id = typeof sessionId === 'string' && sessionId.trim() ? sessionId : 'default';
     const existing = this.browserToolsBySessionId.get(id);
     if (existing) return existing;
+    // Evict oldest entries when at capacity
+    if (this.browserToolsBySessionId.size >= BackgroundService.MAX_SESSIONS) {
+      const oldestKey = this.browserToolsBySessionId.keys().next().value;
+      if (oldestKey !== undefined) this.browserToolsBySessionId.delete(oldestKey);
+    }
     const created = new BrowserTools();
     this.browserToolsBySessionId.set(id, created);
     return created;

@@ -302,6 +302,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
 
   this.toggleProfileEditorEndpoint();
   this.refreshProfileJsonEditor?.();
+  this.refreshModelCatalogForProfileEditor?.();
   this.renderProfileGrid();
   if (!silent) {
     this.switchSettingsTab('profiles');

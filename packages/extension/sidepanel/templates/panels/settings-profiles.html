@@ -29,9 +29,15 @@
             <label for="profileEditorApiKey">API Key</label>
             <input type="password" id="profileEditorApiKey" placeholder="sk-..." />
         </div>
-        <div class="form-group">
+        <div class="form-group model-picker-group">
             <label for="profileEditorModel">Model</label>
-            <input type="text" id="profileEditorModel" list="modelSuggestions" placeholder="Enter model ID" />
+            <input type="text" id="profileEditorModel" placeholder="Enter or search model ID" autocomplete="off" />
+            <div id="modelPickerDropdown" class="model-picker-dropdown hidden">
+                <input type="text" id="modelPickerFilter" class="model-picker-filter" placeholder="Filter models..." autocomplete="off" />
+                <div id="modelPickerList" class="model-picker-list">
+                    <div class="model-picker-empty">Change provider or enter endpoint to load models</div>
+                </div>
+            </div>
         </div>
         <div class="form-group" id="profileEditorEndpointGroup" style="display: none">
             <label for="profileEditorEndpoint">Endpoint</label>

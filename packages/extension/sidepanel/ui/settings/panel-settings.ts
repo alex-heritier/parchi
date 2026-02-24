@@ -184,7 +184,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
 };
 
 (SidePanelUI.prototype as any).switchSettingsTab = function switchSettingsTab(
-  tabName: 'setup' | 'oauth' | 'model' | 'browser' | 'network' | 'prompt' | 'profiles' = 'setup',
+  tabName: 'setup' | 'oauth' | 'model' | 'browser' | 'network' | 'prompt' | 'profiles' | 'usage' = 'setup',
 ) {
   // Persist current form state when leaving setup tab
   if (this.currentSettingsTab === 'setup' && tabName !== 'setup') {
@@ -193,7 +193,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   }
   this.currentSettingsTab = tabName;
 
-  const tabs = ['setup', 'oauth', 'model', 'browser', 'network', 'prompt', 'profiles'] as const;
+  const tabs = ['setup', 'oauth', 'model', 'browser', 'network', 'prompt', 'profiles', 'usage'] as const;
   const tabElements: Record<string, HTMLElement | null> = {
     setup: this.elements.settingsTabSetup,
     oauth: this.elements.settingsTabOauth,
@@ -202,6 +202,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
     network: this.elements.settingsTabNetwork,
     prompt: this.elements.settingsTabPrompt,
     profiles: this.elements.settingsTabProfiles,
+    usage: this.elements.settingsTabUsage || document.getElementById('settingsTabUsage'),
   };
   const btnElements: Record<string, HTMLElement | null> = {
     setup: this.elements.settingsTabSetupBtn,
@@ -211,6 +212,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
     network: this.elements.settingsTabNetworkBtn,
     prompt: this.elements.settingsTabPromptBtn,
     profiles: this.elements.settingsTabProfilesBtn,
+    usage: this.elements.settingsTabUsageBtn || document.getElementById('settingsTabUsageBtn'),
   };
 
   for (const tab of tabs) {
@@ -220,6 +222,11 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
     // Activate the pane inside the tab container
     const pane = tabElements[tab]?.querySelector('.settings-tab-pane') as HTMLElement | null;
     pane?.classList.toggle('active', isActive);
+  }
+
+  // Auto-fetch usage data when switching to usage tab
+  if (tabName === 'usage') {
+    this.refreshUsageTab?.();
   }
 };
 

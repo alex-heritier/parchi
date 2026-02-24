@@ -116,6 +116,26 @@ const autoResizeTextArea = (textarea: HTMLTextAreaElement | null, maxHeight: num
     this.filterHistoryList(query);
   }, 150));
 
+  // Balance popover on status bar click
+  const statusBar = document.getElementById('statusBar');
+  const balancePopover = document.getElementById('balancePopover');
+  const balancePopoverClose = document.getElementById('balancePopoverClose');
+  if (statusBar && balancePopover) {
+    statusBar.addEventListener('click', () => this.toggleBalancePopover?.());
+    balancePopoverClose?.addEventListener('click', (e: Event) => {
+      e.stopPropagation();
+      balancePopover.classList.add('hidden');
+    });
+    // Close popover when clicking outside
+    document.addEventListener('click', (e: Event) => {
+      if (!balancePopover.classList.contains('hidden') &&
+          !balancePopover.contains(e.target as Node) &&
+          !statusBar.contains(e.target as Node)) {
+        balancePopover.classList.add('hidden');
+      }
+    });
+  }
+
   // Provider change
   this.elements.provider?.addEventListener('change', () => {
     this.toggleCustomEndpoint();
@@ -150,6 +170,8 @@ const autoResizeTextArea = (textarea: HTMLTextAreaElement | null, maxHeight: num
   this.elements.settingsTabNetworkBtn?.addEventListener('click', () => this.switchSettingsTab('network'));
   this.elements.settingsTabPromptBtn?.addEventListener('click', () => this.switchSettingsTab('prompt'));
   this.elements.settingsTabProfilesBtn?.addEventListener('click', () => this.switchSettingsTab('profiles'));
+  this.elements.settingsTabUsageBtn?.addEventListener('click', () => this.switchSettingsTab('usage'));
+  document.getElementById('usageRefreshBtn')?.addEventListener('click', () => this.refreshUsageTab?.());
   this.elements.createProfileBtn?.addEventListener('click', () => this.createProfileFromInput());
   this.elements.agentGrid?.addEventListener('click', (event) => {
     const deleteBtn = (event.target as HTMLElement | null)?.closest('.agent-card-delete') as HTMLElement | null;
@@ -353,7 +375,75 @@ export PARCHI_RELAY_PORT="${port}"`;
   // Stop/reset is now handled by the send button above
 
   // Profile editor controls
-  this.elements.profileEditorProvider?.addEventListener('change', () => this.toggleProfileEditorEndpoint());
+  this.elements.profileEditorProvider?.addEventListener('change', () => {
+    this.toggleProfileEditorEndpoint();
+    this.refreshModelCatalogForProfileEditor?.();
+  });
+
+  // Also refetch models when endpoint or API key changes (debounced)
+  const debouncedModelRefresh = debounce(() => this.refreshModelCatalogForProfileEditor?.(), 800);
+  this.elements.profileEditorEndpoint?.addEventListener('input', debouncedModelRefresh);
+  this.elements.profileEditorApiKey?.addEventListener('input', debouncedModelRefresh);
+
+  // Model picker: open on focus/click of model input
+  this.elements.profileEditorModel?.addEventListener('focus', () => this.showModelPicker?.());
+  this.elements.profileEditorModel?.addEventListener('click', () => this.showModelPicker?.());
+
+  // Model picker: filter as user types in filter input
+  document.getElementById('modelPickerFilter')?.addEventListener('input', (e: Event) => {
+    const value = (e.target as HTMLInputElement).value;
+    this.renderModelPickerList?.(value);
+  });
+
+  // Model picker: select on click
+  document.getElementById('modelPickerList')?.addEventListener('click', (e: Event) => {
+    const item = (e.target as HTMLElement).closest('.model-picker-item') as HTMLElement | null;
+    if (!item?.dataset.model) return;
+    if (this.elements.profileEditorModel) {
+      this.elements.profileEditorModel.value = item.dataset.model;
+    }
+    this.hideModelPicker?.();
+  });
+
+  // Model picker: close on outside click
+  document.addEventListener('mousedown', (e: MouseEvent) => {
+    const dropdown = document.getElementById('modelPickerDropdown');
+    if (!dropdown || dropdown.classList.contains('hidden')) return;
+    const pickerGroup = (e.target as HTMLElement)?.closest('.model-picker-group');
+    if (!pickerGroup) this.hideModelPicker?.();
+  });
+
+  // Model picker: keyboard navigation in filter
+  document.getElementById('modelPickerFilter')?.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      this.hideModelPicker?.();
+      this.elements.profileEditorModel?.focus();
+      return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const list = document.getElementById('modelPickerList');
+      if (!list) return;
+      const items = list.querySelectorAll('.model-picker-item');
+      if (!items.length) return;
+      const focused = list.querySelector('.model-picker-item.focused') as HTMLElement | null;
+      let idx = focused ? Array.from(items).indexOf(focused) : -1;
+      if (focused) focused.classList.remove('focused');
+      idx = e.key === 'ArrowDown' ? Math.min(idx + 1, items.length - 1) : Math.max(idx - 1, 0);
+      const next = items[idx] as HTMLElement;
+      next.classList.add('focused');
+      next.scrollIntoView({ block: 'nearest' });
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const focused = document.querySelector('#modelPickerList .model-picker-item.focused') as HTMLElement | null;
+      if (focused?.dataset.model && this.elements.profileEditorModel) {
+        this.elements.profileEditorModel.value = focused.dataset.model;
+        this.hideModelPicker?.();
+      }
+    }
+  });
+
   this.elements.profileEditorHeaders?.addEventListener('input', () => this.validateProfileEditorHeaders());
   this.elements.profileEditorTemperature?.addEventListener('input', () => {
     if (this.elements.profileEditorTemperatureValue) {
@@ -676,6 +766,16 @@ export PARCHI_RELAY_PORT="${port}"`;
         usage: (message as any).usage || null,
       };
       this.historyTurnMap.set(turnId, entry);
+    }
+
+    // Cap historyTurnMap to prevent unbounded memory growth
+    if (this.historyTurnMap.size > 200) {
+      const iter = this.historyTurnMap.keys();
+      const excess = this.historyTurnMap.size - 200;
+      for (let i = 0; i < excess; i++) {
+        const key = iter.next().value;
+        if (key !== undefined) this.historyTurnMap.delete(key);
+      }
     }
 
     this.displayAssistantMessage(message.content, message.thinking, message.usage, message.model);

@@ -19,4 +19,5 @@ import './tabs/panel-session-tabs.js';
 import './chat/panel-tools.js';
 import './chat/panel-workflows.js';
 import './status/panel-usage.js';
+import './settings/panel-usage.js';
 import './core/panel-view.js';

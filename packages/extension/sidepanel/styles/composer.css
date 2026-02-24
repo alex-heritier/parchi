@@ -131,7 +131,7 @@
   flex-wrap: nowrap;
   justify-content: flex-end;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* Zoom controls — hidden from toolbar, accessible via settings */
@@ -207,6 +207,97 @@
   letter-spacing: 0.02em;
 }
 
+/* Balance popover — shown on status dot click */
+.balance-popover {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 8px;
+  min-width: 200px;
+  background: var(--card);
+  border: 1px solid var(--ink-2);
+  border-radius: 12px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.03);
+  z-index: 150;
+  animation: balanceSlideUp 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  overflow: hidden;
+}
+
+.balance-popover.hidden {
+  display: none;
+}
+
+@keyframes balanceSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.balance-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ink-1);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.balance-popover-close {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--muted-dim);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.15s ease;
+}
+
+.balance-popover-close:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--foreground);
+}
+
+.balance-popover-body {
+  padding: 8px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.balance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.balance-label {
+  font-size: 11px;
+  color: var(--muted-dim);
+}
+
+.balance-value {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--foreground);
+}
+
 /* Secondary meta — hidden by default, shown on hover */
 .composer-status .status-meta {
   font-size: 10px;
@@ -233,6 +324,9 @@
 .composer .icon-btn {
   width: 28px;
   height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  flex-shrink: 0;
   border-radius: 8px;
   background: transparent;
   border: none;
@@ -273,40 +367,68 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-/* Profile / model selector — neutral pill */
+/* Profile / model selector — elegant pill */
 .model-selector {
   display: inline-flex;
   align-items: center;
-  height: 28px;
-  background: transparent;
-  border: 1px solid var(--ink-1);
-  border-radius: 9999px;
+  height: 30px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--ink-2);
+  border-radius: 10px;
   font-size: 12px;
   font-family: var(--font-sans);
   color: var(--foreground);
   cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-out-expo);
-  box-shadow: none;
-  max-width: 300px;
-  min-width: 160px;
+  transition: all 220ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  max-width: 340px;
+  min-width: 180px;
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
 }
 
-/* Shimmer animation — disabled */
-.model-selector::before {
-  display: none;
-}
-
 .model-selector:hover {
-  border-color: var(--ink-2);
-  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--ink-3);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--foreground);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
-.model-selector:hover::before {
-  display: none;
+/* Parchi managed glow */
+.model-selector.parchi-glow {
+  border-color: rgb(var(--accent-rgb) / 0.2);
+  background: rgb(var(--accent-rgb) / 0.03);
+  box-shadow:
+    inset 0 1px 0 rgb(var(--accent-rgb) / 0.06),
+    0 0 12px rgb(var(--accent-rgb) / 0.06);
+}
+
+.model-selector.parchi-glow:hover {
+  border-color: rgb(var(--accent-rgb) / 0.35);
+  background: rgb(var(--accent-rgb) / 0.06);
+  box-shadow:
+    inset 0 1px 0 rgb(var(--accent-rgb) / 0.08),
+    0 0 20px rgb(var(--accent-rgb) / 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.model-selector.parchi-glow::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgb(var(--accent-rgb) / 0.08) 0%,
+    transparent 40%,
+    transparent 60%,
+    rgb(var(--accent-rgb) / 0.04) 100%
+  );
+  pointer-events: none;
+  z-index: 0;
 }
 
 .model-selector select {
@@ -315,7 +437,7 @@
   color: var(--muted);
   font-family: var(--font-mono);
   font-size: 11px;
-  font-weight: 400;
+  font-weight: 450;
   letter-spacing: 0.02em;
   cursor: pointer;
   appearance: none;
@@ -329,6 +451,11 @@
   width: 100%;
   height: 100%;
   border-radius: inherit;
+  z-index: 1;
+}
+
+.model-selector.parchi-glow select {
+  color: var(--accent-light);
 }
 
 .model-selector select:focus {
@@ -337,12 +464,18 @@
 
 .model-selector-chevron {
   pointer-events: none;
-  opacity: 0.7;
+  opacity: 0.5;
   flex-shrink: 0;
   position: absolute;
-  right: 8px;
+  right: 10px;
   top: 50%;
   transform: translateY(-50%);
+  z-index: 1;
+  transition: opacity 0.15s ease;
+}
+
+.model-selector:hover .model-selector-chevron {
+  opacity: 0.8;
 }
 
 .setup-access-btn {
@@ -417,11 +550,10 @@
 
 @media (max-width: 640px) {
   .model-selector {
-    padding: 0 10px;
-    max-width: 160px;
+    max-width: 200px;
+    min-width: 140px;
   }
   .model-selector select {
-    max-width: 120px;
     font-size: 11px;
   }
   .paid-status-badge {
@@ -437,6 +569,8 @@
   .composer .icon-btn {
     width: 26px;
     height: 26px;
+    min-width: 26px;
+    min-height: 26px;
     border-radius: 7px;
   }
 

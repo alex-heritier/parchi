@@ -416,6 +416,11 @@ body[data-right-panel="settings"] {
   border-radius: 50%;
 }
 
+/* --- Sleeping: pause body animations to save CPU/GPU --- */
+.mascot-corner.sleeping .mascot-blob-body {
+  animation-play-state: paused;
+}
+
 /* --- Sleeping eyes  _ _  (closed flat lines) --- */
 .mascot-corner.sleeping .mascot-eye {
   width: 5px;

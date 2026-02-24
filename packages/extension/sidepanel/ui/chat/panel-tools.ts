@@ -70,6 +70,20 @@ const toolIcons: Record<string, string> = {
   const displayName = toolName;
 
   if (!entry) {
+    // Cap toolCallViews — evict oldest entries
+    if (this.toolCallViews.size >= MAX_TOOL_CALL_VIEWS) {
+      const iter = this.toolCallViews.entries();
+      const excess = this.toolCallViews.size - MAX_TOOL_CALL_VIEWS + 1;
+      for (let i = 0; i < excess; i++) {
+        const next = iter.next().value;
+        if (next) {
+          const [key, old] = next;
+          old.element?.remove();
+          this.toolCallViews.delete(key);
+        }
+      }
+    }
+
     entry = {
       id: entryId,
       toolName: displayName,
@@ -214,6 +228,9 @@ const toolIcons: Record<string, string> = {
   this.attachScreenshotPreview(entry, result);
 };
 
+const MAX_REPORT_IMAGES = 50;
+const MAX_TOOL_CALL_VIEWS = 200;
+
 (SidePanelUI.prototype as any).recordReportImage = function recordReportImage(image: any) {
   if (!image || typeof image.id !== 'string' || typeof image.dataUrl !== 'string') return;
   const normalized = {
@@ -235,6 +252,24 @@ const toolIcons: Record<string, string> = {
     this.selectedReportImageIds.add(normalized.id);
   } else {
     this.selectedReportImageIds.delete(normalized.id);
+  }
+
+  // Cap reportImages — evict oldest non-selected images
+  if (this.reportImages.size > MAX_REPORT_IMAGES) {
+    const toEvict: string[] = [];
+    for (const id of this.reportImageOrder) {
+      if (this.reportImages.size - toEvict.length <= MAX_REPORT_IMAGES) break;
+      if (!this.selectedReportImageIds.has(id)) {
+        toEvict.push(id);
+      }
+    }
+    for (const id of toEvict) {
+      this.reportImages.delete(id);
+      // Remove DOM preview if it exists
+      const previewEl = document.querySelector(`.report-image-toggle[data-report-image-id="${id}"]`);
+      previewEl?.closest('.tool-screenshot-preview')?.remove();
+    }
+    this.reportImageOrder = this.reportImageOrder.filter((id: string) => this.reportImages.has(id));
   }
 
   if (normalized.toolCallId) {
@@ -334,6 +369,15 @@ const toolIcons: Record<string, string> = {
     image.selected = checked;
     preview.classList.toggle('selected', checked);
   });
+};
+
+(SidePanelUI.prototype as any).nullifyFinalizedToolData = function nullifyFinalizedToolData() {
+  for (const entry of this.toolCallViews.values()) {
+    if (entry.endTime) {
+      entry.args = null;
+      entry.result = null;
+    }
+  }
 };
 
 (SidePanelUI.prototype as any).refreshTimelineHud = function refreshTimelineHud() {

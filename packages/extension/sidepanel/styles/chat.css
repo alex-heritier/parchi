@@ -139,6 +139,11 @@ body.sidebar-open .fab-group {
   animation: orbPulse 4s ease-in-out infinite, orbFloat 6s ease-in-out infinite;
 }
 
+/* Pause orb animations when the empty state is hidden */
+.chat-empty-state.hidden .chat-empty-orb {
+  animation-play-state: paused;
+}
+
 @keyframes orbFloat {
   0%,
   100% {
@@ -171,6 +176,15 @@ body.sidebar-open .fab-group {
     transform: scale(1.05);
     opacity: 1;
   }
+}
+
+/* Pruned messages placeholder */
+.chat-pruned-placeholder {
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted-dim);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--ink-1);
 }
 
 /* Messages container */

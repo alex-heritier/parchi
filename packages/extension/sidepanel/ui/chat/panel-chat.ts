@@ -5,6 +5,8 @@ import { getActiveTab } from '../../../utils/active-tab.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 import type { UsagePayload } from '../types/panel-types.js';
 
+const MAX_DISPLAY_HISTORY = 400;
+
 const truncate = (value: string, max = 12000) => {
   const text = String(value || '');
   if (text.length <= max) return text;
@@ -124,6 +126,9 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
   const displayEntry = createMessage({ role: 'user', content: userMessage });
   if (displayEntry) {
     this.displayHistory.push(displayEntry);
+    if (this.displayHistory.length > MAX_DISPLAY_HISTORY) {
+      this.displayHistory.splice(0, this.displayHistory.length - MAX_DISPLAY_HISTORY);
+    }
   }
 
   const contextEntry = createMessage({ role: 'user', content: fullMessage });
@@ -290,6 +295,9 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
   });
   if (assistantEntry) {
     this.displayHistory.push(assistantEntry);
+    if (this.displayHistory.length > MAX_DISPLAY_HISTORY) {
+      this.displayHistory.splice(0, this.displayHistory.length - MAX_DISPLAY_HISTORY);
+    }
   }
 
   if (streamedContainer) {
@@ -407,6 +415,8 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
     this.stopRunTimer?.();
     this.pendingToolCount = 0;
     this.updateActivityState();
+    this.nullifyFinalizedToolData();
+    this.pruneOldChatTurns();
     this.persistHistory();
     this.updateChatEmptyState();
     return;
@@ -470,6 +480,48 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
   this.stopRunTimer?.();
   this.pendingToolCount = 0;
   this.updateActivityState();
+  this.nullifyFinalizedToolData();
+  this.pruneOldChatTurns();
   this.persistHistory();
   this.updateChatEmptyState();
+};
+
+const MAX_CHAT_TURNS = 100;
+const PRUNE_PLACEHOLDER_CLASS = 'chat-pruned-placeholder';
+
+(SidePanelUI.prototype as any).pruneOldChatTurns = function pruneOldChatTurns() {
+  const container = this.elements.chatMessages;
+  if (!container) return;
+
+  const turns = Array.from(container.querySelectorAll('.chat-turn'));
+  const excess = turns.length - MAX_CHAT_TURNS;
+  if (excess <= 0) return;
+
+  // Preserve scroll position relative to bottom
+  const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+
+  let removed = 0;
+  for (let i = 0; i < turns.length && removed < excess; i++) {
+    const turn = turns[i] as HTMLElement;
+    // Never remove a turn that's still streaming
+    if (turn.querySelector('.streaming')) continue;
+    turn.remove();
+    removed++;
+  }
+
+  if (removed > 0) {
+    // Insert or update placeholder at top
+    let placeholder = container.querySelector(`.${PRUNE_PLACEHOLDER_CLASS}`) as HTMLElement | null;
+    if (!placeholder) {
+      placeholder = document.createElement('div');
+      placeholder.className = PRUNE_PLACEHOLDER_CLASS;
+      container.prepend(placeholder);
+    }
+    const totalPruned = Number(placeholder.dataset.count || 0) + removed;
+    placeholder.dataset.count = String(totalPruned);
+    placeholder.textContent = `${totalPruned} earlier messages hidden`;
+
+    // Restore scroll position relative to bottom to prevent visual jump
+    container.scrollTop = container.scrollHeight - container.clientHeight - scrollBottom;
+  }
 };
