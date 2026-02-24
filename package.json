@@ -26,6 +26,9 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "check:all": "npm run lint && npm run typecheck && npm run build && npm run check:repo-standards",
+    "version:bump": "node scripts/bump-version.mjs",
+    "version:sync": "node scripts/bump-version.mjs --sync",
+    "release": "node scripts/bump-version.mjs && npm run build && npm run build:firefox:xpi && cd dist && zip -r ../parchi-$(node -p \"require('../package.json').version\")-chrome.zip . -x '*.map' 'tests/*'",
     "dev": "echo 'Run npm run build, then load the dist/ folder in Chrome://extensions'"
   },
   "keywords": [

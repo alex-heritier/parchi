@@ -51,6 +51,10 @@ temp/
 
 # Planning notes
 plan.md
+CONVEX_PLAN.md
+
+# Perf test results
+tests/perf/perf-results-*.json
 
 .claude
 .osgrep
