@@ -266,7 +266,18 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   if (this.elements.profileEditorName) this.elements.profileEditorName.value = name;
   if (this.elements.profileEditorProvider) this.elements.profileEditorProvider.value = config.provider || '';
   if (this.elements.profileEditorApiKey) this.elements.profileEditorApiKey.value = config.apiKey || '';
-  if (this.elements.profileEditorModel) this.elements.profileEditorModel.value = config.model || '';
+  // Profile editor model is now a <select> — ensure option exists before setting value
+  if (this.elements.profileEditorModel) {
+    const modelVal = config.model || '';
+    const modelSelect = this.elements.profileEditorModel as HTMLSelectElement;
+    if (modelVal && !Array.from(modelSelect.options).some((o: HTMLOptionElement) => o.value === modelVal)) {
+      const opt = document.createElement('option');
+      opt.value = modelVal;
+      opt.textContent = modelVal;
+      modelSelect.insertBefore(opt, modelSelect.options[1] || null);
+    }
+    modelSelect.value = modelVal;
+  }
   if (this.elements.profileEditorEndpoint) this.elements.profileEditorEndpoint.value = config.customEndpoint || '';
   if (this.elements.profileEditorHeaders)
     this.elements.profileEditorHeaders.value = formatHeadersJson(config.extraHeaders) || '';
@@ -399,6 +410,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
       this.toggleCustomEndpoint();
     }
     this.renderProfileGrid();
+    this.populateModelSelect();
     this.updateStatus(`Profile "${target}" saved`, 'success');
   }
 };
@@ -409,7 +421,11 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   // Use optional chaining for all element accesses since settings UI may be simplified
   if (this.elements.provider) this.elements.provider.value = config.provider || '';
   if (this.elements.apiKey) this.elements.apiKey.value = config.apiKey || '';
-  if (this.elements.model) this.elements.model.value = config.model || '';
+  // Setup model field is freeform input + suggestions list.
+  if (this.elements.model) {
+    const modelVal = config.model || '';
+    this.elements.model.value = modelVal;
+  }
   if (this.elements.customEndpoint) this.elements.customEndpoint.value = config.customEndpoint || '';
   if (this.elements.customHeaders) this.elements.customHeaders.value = formatHeadersJson(config.extraHeaders) || '';
   if (this.elements.systemPrompt)

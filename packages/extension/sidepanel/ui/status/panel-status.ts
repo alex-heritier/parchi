@@ -78,6 +78,49 @@ const extractModelIds = (payload: any): string[] => {
   return Array.from(new Set(ids));
 };
 
+const populateModelSelectElement = (
+  select: HTMLSelectElement,
+  models: string[],
+  currentValue: string,
+  placeholder = 'Select model...',
+) => {
+  const prevValue = select.value || currentValue;
+  select.innerHTML = '';
+
+  const placeholderOpt = document.createElement('option');
+  placeholderOpt.value = '';
+  placeholderOpt.textContent = placeholder;
+  select.appendChild(placeholderOpt);
+
+  // Always include current value even if not in fetched list
+  if (prevValue && !models.includes(prevValue)) {
+    const opt = document.createElement('option');
+    opt.value = prevValue;
+    opt.textContent = prevValue;
+    select.appendChild(opt);
+  }
+
+  for (const model of models) {
+    const opt = document.createElement('option');
+    opt.value = model;
+    opt.textContent = model;
+    select.appendChild(opt);
+  }
+
+  if (prevValue) {
+    select.value = prevValue;
+  }
+};
+
+const populateModelSuggestionList = (list: HTMLDataListElement, models: string[]) => {
+  list.innerHTML = '';
+  for (const model of models) {
+    const option = document.createElement('option');
+    option.value = model;
+    list.appendChild(option);
+  }
+};
+
 const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
   let timerId: number | null = null;
   try {
@@ -231,9 +274,6 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
 };
 
 (SidePanelUI.prototype as any).applyModelSuggestions = function applyModelSuggestions() {
-  const datalist = document.getElementById('modelSuggestions') as HTMLDataListElement | null;
-  if (!datalist) return;
-
   const entries = Array.isArray(this.modelCatalogEntries) ? this.modelCatalogEntries : [];
   const deduped = new Map<string, string>();
   for (const entry of entries) {
@@ -249,20 +289,34 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
     .map(([model, provider]) => ({ model, provider }))
     .sort((a, b) => a.model.localeCompare(b.model));
 
-  datalist.innerHTML = '';
-  for (const item of ordered.slice(0, MAX_MODELS_TOTAL)) {
-    const option = document.createElement('option');
-    option.value = item.model;
-    option.label = item.provider;
-    datalist.appendChild(option);
+  // Populate Setup tab model suggestions for the active provider only.
+  const modelInput = this.elements.model as HTMLInputElement | null;
+  const modelSuggestions =
+    this.elements.modelSuggestions || (document.getElementById('modelSuggestions') as HTMLDataListElement | null);
+  const activeProfile = this.configs?.[this.currentConfig] || {};
+  const activeProvider = normalizeProvider(activeProfile.provider);
+  const providerScoped = activeProvider ? ordered.filter((item) => item.provider === activeProvider) : ordered;
+  const providerModels = providerScoped.slice(0, MAX_MODELS_TOTAL).map((item) => item.model);
+
+  if (modelSuggestions) {
+    populateModelSuggestionList(modelSuggestions, providerModels);
   }
 
-  if (this.elements.model) this.elements.model.setAttribute('list', 'modelSuggestions');
-  // Profile editor model uses its own picker, not the global datalist
+  if (modelInput) {
+    const currentModel = String(modelInput.value || activeProfile.model || '').trim();
+    modelInput.value = currentModel;
+  }
 
-  if (this.elements.modelHint && ordered.length > 0) {
-    const providerCount = new Set(ordered.map((item) => item.provider)).size;
-    this.elements.modelHint.textContent = `Discovered ${ordered.length} models across ${providerCount} providers.`;
+  if (!this.elements.modelHint) return;
+  if (activeProvider === 'custom') {
+    this.elements.modelHint.textContent =
+      providerModels.length > 0
+        ? `Discovered ${providerModels.length} custom model${providerModels.length === 1 ? '' : 's'} from your endpoint.`
+        : 'Type a model ID. Suggestions appear when your endpoint responds to /models or /v1/models.';
+    return;
+  }
+  if (providerModels.length > 0) {
+    this.elements.modelHint.textContent = `Discovered ${providerModels.length} models for ${activeProvider}.`;
   }
 };
 
@@ -379,12 +433,15 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   const providerEl = this.elements.profileEditorProvider;
   const apiKeyEl = this.elements.profileEditorApiKey;
   const endpointEl = this.elements.profileEditorEndpoint;
+  const modelSelect = this.elements.profileEditorModel as HTMLSelectElement | null;
   if (!providerEl) return;
 
   const provider = String(providerEl.value || '').trim().toLowerCase();
+  const currentModel = String(modelSelect?.value || '').trim();
+
   if (!provider) {
     this._profileEditorModels = [];
-    this.renderModelPickerList();
+    if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
     return;
   }
 
@@ -394,20 +451,25 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   const endpointBase = normalizeEndpointBase(provider, customEndpoint);
   if (!endpointBase) {
     this._profileEditorModels = [];
-    this.renderModelPickerList();
+    if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
     return;
   }
 
   const allowsUnauthedList = provider === 'openrouter' || provider === 'parchi';
   if (!apiKey && !allowsUnauthedList) {
     this._profileEditorModels = [];
-    this.renderModelPickerList();
+    if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
     return;
   }
 
   // Show loading state
-  const listEl = document.getElementById('modelPickerList');
-  if (listEl) listEl.innerHTML = '<div class="model-picker-loading">Fetching models...</div>';
+  if (modelSelect) {
+    const loadingOpt = document.createElement('option');
+    loadingOpt.value = currentModel;
+    loadingOpt.textContent = 'Fetching models...';
+    modelSelect.innerHTML = '';
+    modelSelect.appendChild(loadingOpt);
+  }
 
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (provider === 'anthropic' || provider === 'kimi') {
@@ -430,69 +492,11 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   } catch {
     this._profileEditorModels = [];
   }
-  this.renderModelPickerList();
-};
-
-(SidePanelUI.prototype as any).renderModelPickerList = function renderModelPickerList(filter?: string) {
-  const listEl = document.getElementById('modelPickerList');
-  if (!listEl) return;
-
-  const models: string[] = Array.isArray(this._profileEditorModels) ? this._profileEditorModels : [];
-  const currentModel = String(this.elements.profileEditorModel?.value || '').trim();
-  const query = (filter ?? '').trim().toLowerCase();
-
-  if (!models.length) {
-    listEl.innerHTML = '<div class="model-picker-empty">No models found. Check provider, endpoint, and API key.</div>';
-    return;
-  }
-
-  const filtered = query ? models.filter((m: string) => m.toLowerCase().includes(query)) : models;
-
-  if (!filtered.length) {
-    listEl.innerHTML = '<div class="model-picker-empty">No models match filter</div>';
-    return;
-  }
-
-  listEl.innerHTML = '';
-  for (const model of filtered) {
-    const item = document.createElement('div');
-    item.className = 'model-picker-item';
-    if (model === currentModel) item.classList.add('selected');
-    item.dataset.model = model;
-
-    if (query) {
-      const idx = model.toLowerCase().indexOf(query);
-      const before = model.slice(0, idx);
-      const match = model.slice(idx, idx + query.length);
-      const after = model.slice(idx + query.length);
-      item.innerHTML = `${escapeModelHtml(before)}<mark>${escapeModelHtml(match)}</mark>${escapeModelHtml(after)}`;
-    } else {
-      item.textContent = model;
-    }
-
-    listEl.appendChild(item);
+  if (modelSelect) {
+    populateModelSelectElement(modelSelect, this._profileEditorModels, currentModel);
   }
 };
 
-(SidePanelUI.prototype as any).showModelPicker = function showModelPicker() {
-  const dropdown = document.getElementById('modelPickerDropdown');
-  if (!dropdown || !dropdown.classList.contains('hidden')) return;
-  dropdown.classList.remove('hidden');
-  const filterInput = document.getElementById('modelPickerFilter') as HTMLInputElement | null;
-  if (filterInput) {
-    filterInput.value = '';
-    filterInput.focus();
-  }
-  this.renderModelPickerList();
-};
-
-(SidePanelUI.prototype as any).hideModelPicker = function hideModelPicker() {
-  const dropdown = document.getElementById('modelPickerDropdown');
-  if (dropdown) dropdown.classList.add('hidden');
-};
-
-const escapeModelHtml = (text: string) =>
-  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 (SidePanelUI.prototype as any).updateModelSelectorGlow = function updateModelSelectorGlow() {
   const wrap = this.elements.modelSelectorWrap || document.getElementById('modelSelectorWrap');

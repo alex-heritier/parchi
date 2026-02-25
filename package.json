@@ -1,6 +1,6 @@
 {
   "name": "parchi-extension",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "description": "Warm-paper browser automation extension with configurable LLM providers",
   "type": "module",
   "workspaces": [
@@ -14,6 +14,7 @@
     "backend:dev": "cd packages/backend && npx convex dev",
     "relay:daemon": "node dist-relay/relay-daemon.js",
     "relay": "node dist-relay/relay.js",
+    "parchi": "node dist-cli/parchi.js",
     "validate": "node scripts/build.mjs && node dist/tests/validate-extension.js",
     "test": "node scripts/build.mjs && node dist/tests/run-tests.js",
     "test:unit": "node scripts/build.mjs && node dist/tests/unit/run-unit-tests.js",
@@ -42,6 +43,7 @@
   "author": "",
   "license": "MIT",
   "bin": {
+    "parchi": "dist-cli/parchi.js",
     "parchi-relay": "dist-relay/relay.js"
   },
   "dependencies": {

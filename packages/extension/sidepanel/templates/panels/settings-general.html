@@ -25,7 +25,7 @@
     </div>
     <div class="form-group">
         <label for="model">Model</label>
-        <input type="text" id="model" list="modelSuggestions" placeholder="e.g., claude-sonnet-4-20250514" />
+        <input type="text" id="model" list="modelSuggestions" placeholder="Type model ID or choose suggestion..." />
         <datalist id="modelSuggestions"></datalist>
         <small id="modelHint">Recommended: claude-sonnet-4-20250514</small>
     </div>
@@ -168,7 +168,7 @@
     </details>
 </div>
 
-<!-- ===== MODEL TAB ===== -->
+<!-- ===== MODEL TAB (behavior only, no appearance) ===== -->
 <div class="settings-tab-pane" data-pane="model">
     <div class="form-group">
         <label for="temperature">Temperature <span class="form-value" id="temperatureValue">0.7</span></label>
@@ -205,6 +205,14 @@
             <option value="false">Disabled</option>
         </select>
     </div>
+</div>
+
+<!-- ===== DESIGN TAB (appearance) ===== -->
+<div class="settings-tab-pane" data-pane="design">
+    <div class="form-group">
+        <label for="themeSelect">Theme</label>
+        <div id="themeGrid" class="theme-grid"></div>
+    </div>
     <div class="settings-divider"></div>
     <div class="form-group">
         <label for="uiZoom">Text Size <span class="form-value" id="uiZoomValue">100%</span></label>
@@ -213,9 +221,12 @@
     <div class="form-group">
         <label for="fontPreset">Typography</label>
         <select id="fontPreset">
-            <option value="default">Default</option>
+            <option value="default">Jakarta (Default)</option>
             <option value="geist">Geist</option>
-            <option value="soft">Soft</option>
+            <option value="soft">Nunito</option>
+            <option value="dm-sans">DM Sans</option>
+            <option value="plex">IBM Plex</option>
+            <option value="manrope">Manrope</option>
         </select>
     </div>
     <div class="form-group">
@@ -226,53 +237,38 @@
             <option value="semibold">Semibold</option>
         </select>
     </div>
-    <div class="settings-divider"></div>
-    <div class="form-group">
-        <label for="themeSelect">Theme</label>
-        <div id="themeGrid" class="theme-grid"></div>
-    </div>
 </div>
 
-<!-- ===== BROWSER TAB ===== -->
-<div class="settings-tab-pane" data-pane="browser">
+<!-- ===== ADVANCED TAB (relay, prompts, browser, import/export) ===== -->
+<div class="settings-tab-pane" data-pane="advanced">
+    <div class="settings-section-label">System Prompt</div>
     <div class="form-group">
-        <label for="enableScreenshots">Screenshots</label>
-        <select id="enableScreenshots">
-            <option value="true">Enabled</option>
-            <option value="false">Disabled</option>
-        </select>
+        <label for="systemPrompt">Main Prompt</label>
+        <textarea id="systemPrompt" rows="5" class="system-prompt-textarea" placeholder="Leave empty for default..."></textarea>
+        <small>Override the default system prompt</small>
     </div>
-    <div class="form-group">
-        <label for="sendScreenshotsAsImages">Send Screenshots as</label>
-        <select id="sendScreenshotsAsImages">
-            <option value="true">Images (vision models)</option>
-            <option value="false">Text description</option>
-        </select>
+    <div id="orchestratorPromptSection" class="form-group hidden">
+        <div class="settings-divider"></div>
+        <label for="orchestratorPromptTextarea">Orchestrator Prompt</label>
+        <textarea id="orchestratorPromptTextarea" rows="5" class="system-prompt-textarea" placeholder="Leave empty to use orchestrator profile's prompt..."></textarea>
+        <small>System prompt for the orchestrator profile.</small>
     </div>
+    <div id="visionPromptSection" class="form-group hidden">
+        <div class="settings-divider"></div>
+        <label for="visionPromptTextarea">Vision Prompt</label>
+        <textarea id="visionPromptTextarea" rows="5" class="system-prompt-textarea" placeholder="Leave empty to use vision profile's prompt..."></textarea>
+        <small>System prompt for the vision profile.</small>
+    </div>
+
+    <div class="settings-divider"></div>
+    <div class="settings-section-label">Browser</div>
     <div class="form-group">
         <label for="allowedDomains">Allowed Domains</label>
         <input type="text" id="allowedDomains" placeholder="Leave empty for all domains" />
         <small>Comma-separated, e.g.: google.com, github.com</small>
     </div>
-    <div class="settings-divider"></div>
-    <div class="form-group">
-        <label for="visionProfile">Vision Profile</label>
-        <select id="visionProfile">
-            <option value="">Same as main</option>
-        </select>
-    </div>
-    <div class="form-group">
-        <label for="visionBridge">Vision Bridge</label>
-        <select id="visionBridge">
-            <option value="true">Enabled</option>
-            <option value="false">Disabled</option>
-        </select>
-        <small>Describe screenshots for non-vision models</small>
-    </div>
-</div>
 
-<!-- ===== NETWORK TAB ===== -->
-<div class="settings-tab-pane" data-pane="network">
+    <div class="settings-divider"></div>
     <div class="settings-section-label">Relay</div>
     <div class="form-group">
         <label for="relayEnabled">Enable Relay</label>
@@ -302,22 +298,6 @@
     </div>
 
     <div class="settings-divider"></div>
-    <div class="settings-section-label">Orchestrator</div>
-    <div class="form-group">
-        <label for="orchestratorToggle">Orchestrator Mode</label>
-        <select id="orchestratorToggle">
-            <option value="false">Disabled</option>
-            <option value="true">Enabled</option>
-        </select>
-    </div>
-    <div class="form-group">
-        <label for="orchestratorProfile">Orchestrator Profile</label>
-        <select id="orchestratorProfile">
-            <option value="">Same as main</option>
-        </select>
-    </div>
-
-    <div class="settings-divider"></div>
     <div class="settings-section-label">Import / Export</div>
     <div class="form-row">
         <button id="exportSettingsBtn" class="btn btn-secondary" style="flex: 1;">Export</button>
@@ -325,25 +305,4 @@
         <input id="importSettingsInput" type="file" accept="application/json" style="display: none;" />
     </div>
     <small>Export all profiles to JSON. Import overwrites current settings.</small>
-</div>
-
-<!-- ===== PROMPT TAB ===== -->
-<div class="settings-tab-pane" data-pane="prompt">
-    <div class="form-group">
-        <label for="systemPrompt">System Prompt</label>
-        <textarea id="systemPrompt" rows="5" class="system-prompt-textarea" placeholder="Leave empty for default..."></textarea>
-        <small>Override the default system prompt</small>
-    </div>
-    <div id="orchestratorPromptSection" class="form-group hidden">
-        <div class="settings-divider"></div>
-        <label for="orchestratorPromptTextarea">Orchestrator Prompt</label>
-        <textarea id="orchestratorPromptTextarea" rows="5" class="system-prompt-textarea" placeholder="Leave empty to use orchestrator profile's prompt..."></textarea>
-        <small>System prompt for the orchestrator profile. Edit here or in the profile editor.</small>
-    </div>
-    <div id="visionPromptSection" class="form-group hidden">
-        <div class="settings-divider"></div>
-        <label for="visionPromptTextarea">Vision Prompt</label>
-        <textarea id="visionPromptTextarea" rows="5" class="system-prompt-textarea" placeholder="Leave empty to use vision profile's prompt..."></textarea>
-        <small>System prompt for the vision profile. Edit here or in the profile editor.</small>
-    </div>
 </div>

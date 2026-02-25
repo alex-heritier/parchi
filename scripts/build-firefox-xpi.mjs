@@ -23,7 +23,7 @@ const version = String(manifest.version || '0.0.0').trim();
 const filename = `${rawName}-${version}.xpi`;
 
 execSync(
-  `npx web-ext build --source-dir "${distDir}" --artifacts-dir "${distDir}" --filename "${filename}" --overwrite-dest`,
+  `npx web-ext build --source-dir "${distDir}" --artifacts-dir "${distDir}" --filename "${filename}" --overwrite-dest --ignore-files "**/*.map" "tests" "tests/**"`,
   {
     stdio: 'inherit',
   },

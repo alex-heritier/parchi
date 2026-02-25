@@ -2,6 +2,8 @@ import { isRuntimeMessage } from '../../../../shared/src/runtime-messages.js';
 import { createMessage, normalizeConversationHistory } from '../../../ai/message-schema.js';
 import type { Message } from '../../../ai/message-schema.js';
 import { bindSidebarNavigation, setSidebarOpen } from './panel-navigation.js';
+import { appendTrace, pruneOldTraces } from '../chat/trace-store.js';
+import { recordUsage } from '../settings/usage-store.js';
 
 const debounce = (fn: (...args: any[]) => void, ms: number) => {
   let timer: ReturnType<typeof setTimeout>;
@@ -48,6 +50,8 @@ const autoResizeTextArea = (textarea: HTMLTextAreaElement | null, maxHeight: num
     this.updateChatEmptyState?.();
     this.initMascotBubble?.();
     this.initSessionTabsOrb?.();
+    // Prune old traces (>7 days) in background — fire and forget
+    pruneOldTraces().catch(() => {});
   } catch (error) {
     console.error('[Parchi] init() failed:', error);
     this.updateStatus('Initialization failed - check console', 'error');
@@ -136,14 +140,29 @@ const autoResizeTextArea = (textarea: HTMLTextAreaElement | null, maxHeight: num
     });
   }
 
-  // Provider change
+  // Provider change — also refresh model catalog for setup tab
+  const debouncedSetupModelRefresh = debounce(() => this.refreshModelCatalog({ force: true }), 800);
   this.elements.provider?.addEventListener('change', () => {
     this.toggleCustomEndpoint();
     this.updateScreenshotToggleState();
+    debouncedSetupModelRefresh();
   });
 
-  // Custom endpoint validation
-  this.elements.customEndpoint?.addEventListener('input', () => this.validateCustomEndpoint());
+  // Custom endpoint validation + model refresh
+  this.elements.customEndpoint?.addEventListener('input', () => {
+    this.validateCustomEndpoint();
+    debouncedSetupModelRefresh();
+  });
+  this.elements.apiKey?.addEventListener('input', debouncedSetupModelRefresh);
+  this.elements.model?.addEventListener('input', () => {
+    if (!this.configs?.[this.currentConfig]) return;
+    this.configs[this.currentConfig] = {
+      ...this.configs[this.currentConfig],
+      model: String(this.elements.model?.value || '').trim(),
+    };
+    this.populateModelSelect?.();
+    this.updateModelDisplay?.();
+  });
 
   // Temperature slider
   this.elements.temperature?.addEventListener('input', () => {
@@ -166,12 +185,12 @@ const autoResizeTextArea = (textarea: HTMLTextAreaElement | null, maxHeight: num
   this.elements.settingsTabSetupBtn?.addEventListener('click', () => this.switchSettingsTab('setup'));
   this.elements.settingsTabOauthBtn?.addEventListener('click', () => this.switchSettingsTab('oauth'));
   this.elements.settingsTabModelBtn?.addEventListener('click', () => this.switchSettingsTab('model'));
-  this.elements.settingsTabBrowserBtn?.addEventListener('click', () => this.switchSettingsTab('browser'));
-  this.elements.settingsTabNetworkBtn?.addEventListener('click', () => this.switchSettingsTab('network'));
-  this.elements.settingsTabPromptBtn?.addEventListener('click', () => this.switchSettingsTab('prompt'));
   this.elements.settingsTabProfilesBtn?.addEventListener('click', () => this.switchSettingsTab('profiles'));
   this.elements.settingsTabUsageBtn?.addEventListener('click', () => this.switchSettingsTab('usage'));
+  this.elements.settingsTabDesignBtn?.addEventListener('click', () => this.switchSettingsTab('design'));
+  this.elements.settingsTabAdvancedBtn?.addEventListener('click', () => this.switchSettingsTab('advanced'));
   document.getElementById('usageRefreshBtn')?.addEventListener('click', () => this.refreshUsageTab?.());
+  document.getElementById('usageClearBtn')?.addEventListener('click', () => this.clearUsageData?.());
   this.elements.createProfileBtn?.addEventListener('click', () => this.createProfileFromInput());
   this.elements.agentGrid?.addEventListener('click', (event) => {
     const deleteBtn = (event.target as HTMLElement | null)?.closest('.agent-card-delete') as HTMLElement | null;
@@ -266,9 +285,19 @@ export PARCHI_RELAY_PORT="${port}"`;
   });
   this.elements.importSettingsInput?.addEventListener('change', (event) => this.importSettings(event));
 
-  // Send message (or stop if running)
+  // Send message, queue, or stop depending on running state
   this.elements.sendBtn?.addEventListener('click', () => {
-    if (this.elements.composer?.classList.contains('running')) {
+    const isRunning = this.elements.composer?.classList.contains('running');
+    const hasText = this.elements.userInput?.value.trim();
+
+    if (isRunning && hasText) {
+      // Queue the message — it will send after the current turn completes
+      this.queuedMessage = this.elements.userInput.value.trim();
+      this.elements.userInput.value = '';
+      this.elements.userInput.style.height = '';
+      this.updateStatus('Message queued', 'active');
+    } else if (isRunning) {
+      // No text — stop the run
       this.requestRunStop('Stopped by user');
       this.stopWatchdog?.();
       this.stopThinkingTimer?.();
@@ -280,6 +309,7 @@ export PARCHI_RELAY_PORT="${port}"`;
       this.pendingToolCount = 0;
       this.isStreaming = false;
       this.activeToolName = null;
+      this.queuedMessage = null;
       this.updateActivityState();
       this.finishStreamingMessage();
       this.clearErrorBanner?.();
@@ -291,13 +321,44 @@ export PARCHI_RELAY_PORT="${port}"`;
   });
 
   // Enter to send (Shift+Enter for newline), workflow menu gets priority
+  // When running: Enter queues the message (same as clicking the send button)
   this.elements.userInput?.addEventListener('keydown', (event: KeyboardEvent) => {
     if (this.workflowMenuOpen && this.handleWorkflowKeydown(event)) {
       return;
     }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      this.sendMessage();
+      const isRunning = this.elements.composer?.classList.contains('running');
+      const hasText = this.elements.userInput?.value.trim();
+
+      if (isRunning && hasText) {
+        // Queue the message — it will send after the current turn completes
+        this.queuedMessage = this.elements.userInput.value.trim();
+        this.elements.userInput.value = '';
+        this.elements.userInput.style.height = '';
+        this.updateStatus('Message queued', 'active');
+      } else if (isRunning) {
+        // No text — stop the run
+        this.requestRunStop('Stopped by user');
+        this.stopWatchdog?.();
+        this.stopThinkingTimer?.();
+        this.stopRunTimer?.();
+        this.elements.composer?.classList.remove('running');
+        this.pendingTurnDraft = null;
+        this.pendingRecordedContext = null;
+        this.hideRecordedContextBadge?.();
+        this.pendingToolCount = 0;
+        this.isStreaming = false;
+        this.activeToolName = null;
+        this.queuedMessage = null;
+        this.updateActivityState();
+        this.finishStreamingMessage();
+        this.clearErrorBanner?.();
+        this.insertStoppedDivider();
+        this.updateStatus('Stopped', 'warning');
+      } else {
+        this.sendMessage();
+      }
     }
   });
 
@@ -370,6 +431,19 @@ export PARCHI_RELAY_PORT="${port}"`;
   this.elements.exportBtn?.addEventListener('click', () => this.showExportMenu());
 
   this.elements.chatMessages?.addEventListener('scroll', () => this.handleChatScroll());
+
+  // Delegated click: copy button inside code blocks
+  this.elements.chatMessages?.addEventListener('click', (e: Event) => {
+    const btn = (e.target as HTMLElement).closest('.code-copy-btn') as HTMLButtonElement | null;
+    if (!btn) return;
+    const wrap = btn.closest('.code-block-wrap');
+    const code = wrap?.querySelector('code');
+    if (!code) return;
+    navigator.clipboard.writeText(code.textContent || '').then(() => {
+      btn.classList.add('copied');
+      setTimeout(() => btn.classList.remove('copied'), 2000);
+    });
+  });
   this.elements.scrollToLatestBtn?.addEventListener('click', () => this.scrollToBottom({ force: true }));
 
   // Stop/reset is now handled by the send button above
@@ -385,64 +459,6 @@ export PARCHI_RELAY_PORT="${port}"`;
   this.elements.profileEditorEndpoint?.addEventListener('input', debouncedModelRefresh);
   this.elements.profileEditorApiKey?.addEventListener('input', debouncedModelRefresh);
 
-  // Model picker: open on focus/click of model input
-  this.elements.profileEditorModel?.addEventListener('focus', () => this.showModelPicker?.());
-  this.elements.profileEditorModel?.addEventListener('click', () => this.showModelPicker?.());
-
-  // Model picker: filter as user types in filter input
-  document.getElementById('modelPickerFilter')?.addEventListener('input', (e: Event) => {
-    const value = (e.target as HTMLInputElement).value;
-    this.renderModelPickerList?.(value);
-  });
-
-  // Model picker: select on click
-  document.getElementById('modelPickerList')?.addEventListener('click', (e: Event) => {
-    const item = (e.target as HTMLElement).closest('.model-picker-item') as HTMLElement | null;
-    if (!item?.dataset.model) return;
-    if (this.elements.profileEditorModel) {
-      this.elements.profileEditorModel.value = item.dataset.model;
-    }
-    this.hideModelPicker?.();
-  });
-
-  // Model picker: close on outside click
-  document.addEventListener('mousedown', (e: MouseEvent) => {
-    const dropdown = document.getElementById('modelPickerDropdown');
-    if (!dropdown || dropdown.classList.contains('hidden')) return;
-    const pickerGroup = (e.target as HTMLElement)?.closest('.model-picker-group');
-    if (!pickerGroup) this.hideModelPicker?.();
-  });
-
-  // Model picker: keyboard navigation in filter
-  document.getElementById('modelPickerFilter')?.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      this.hideModelPicker?.();
-      this.elements.profileEditorModel?.focus();
-      return;
-    }
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      const list = document.getElementById('modelPickerList');
-      if (!list) return;
-      const items = list.querySelectorAll('.model-picker-item');
-      if (!items.length) return;
-      const focused = list.querySelector('.model-picker-item.focused') as HTMLElement | null;
-      let idx = focused ? Array.from(items).indexOf(focused) : -1;
-      if (focused) focused.classList.remove('focused');
-      idx = e.key === 'ArrowDown' ? Math.min(idx + 1, items.length - 1) : Math.max(idx - 1, 0);
-      const next = items[idx] as HTMLElement;
-      next.classList.add('focused');
-      next.scrollIntoView({ block: 'nearest' });
-    }
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const focused = document.querySelector('#modelPickerList .model-picker-item.focused') as HTMLElement | null;
-      if (focused?.dataset.model && this.elements.profileEditorModel) {
-        this.elements.profileEditorModel.value = focused.dataset.model;
-        this.hideModelPicker?.();
-      }
-    }
-  });
 
   this.elements.profileEditorHeaders?.addEventListener('input', () => this.validateProfileEditorHeaders());
   this.elements.profileEditorTemperature?.addEventListener('input', () => {
@@ -492,6 +508,15 @@ export PARCHI_RELAY_PORT="${port}"`;
   this.chatResizeObserver.observe(this.elements.chatMessages);
 };
 
+(SidePanelUI.prototype as any).flushQueuedMessage = function flushQueuedMessage() {
+  if (!this.queuedMessage) return;
+  const msg = this.queuedMessage;
+  this.queuedMessage = null;
+  // Stuff the queued text into the input and send
+  this.elements.userInput.value = msg;
+  this.sendMessage();
+};
+
 (SidePanelUI.prototype as any).startWatchdog = function startWatchdog() {
   this.stopWatchdog();
   this._lastRuntimeMessageAt = Date.now();
@@ -534,6 +559,7 @@ export PARCHI_RELAY_PORT="${port}"`;
   this.pendingToolCount = 0;
   this.isStreaming = false;
   this.activeToolName = null;
+  this.queuedMessage = null;
   this.updateActivityState();
   this.finishStreamingMessage();
   this.showErrorBanner('Connection lost — the background service may have restarted. You can send a new message.', {
@@ -599,10 +625,13 @@ export PARCHI_RELAY_PORT="${port}"`;
 
     if (phase === 'stopped') {
       this.updateStatus(message.note || 'Stopped', 'warning');
+      this.flushQueuedMessage?.();
     } else if (phase === 'failed') {
       this.updateStatus(message.note || 'Failed', 'error');
+      this.flushQueuedMessage?.();
     } else if (phase === 'completed') {
       this.updateStatus(message.note || 'Ready', 'success');
+      // Note: flushQueuedMessage is called from displayAssistantMessage for completed runs
     } else if (phase === 'planning' || phase === 'executing' || phase === 'finalizing') {
       // Surface non-terminal phases with retry counts
       const phaseLabel = phase.charAt(0).toUpperCase() + phase.slice(1);
@@ -639,6 +668,14 @@ export PARCHI_RELAY_PORT="${port}"`;
         } as any);
       entry.plan = message.plan;
       this.historyTurnMap.set(turnId, entry);
+
+      // Persist plan trace to IndexedDB
+      appendTrace({
+        sessionId: this.sessionId,
+        ts: Date.now(),
+        kind: 'plan_update',
+        plan: message.plan,
+      });
     }
 
     return;
@@ -695,6 +732,18 @@ export PARCHI_RELAY_PORT="${port}"`;
         timestamp: (message as any).timestamp,
       });
       this.historyTurnMap.set(turnId, entry);
+
+      // Persist full trace to IndexedDB
+      appendTrace({
+        sessionId: this.sessionId,
+        ts: Date.now(),
+        kind: 'tool_start',
+        tool: message.tool,
+        toolId: (message as any).id,
+        args: (message as any).args,
+        stepIndex: (message as any).stepIndex,
+        stepTitle: (message as any).stepTitle,
+      });
     }
 
     this.displayToolExecution(message.tool, message.args, null, message.id);
@@ -739,6 +788,19 @@ export PARCHI_RELAY_PORT="${port}"`;
         timestamp: (message as any).timestamp,
       });
       this.historyTurnMap.set(turnId, entry);
+
+      // Persist full trace to IndexedDB
+      appendTrace({
+        sessionId: this.sessionId,
+        ts: Date.now(),
+        kind: 'tool_result',
+        tool: message.tool,
+        toolId: (message as any).id,
+        args: (message as any).args,
+        result: (message as any).result,
+        stepIndex: (message as any).stepIndex,
+        stepTitle: (message as any).stepTitle,
+      });
     }
 
     this.displayToolExecution(message.tool, message.args, message.result, message.id);
@@ -766,6 +828,17 @@ export PARCHI_RELAY_PORT="${port}"`;
         usage: (message as any).usage || null,
       };
       this.historyTurnMap.set(turnId, entry);
+
+      // Persist full trace to IndexedDB
+      appendTrace({
+        sessionId: this.sessionId,
+        ts: Date.now(),
+        kind: 'assistant_final',
+        content: message.content,
+        thinking: message.thinking || null,
+        model: message.model || null,
+        usage: (message as any).usage || null,
+      });
     }
 
     // Cap historyTurnMap to prevent unbounded memory growth
@@ -780,6 +853,18 @@ export PARCHI_RELAY_PORT="${port}"`;
 
     this.displayAssistantMessage(message.content, message.thinking, message.usage, message.model);
     this.appendContextMessages(message.responseMessages, message.content, message.thinking);
+
+    // Record usage to persistent local store
+    if (message.usage && (message.usage.inputTokens || message.usage.outputTokens)) {
+      const activeConfig = this.configs?.[this.currentConfig] || {};
+      const usageModel = message.model || activeConfig.model || 'unknown';
+      const usageProvider = activeConfig.provider || 'unknown';
+      recordUsage(usageModel, usageProvider, {
+        inputTokens: message.usage.inputTokens || 0,
+        outputTokens: message.usage.outputTokens || 0,
+      }).catch((err) => console.warn('[Parchi] recordUsage failed:', err));
+    }
+
     if (message.usage?.inputTokens) {
       this.updateContextUsage(message.usage.inputTokens);
     } else if (message.contextUsage?.approxTokens) {
@@ -825,6 +910,7 @@ export PARCHI_RELAY_PORT="${port}"`;
       category: String((message as any).errorCategory || ''),
     });
     this.updateStatus('Error', 'error');
+    this.flushQueuedMessage?.();
     return;
   }
   if (message.type === 'run_warning') {
@@ -925,5 +1011,15 @@ export PARCHI_RELAY_PORT="${port}"`;
 
   if (message.contextUsage?.approxTokens) {
     this.updateContextUsage(message.contextUsage.approxTokens);
+  }
+
+  // Trigger compaction sweep animation on the context bar
+  const bar = document.getElementById('contextBar');
+  if (bar) {
+    bar.classList.remove('compacting');
+    // Force reflow so re-adding the class restarts the animation
+    void bar.offsetWidth;
+    bar.classList.add('compacting');
+    bar.addEventListener('animationend', () => bar.classList.remove('compacting'), { once: true });
   }
 };

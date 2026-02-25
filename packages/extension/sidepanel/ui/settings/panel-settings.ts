@@ -17,6 +17,9 @@ const FONT_PRESET_STACKS: Record<string, string> = {
   default: 'var(--font-sans-default)',
   geist: 'var(--font-sans-geist)',
   soft: 'var(--font-sans-soft)',
+  'dm-sans': 'var(--font-sans-dm)',
+  plex: 'var(--font-sans-plex)',
+  manrope: 'var(--font-sans-manrope)',
 };
 
 const FONT_STYLE_WEIGHTS: Record<string, string> = {
@@ -184,7 +187,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
 };
 
 (SidePanelUI.prototype as any).switchSettingsTab = function switchSettingsTab(
-  tabName: 'setup' | 'oauth' | 'model' | 'browser' | 'network' | 'prompt' | 'profiles' | 'usage' = 'setup',
+  tabName: 'setup' | 'oauth' | 'model' | 'profiles' | 'usage' | 'design' | 'advanced' = 'setup',
 ) {
   // Persist current form state when leaving setup tab
   if (this.currentSettingsTab === 'setup' && tabName !== 'setup') {
@@ -193,26 +196,24 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   }
   this.currentSettingsTab = tabName;
 
-  const tabs = ['setup', 'oauth', 'model', 'browser', 'network', 'prompt', 'profiles', 'usage'] as const;
+  const tabs = ['setup', 'oauth', 'model', 'profiles', 'usage', 'design', 'advanced'] as const;
   const tabElements: Record<string, HTMLElement | null> = {
     setup: this.elements.settingsTabSetup,
     oauth: this.elements.settingsTabOauth,
     model: this.elements.settingsTabModel,
-    browser: this.elements.settingsTabBrowser,
-    network: this.elements.settingsTabNetwork,
-    prompt: this.elements.settingsTabPrompt,
     profiles: this.elements.settingsTabProfiles,
     usage: this.elements.settingsTabUsage || document.getElementById('settingsTabUsage'),
+    design: this.elements.settingsTabDesign || document.getElementById('settingsTabDesign'),
+    advanced: this.elements.settingsTabAdvanced || document.getElementById('settingsTabAdvanced'),
   };
   const btnElements: Record<string, HTMLElement | null> = {
     setup: this.elements.settingsTabSetupBtn,
     oauth: this.elements.settingsTabOauthBtn,
     model: this.elements.settingsTabModelBtn,
-    browser: this.elements.settingsTabBrowserBtn,
-    network: this.elements.settingsTabNetworkBtn,
-    prompt: this.elements.settingsTabPromptBtn,
     profiles: this.elements.settingsTabProfilesBtn,
     usage: this.elements.settingsTabUsageBtn || document.getElementById('settingsTabUsageBtn'),
+    design: this.elements.settingsTabDesignBtn || document.getElementById('settingsTabDesignBtn'),
+    advanced: this.elements.settingsTabAdvancedBtn || document.getElementById('settingsTabAdvancedBtn'),
   };
 
   for (const tab of tabs) {
@@ -280,7 +281,27 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
     default: { ...baseConfig, ...(storedConfigs.default || {}) },
     ...storedConfigs,
   };
-  this.currentConfig = this.configs[settings.activeConfig] ? settings.activeConfig : 'default';
+  const storedActiveConfig = typeof settings.activeConfig === 'string' ? settings.activeConfig : '';
+  const storedActiveProvider = String(settings.provider || '').trim().toLowerCase();
+  const storedActiveModel = String(settings.model || '').trim();
+  const legacyActiveConfig = (() => {
+    if (!storedActiveModel) return '';
+    const profileNames = Object.keys(this.configs);
+    const exactProviderModelMatch = profileNames.find((name) => {
+      const config = this.configs[name] || {};
+      const provider = String(config.provider || '').trim().toLowerCase();
+      const model = String(config.model || '').trim();
+      return provider === storedActiveProvider && model === storedActiveModel;
+    });
+    if (exactProviderModelMatch) return exactProviderModelMatch;
+
+    return profileNames.find((name) => {
+      const config = this.configs[name] || {};
+      const model = String(config.model || '').trim();
+      return model === storedActiveModel;
+    });
+  })();
+  this.currentConfig = this.configs[storedActiveConfig] ? storedActiveConfig : legacyActiveConfig || 'default';
   this.auxAgentProfiles = settings.auxAgentProfiles || [];
   this.applyUiZoom(settings.uiZoom ?? 1, { persist: false });
   this.applyTypography(settings.fontPreset ?? 'default', settings.fontStylePreset ?? 'normal', { persist: false });
@@ -374,6 +395,8 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   this.configs[this.currentConfig] = profile;
   this.savePromptSections?.();
   await this.persistAllSettings();
+  this.populateModelSelect?.();
+  this.updateModelDisplay?.();
 
   // Refresh models after saving settings
   this.fetchAvailableModels();
