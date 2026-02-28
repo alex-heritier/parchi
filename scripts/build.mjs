@@ -148,6 +148,7 @@ const run = async () => {
       path.join(rootDir, 'tests', 'relay', 'run-relay-tests.ts'),
       path.join(rootDir, 'tests', 'relay', 'run-relay-benchmark.ts'),
       path.join(rootDir, 'tests', 'perf', 'run-perf-profile.ts'),
+      path.join(rootDir, 'tests', 'perf', 'run-tab-cpu-audit.ts'),
     ],
     outdir: distDir,
     outbase: rootDir,
