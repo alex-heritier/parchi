@@ -59,7 +59,7 @@ export class SidePanelUI {
   };
   auxAgentProfiles: string[];
   currentView: 'chat' | 'history';
-  currentSettingsTab: 'setup' | 'oauth' | 'model' | 'browser' | 'network' | 'prompt' | 'profiles';
+  currentSettingsTab: 'setup' | 'oauth' | 'model' | 'profiles' | 'usage' | 'design' | 'advanced';
   profileEditorTarget: string;
   subagents: Map<string, { name: string; status: string; messages: any[]; tasks?: string[] }>;
   activeAgent: string;
@@ -90,6 +90,7 @@ export class SidePanelUI {
     }
   >;
   pendingTurnDraft: { userMessage: string; startedAt: number } | null;
+  queuedMessage: string | null;
   isReplayingHistory: boolean;
   _lastRuntimeMessageAt: number;
   _watchdogTimerId: ReturnType<typeof setInterval> | null;
@@ -210,6 +211,7 @@ export class SidePanelUI {
     };
     this.historyTurnMap = new Map();
     this.pendingTurnDraft = null;
+    this.queuedMessage = null;
     this.isReplayingHistory = false;
     this._lastRuntimeMessageAt = 0;
     this._watchdogTimerId = null;

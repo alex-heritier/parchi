@@ -1,3 +1,48 @@
+<div class="settings-section-label">Vision & Orchestrator</div>
+<div class="form-group">
+    <label for="enableScreenshots">Screenshots</label>
+    <select id="enableScreenshots">
+        <option value="true">Enabled</option>
+        <option value="false">Disabled</option>
+    </select>
+</div>
+<div class="form-group">
+    <label for="sendScreenshotsAsImages">Send Screenshots as</label>
+    <select id="sendScreenshotsAsImages">
+        <option value="true">Images (vision models)</option>
+        <option value="false">Text description</option>
+    </select>
+</div>
+<div class="form-group">
+    <label for="visionProfile">Vision Profile</label>
+    <select id="visionProfile">
+        <option value="">Same as main</option>
+    </select>
+</div>
+<div class="form-group">
+    <label for="visionBridge">Vision Bridge</label>
+    <select id="visionBridge">
+        <option value="true">Enabled</option>
+        <option value="false">Disabled</option>
+    </select>
+    <small>Describe screenshots for non-vision models</small>
+</div>
+<div class="form-group">
+    <label for="orchestratorToggle">Orchestrator Mode</label>
+    <select id="orchestratorToggle">
+        <option value="false">Disabled</option>
+        <option value="true">Enabled</option>
+    </select>
+</div>
+<div class="form-group">
+    <label for="orchestratorProfile">Orchestrator Profile</label>
+    <select id="orchestratorProfile">
+        <option value="">Same as main</option>
+    </select>
+</div>
+
+<div class="settings-divider"></div>
+<div class="settings-section-label">Profiles</div>
 <div class="profile-actions-row">
     <input id="newProfileNameInput" type="text" placeholder="Profile name" />
     <button id="createProfileBtn" class="btn btn-primary">Create</button>
@@ -29,15 +74,11 @@
             <label for="profileEditorApiKey">API Key</label>
             <input type="password" id="profileEditorApiKey" placeholder="sk-..." />
         </div>
-        <div class="form-group model-picker-group">
+        <div class="form-group">
             <label for="profileEditorModel">Model</label>
-            <input type="text" id="profileEditorModel" placeholder="Enter or search model ID" autocomplete="off" />
-            <div id="modelPickerDropdown" class="model-picker-dropdown hidden">
-                <input type="text" id="modelPickerFilter" class="model-picker-filter" placeholder="Filter models..." autocomplete="off" />
-                <div id="modelPickerList" class="model-picker-list">
-                    <div class="model-picker-empty">Change provider or enter endpoint to load models</div>
-                </div>
-            </div>
+            <select id="profileEditorModel">
+                <option value="">Select model...</option>
+            </select>
         </div>
         <div class="form-group" id="profileEditorEndpointGroup" style="display: none">
             <label for="profileEditorEndpoint">Endpoint</label>

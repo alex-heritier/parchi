@@ -1,4 +1,13 @@
 import { SidePanelUI } from '../core/panel-ui.js';
+import { COPY_ICON, highlightCodeBlock } from './markdown-highlighter.js';
+import { renderMarkdownTable as renderMarkdownTableHtml } from './markdown-table.js';
+
+(SidePanelUI.prototype as any).highlightCodeBlock = function highlightCodeBlockProto(
+  raw: string,
+  lang: string,
+): string {
+  return highlightCodeBlock(raw, lang, (value) => this.escapeHtmlBasic(value));
+};
 
 (SidePanelUI.prototype as any).renderMarkdown = function renderMarkdown(text: string) {
   if (!text) return '';
@@ -8,44 +17,50 @@ import { SidePanelUI } from '../core/panel-ui.js';
 
   let working = String(text).replace(/\r\n/g, '\n');
 
-  // Extract code blocks first (preserve them)
   const codeBlocks: string[] = [];
   const codeBlockRegex = /```(\w+)?\n?([\s\S]*?)```/g;
   working = working.replace(codeBlockRegex, (_: string, lang = '', body = '') => {
     const placeholder = `@@CODE_BLOCK_${codeBlocks.length}@@`;
-    const languageClass = lang ? ` class="language-${escapeAttr(lang.toLowerCase())}"` : '';
-    codeBlocks.push(`<pre><code${languageClass}>${escape(body)}</code></pre>`);
+    const langLower = lang.toLowerCase();
+    const languageClass = lang ? ` class="language-${escapeAttr(langLower)}"` : '';
+    const highlighted = lang ? this.highlightCodeBlock(body, langLower) : escape(body);
+    codeBlocks.push(
+      `<div class="code-block-wrap">` +
+        `<div class="code-block-hdr">` +
+        `<span class="code-block-lang">${lang ? escapeAttr(langLower) : ''}</span>` +
+        `<button class="code-copy-btn" type="button" title="Copy">${COPY_ICON}</button>` +
+        '</div>' +
+        `<pre><code${languageClass}>${highlighted}</code></pre>` +
+        '</div>',
+    );
     return placeholder;
   });
 
-  // Extract tables before processing other content
   const tables: string[] = [];
   const tableRegex = /(?:^|\n)((?:\|[^\n]*)+\|(?:\n|\r?\n?))+/gm;
   working = working.replace(tableRegex, (match: string) => {
     const placeholder = `@@TABLE_${tables.length}@@`;
-    tables.push(this.renderMarkdownTable(match.trim()));
+    tables.push(renderMarkdownTableHtml(match.trim(), escape));
     return placeholder;
   });
 
   const applyInline = (value = '') => {
     let html = escape(value);
-    // Extract inline code blocks to avoid linkifying inside code
     const inlineCode: string[] = [];
     html = html.replace(/`([^`]+)`/g, (_: string, code: string) => {
       const placeholder = `@@INLINECODE${inlineCode.length}@@`;
-      inlineCode.push(`<code>${escape(code)}</code>`);
+      inlineCode.push(`<code>${code}</code>`);
       return placeholder;
     });
     html = html.replace(
       /!\[([^\]]*)\]\(([^)]+)\)/g,
-      (_: string, alt: string, url: string) => `<img alt="${escape(alt)}" src="${escapeAttr(url)}">`,
+      (_: string, alt: string, url: string) => `<img alt="${alt}" src="${url}">`,
     );
     html = html.replace(
       /\[([^\]]+)\]\(([^)]+)\)/g,
       (_: string, label: string, url: string) =>
-        `<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`,
+        `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`,
     );
-    // Auto-link plain URLs
     html = html.replace(
       /(^|[\s(])((?:https?:\/\/|www\.)[^\s<]+[^\s<\.)\],])/gi,
       (_: string, prefix: string, rawUrl: string) => {
@@ -56,11 +71,10 @@ import { SidePanelUI } from '../core/panel-ui.js';
           url = url.slice(0, -1);
         }
         const href = url.startsWith('http') ? url : `https://${url}`;
-        return `${prefix}<a href="${escapeAttr(href)}" target="_blank" rel="noopener noreferrer">${escape(
-          url,
-        )}</a>${trailing}`;
+        return `${prefix}<a href="${href}" target="_blank" rel="noopener noreferrer">${url}</a>${trailing}`;
       },
     );
+    html = html.replace(/==(.+?)==/g, '<mark>$1</mark>');
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
     html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
@@ -194,93 +208,6 @@ import { SidePanelUI } from '../core/panel-ui.js';
   return html;
 };
 
-(SidePanelUI.prototype as any).renderMarkdownTable = function renderMarkdownTable(tableText: string): string {
-  const escape = (value = '') => this.escapeHtmlBasic(value);
-  const escapeAttr = (value = '') => this.escapeAttribute(value);
-
-  // Inline markdown for table cells (bold, italic, code, links)
-  const applyCell = (value = '') => {
-    let html = escape(value);
-    const inlineCode: string[] = [];
-    html = html.replace(/`([^`]+)`/g, (_: string, code: string) => {
-      const ph = `@@TCODE${inlineCode.length}@@`;
-      inlineCode.push(`<code>${escape(code)}</code>`);
-      return ph;
-    });
-    html = html.replace(
-      /\[([^\]]+)\]\(([^)]+)\)/g,
-      (_: string, label: string, url: string) =>
-        `<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`,
-    );
-    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
-    html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
-    html = html.replace(/(?<!\*)\*(?!\s)(.+?)\*(?!\*)/g, '<em>$1</em>');
-    html = html.replace(/(?<!_)_(?!\s)(.+?)_(?!_)/g, '<em>$1</em>');
-    inlineCode.forEach((codeBlock, i) => {
-      html = html.split(`@@TCODE${i}@@`).join(codeBlock);
-    });
-    return html;
-  };
-
-  const lines = tableText
-    .trim()
-    .split('\n')
-    .filter((line) => line.trim());
-  if (lines.length < 2) return `<p>${escape(tableText)}</p>`;
-
-  // Parse header row
-  const headerLine = lines[0];
-  const headers = headerLine
-    .split('|')
-    .map((cell) => cell.trim())
-    .filter((cell) => cell);
-
-  // Check if second line is separator
-  const separatorLine = lines[1];
-  const isSeparator = /^\s*[-:|\s]+$/.test(separatorLine);
-
-  const bodyStartIndex = isSeparator ? 2 : 1;
-  const bodyLines = lines.slice(bodyStartIndex);
-
-  if (headers.length === 0) return `<p>${escape(tableText)}</p>`;
-
-  // Build table HTML
-  let html = '<div class="table-wrapper"><table class="markdown-table">';
-
-  // Header
-  html += '<thead><tr>';
-  headers.forEach((header) => {
-    html += `<th>${applyCell(header)}</th>`;
-  });
-  html += '</tr></thead>';
-
-  // Body
-  if (bodyLines.length > 0) {
-    html += '<tbody>';
-    bodyLines.forEach((rowLine) => {
-      const cells = rowLine
-        .split('|')
-        .map((cell) => cell.trim())
-        .filter((cell) => cell);
-
-      if (cells.length > 0) {
-        html += '<tr>';
-        cells.forEach((cell, idx) => {
-          // First column often acts as row header
-          const tag = idx === 0 ? 'th' : 'td';
-          html += `<${tag}>${applyCell(cell)}</${tag}>`;
-        });
-        // Fill empty cells to match header count
-        for (let i = cells.length; i < headers.length; i++) {
-          html += '<td></td>';
-        }
-        html += '</tr>';
-      }
-    });
-    html += '</tbody>';
-  }
-
-  html += '</table></div>';
-  return html;
+(SidePanelUI.prototype as any).renderMarkdownTable = function renderMarkdownTableProto(tableText: string): string {
+  return renderMarkdownTableHtml(tableText, (value) => this.escapeHtmlBasic(value));
 };

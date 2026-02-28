@@ -18,6 +18,7 @@ const manifestName = isFirefox ? 'manifest.firefox.json' : 'manifest.json';
 const distName = isFirefox ? 'dist-firefox' : 'dist';
 const distDir = path.join(rootDir, distName);
 const relayDistDir = path.join(rootDir, 'dist-relay');
+const cliDistDir = path.join(rootDir, 'dist-cli');
 const extensionRoot = path.join(rootDir, 'packages', 'extension');
 const parseEnvText = (text) => {
   const parsed = {};
@@ -97,8 +98,9 @@ const copyDirFiltered = (src, dest, filter) => {
 const run = async () => {
   cleanDir(distDir);
   cleanDir(relayDistDir);
+  cleanDir(cliDistDir);
 
-  execSync('tsc -p tsconfig.json --noEmit', { stdio: 'inherit' });
+  execSync('tsc -p tsconfig.json --noEmit', { stdio: 'inherit', cwd: rootDir });
 
   // Build background and sidepanel as ESM (they support modules)
   await esbuild.build({
@@ -144,6 +146,7 @@ const run = async () => {
       path.join(rootDir, 'tests', 'e2e', 'test-browser-tools.ts'),
       path.join(rootDir, 'tests', 'api', 'run-api-tests.ts'),
       path.join(rootDir, 'tests', 'relay', 'run-relay-tests.ts'),
+      path.join(rootDir, 'tests', 'relay', 'run-relay-benchmark.ts'),
       path.join(rootDir, 'tests', 'perf', 'run-perf-profile.ts'),
     ],
     outdir: distDir,
@@ -166,6 +169,25 @@ const run = async () => {
       relay: path.join(rootDir, 'packages', 'relay-service', 'src', 'cli.ts'),
     },
     outdir: relayDistDir,
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    target: 'es2022',
+    sourcemap: true,
+    logLevel: 'info',
+    define: buildDefines,
+    packages: 'external',
+    banner: {
+      js: '#!/usr/bin/env node',
+    },
+  });
+
+  // Build parchi CLI (single file, Node.js)
+  await esbuild.build({
+    entryPoints: {
+      parchi: path.join(rootDir, 'packages', 'cli', 'src', 'main.ts'),
+    },
+    outdir: cliDistDir,
     bundle: true,
     format: 'esm',
     platform: 'node',

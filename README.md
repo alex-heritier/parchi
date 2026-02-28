@@ -11,7 +11,7 @@ Chat-driven browser automation that lives in your sidebar. Navigate, read, click
 [![Chrome MV3](https://img.shields.io/badge/Chrome-MV3-4285F4?logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/)
 [![Firefox](https://img.shields.io/badge/Firefox-109%2B-FF7139?logo=firefox&logoColor=white)](https://www.mozilla.org/firefox/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-a5b4fc.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.4.0-6366f1.svg)]()
+[![Version](https://img.shields.io/badge/version-0.4.10-6366f1.svg)]()
 
 <br />
 
@@ -115,7 +115,7 @@ npm run build:firefox
 2. Click **"Load Temporary Add-on"**
 3. Select any file inside the `dist/` folder
 
-> **XPI packaging:** `npm run build:firefox:xpi` outputs `dist/parchi-0.4.0.xpi` for distribution. Requires Developer Edition/Nightly or Mozilla add-on signing for release installs.
+> **XPI packaging:** `npm run build:firefox:xpi` outputs `dist-firefox/<extension-name>-<version>.xpi` for distribution. Requires Developer Edition/Nightly or Mozilla add-on signing for release installs.
 
 ---
 
@@ -281,26 +281,30 @@ npm run relay -- run "Open example.com and summarize the page"
    navigation)          custom endpoints)
 ```
 
-**Key paths:**
+**Monorepo workspaces:**
 
-| File | Role |
+| Workspace | Role |
 |------|------|
-| `packages/extension/background.ts` | Agent loop, AI calls, tool execution |
-| `packages/extension/sidepanel/` | UI — chat, settings, tools, history |
-| `packages/extension/tools/` | Browser automation tool definitions |
-| `packages/shared/` | Shared types and runtime message schemas |
+| `packages/backend/` | Convex backend (auth, billing, API proxy) |
+| `packages/cli/` | Local CLI entrypoint and daemon client |
+| `packages/extension/` | Browser extension runtime, UI, and tools |
+| `packages/relay-service/` | Relay daemon + relay protocol CLI |
+| `packages/shared/` | Shared plans, prompts, schemas, and message types |
+| `packages/website/` | Static website + billing pages |
 
 ---
 
 ## 🔨 Development
 
 ```bash
-npm install          # install dependencies
-npm run build        # build to dist/
-npm run typecheck    # type checking
-npm run lint         # biome linter
-npm run lint:fix     # auto-fix lint issues
-npm run test:unit    # run unit tests
+npm install                   # install all workspace deps
+npm run build                 # build extension + relay + CLI bundles
+npm run typecheck             # repo-wide type checking
+npm run lint                  # biome linter
+npm run lint:fix              # auto-fix lint issues
+npm run test:unit             # run unit tests
+npm run backend:dev           # run Convex dev backend workspace
+npm run dev -w @parchi/website  # run website workspace locally
 ```
 
 After building, reload the extension in `chrome://extensions` to pick up changes.

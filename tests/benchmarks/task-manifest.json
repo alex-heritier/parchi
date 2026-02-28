@@ -1,0 +1,164 @@
+{
+  "benchmark": "parchi-complex-web-interaction-v1",
+  "entrypoint": "tests/benchmarks/complex-relay-benchmark.html",
+  "description": "Deterministic complex browser workflow benchmark for comparing agent models.",
+  "scoring": {
+    "totalPoints": 100,
+    "weights": {
+      "t1": 8,
+      "t2": 10,
+      "t3": 10,
+      "t4": 10,
+      "t5": 8,
+      "t6": 8,
+      "t7": 10,
+      "t8": 12,
+      "t9": 12,
+      "t10": 12
+    },
+    "primaryMetrics": [
+      "task_success_rate",
+      "time_to_completion_ms",
+      "first_action_latency_ms",
+      "proof_code_present",
+      "event_count"
+    ]
+  },
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Auth + OTP",
+      "goal": "Authenticate and verify OTP from in-page inbox.",
+      "requiredSteps": [
+        "username=ops_lead",
+        "password=S3cur3#Relay",
+        "request OTP",
+        "read latest ticket from inbox",
+        "submit OTP"
+      ],
+      "passSignal": "tasks.t1=true"
+    },
+    {
+      "id": "t2",
+      "title": "Conditional form",
+      "goal": "Submit valid enterprise quote with hidden fields.",
+      "requiredSteps": [
+        "region=emea",
+        "plan=enterprise",
+        "seatCount=120",
+        "vat starts EMEA-",
+        "contactEmail ends @example.org",
+        "addons audit+alerts enabled"
+      ],
+      "passSignal": "tasks.t2=true"
+    },
+    {
+      "id": "t3",
+      "title": "Table filter/sort/pin",
+      "goal": "Apply strict filter/sort and pin target ticket.",
+      "requiredSteps": [
+        "severity=high",
+        "owner filter=li",
+        "sort=slaAsc",
+        "select INC-7421",
+        "pin ticket"
+      ],
+      "passSignal": "tasks.t3=true"
+    },
+    {
+      "id": "t4",
+      "title": "Kanban drag-and-drop",
+      "goal": "Reorder done lane exactly.",
+      "requiredSteps": [
+        "drag cards between lanes",
+        "done order => Audit Logs, Rate Limits, Retry Policy",
+        "validate order"
+      ],
+      "passSignal": "tasks.t4=true"
+    },
+    {
+      "id": "t5",
+      "title": "Two-step modal",
+      "goal": "Complete guarded release confirmation.",
+      "requiredSteps": [
+        "open modal",
+        "check both prerequisites",
+        "next",
+        "type ship-it-now",
+        "confirm"
+      ],
+      "passSignal": "tasks.t5=true"
+    },
+    {
+      "id": "t6",
+      "title": "Shadow DOM control",
+      "goal": "Configure secure toggle inside web component.",
+      "requiredSteps": [
+        "interact inside shadow root",
+        "mode=strict",
+        "key=relay-9001",
+        "apply"
+      ],
+      "passSignal": "tasks.t6=true"
+    },
+    {
+      "id": "t7",
+      "title": "Iframe challenge",
+      "goal": "Solve iframe room tuple and trigger parent message.",
+      "requiredSteps": [
+        "enter city=austin",
+        "floor=4",
+        "room=12b",
+        "generate access code"
+      ],
+      "passSignal": "tasks.t7=true"
+    },
+    {
+      "id": "t8",
+      "title": "Infinite scroll target mark",
+      "goal": "Scroll to hidden target artifact and mark it.",
+      "requiredSteps": [
+        "scroll list until artifact-zx-91 is visible",
+        "mark artifact-zx-91"
+      ],
+      "passSignal": "tasks.t8=true"
+    },
+    {
+      "id": "t9",
+      "title": "Rich text composition",
+      "goal": "Author exact structure in contenteditable block.",
+      "requiredSteps": [
+        "include <h2>Relay Readiness</h2>",
+        "include >=3 list bullets",
+        "include bullet containing Latency p95 < 2500ms",
+        "link text runbook => https://docs.example.com/runbook",
+        "validate rich text"
+      ],
+      "passSignal": "tasks.t9=true"
+    },
+    {
+      "id": "t10",
+      "title": "Asset manifest",
+      "goal": "Build exact 2-row asset manifest with owner.",
+      "requiredSteps": [
+        "owner=qa-bot",
+        "row1 evidence.csv / telemetry / high",
+        "row2 screenshot.png / ui / medium",
+        "validate"
+      ],
+      "passSignal": "tasks.t10=true"
+    }
+  ],
+  "resultCollection": {
+    "method": "Use Export Benchmark JSON button or window.__complexBenchmark.exportState()",
+    "requiredFields": [
+      "meta.label",
+      "meta.model",
+      "result.complete",
+      "result.completed",
+      "result.proof",
+      "tasks",
+      "eventCount"
+    ]
+  }
+}

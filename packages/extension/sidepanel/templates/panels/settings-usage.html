@@ -2,34 +2,46 @@
 <div class="settings-tab-pane" data-pane="usage">
     <div class="usage-header-row">
         <div class="usage-period-label">
-            <span id="usagePeriodText">Current period</span>
+            <span id="usagePeriodText">All-time usage</span>
         </div>
-        <button id="usageRefreshBtn" class="btn btn-secondary">Refresh</button>
+        <div class="usage-header-actions">
+            <button id="usageRefreshBtn" class="btn btn-secondary">Refresh</button>
+            <button id="usageClearBtn" class="btn btn-secondary">Clear</button>
+        </div>
     </div>
 
     <div id="usageSummaryGrid" class="usage-summary-grid">
-        <div class="usage-stat">
-            <span class="usage-stat-value" id="usageTotalCost">$0.00</span>
-            <span class="usage-stat-label">Total cost</span>
-        </div>
         <div class="usage-stat">
             <span class="usage-stat-value" id="usageTotalRequests">0</span>
             <span class="usage-stat-label">Requests</span>
         </div>
         <div class="usage-stat">
-            <span class="usage-stat-value" id="usageTotalTokens">0</span>
-            <span class="usage-stat-label">Tokens</span>
+            <span class="usage-stat-value" id="usageTotalInputTokens">0</span>
+            <span class="usage-stat-label">Input tokens</span>
+        </div>
+        <div class="usage-stat">
+            <span class="usage-stat-value" id="usageTotalOutputTokens">0</span>
+            <span class="usage-stat-label">Output tokens</span>
         </div>
     </div>
 
     <div class="usage-table-section">
         <div class="usage-table-header">
-            <span>Model Usage Breakdown</span>
+            <span>Per-Model Breakdown</span>
         </div>
         <div id="usageTableContainer" class="usage-table-container">
             <div class="usage-table-empty">
-                No usage data yet. Click Refresh to load from OpenRouter.
+                No usage data yet. Send a message to start tracking.
             </div>
+        </div>
+    </div>
+
+    <div class="usage-table-section">
+        <div class="usage-table-header">
+            <span>Session</span>
+        </div>
+        <div id="usageSessionContainer" class="usage-table-container">
+            <div class="usage-table-empty">No session data yet.</div>
         </div>
     </div>
 

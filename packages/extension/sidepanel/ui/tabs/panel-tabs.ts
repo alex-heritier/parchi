@@ -1,25 +1,77 @@
 import { getActiveTab } from '../../../utils/active-tab.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 
+(SidePanelUI.prototype as any).ingestFilesIntoComposer = async function ingestFilesIntoComposer(
+  files: File[],
+  source: 'picker' | 'paste' = 'picker',
+) {
+  if (!Array.isArray(files) || files.length === 0) return;
+
+  const maxPerFile = 4000;
+  const maxInlineMediaBytes = 4 * 1024 * 1024;
+  const mediaAttachments = Array.isArray(this.pendingComposerAttachments) ? [...this.pendingComposerAttachments] : [];
+
+  const readFileAsDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(reader.error || new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+
+  for (const file of files) {
+    const mime = String(file.type || '').toLowerCase();
+    const name = file.name || `${source}-attachment`;
+    const isImage = mime.startsWith('image/');
+    const isVideo = mime.startsWith('video/');
+    const isAudio = mime.startsWith('audio/');
+    const isMedia = isImage || isVideo || isAudio;
+
+    if (isMedia) {
+      if (file.size > maxInlineMediaBytes) {
+        this.elements.userInput.value += `\n\n[Attachment skipped: ${name} (${mime || 'media'}) is larger than 4MB]`;
+        continue;
+      }
+      try {
+        const dataUrl = await readFileAsDataUrl(file);
+        mediaAttachments.push({
+          kind: isImage ? 'image' : isVideo ? 'video' : 'audio',
+          name,
+          mimeType: mime || 'application/octet-stream',
+          size: file.size || 0,
+          dataUrl,
+        });
+        this.elements.userInput.value += `\n\n[Attached ${isImage ? 'image' : isVideo ? 'video' : 'audio'}: ${name}]`;
+      } catch (e) {
+        console.warn('Failed to read media attachment', name, e);
+      }
+      continue;
+    }
+
+    try {
+      const text = await file.text();
+      const trimmed = text.length > maxPerFile ? `${text.slice(0, maxPerFile)}\n… (truncated)` : text;
+      this.elements.userInput.value += `\n\n[File: ${name}]\n${trimmed}`;
+    } catch (e) {
+      console.warn('Failed to read file', name, e);
+    }
+  }
+
+  this.pendingComposerAttachments = mediaAttachments.slice(-8);
+  if (mediaAttachments.length > 0) {
+    this.updateStatus(`${mediaAttachments.length} media attachment${mediaAttachments.length === 1 ? '' : 's'} ready`, 'active');
+  }
+  this.elements.userInput.focus();
+};
+
 (SidePanelUI.prototype as any).handleFileSelection = async function handleFileSelection(event: Event) {
   const input = event.target as HTMLInputElement | null;
   if (!input) return;
   const files = Array.from(input.files || []) as File[];
   if (!files.length) return;
 
-  const maxPerFile = 4000;
-  for (const file of files) {
-    try {
-      const text = await file.text();
-      const trimmed = text.length > maxPerFile ? text.slice(0, maxPerFile) + '\n… (truncated)' : text;
-      const prefix = `\n\n[File: ${file.name}]\n`;
-      this.elements.userInput.value += prefix + trimmed;
-    } catch (e) {
-      console.warn('Failed to read file', file.name, e);
-    }
-  }
+  await this.ingestFilesIntoComposer(files, 'picker');
   input.value = '';
-  this.elements.userInput.focus();
 };
 
 (SidePanelUI.prototype as any).toggleTabSelector = async function toggleTabSelector() {
@@ -181,66 +233,12 @@ import { SidePanelUI } from '../core/panel-ui.js';
 };
 
 (SidePanelUI.prototype as any).updateSelectedTabsBar = function updateSelectedTabsBar() {
-  if (this.selectedTabs.size === 0) {
+  // Keep selected tabs context logic, but avoid duplicating this info in the
+  // main chat layout. The tab selector button/count remains the primary UI.
+  if (this.elements.selectedTabsBar) {
     this.elements.selectedTabsBar.classList.add('hidden');
-    return;
+    this.elements.selectedTabsBar.innerHTML = '';
   }
-
-  this.elements.selectedTabsBar.classList.remove('hidden');
-  this.elements.selectedTabsBar.innerHTML = '';
-  const grouped = new Map<string, Array<any>>();
-  this.selectedTabs.forEach((tab: any) => {
-    const hasGroup = typeof tab.groupId === 'number' && tab.groupId >= 0;
-    const key = hasGroup ? `group-${tab.groupId}` : 'ungrouped';
-    if (!grouped.has(key)) grouped.set(key, []);
-    const bucket = grouped.get(key);
-    if (bucket) bucket.push(tab);
-  });
-
-  grouped.forEach((tabs) => {
-    const groupTitle = tabs[0]?.groupTitle || 'Ungrouped';
-    const groupLabel = this.truncateText(groupTitle, 18) || 'Ungrouped';
-    const groupColor = tabs[0]?.groupColor || 'var(--text-tertiary)';
-    const groupWrap = document.createElement('div');
-    groupWrap.className = 'selected-tabs-group';
-    groupWrap.innerHTML = `
-        <div class="selected-group-label" style="--group-color: ${groupColor}">
-          <span>${this.escapeHtml(groupLabel)}</span>
-          <span class="selected-group-count">${tabs.length}</span>
-        </div>
-        <div class="selected-tabs-chips"></div>
-      `;
-
-    const chipsRow = groupWrap.querySelector('.selected-tabs-chips');
-    if (!chipsRow) {
-      this.elements.selectedTabsBar.appendChild(groupWrap);
-      return;
-    }
-    tabs.forEach((tab: any) => {
-      const chip = document.createElement('div');
-      chip.className = 'selected-tab-chip';
-      chip.innerHTML = `
-          <span>${this.escapeHtml(tab.title?.substring(0, 25) || 'Tab')}${tab.title?.length > 25 ? '...' : ''}</span>
-          <button title="Remove">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        `;
-      const removeBtn = chip.querySelector('button');
-      removeBtn?.addEventListener('click', (event) => {
-        event.stopPropagation();
-        this.selectedTabs.delete(tab.id);
-        this.updateSelectedTabsBar();
-        this.updateTabSelectorButton();
-        this.loadTabs();
-      });
-      chipsRow.appendChild(chip);
-    });
-
-    this.elements.selectedTabsBar.appendChild(groupWrap);
-  });
 };
 
 (SidePanelUI.prototype as any).updateTabSelectorButton = function updateTabSelectorButton() {

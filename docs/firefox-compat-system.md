@@ -11,9 +11,9 @@ This project now uses a capability-based compatibility layer for background runt
 
 ## Implementation
 
-- Compatibility entrypoint: `/Users/sero/projects/browser-ai/packages/extension/background/browser-compat.ts`
-- Integration point: `/Users/sero/projects/browser-ai/packages/extension/background/service.ts`
-- Firefox permissions: `/Users/sero/projects/browser-ai/packages/extension/manifest.firefox.json`
+- Compatibility entrypoint: `packages/extension/background/browser-compat.ts`
+- Integration point: `packages/extension/background/service.ts`
+- Firefox permissions: `packages/extension/manifest.firefox.json`
 
 ## Rule
 
