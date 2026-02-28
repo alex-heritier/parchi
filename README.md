@@ -238,9 +238,19 @@ PARCHI_RELAY_TOKEN=your-secret npm run build
 # 2. Start the daemon
 PARCHI_RELAY_TOKEN=your-secret npm run relay:daemon
 
-# 3. Enable in extension Settings → Relay section
-#    URL: http://127.0.0.1:17373
-#    Token: your-secret
+# 3. Open the extension once — it can auto-pair from localhost /v1/pair.
+#    (Manual fallback in Settings → Relay:
+#      URL: http://127.0.0.1:17373
+#      Token: your-secret)
+```
+
+**Safer managed daemon helper (recommended):**
+
+```bash
+npm run relay:secure -- start   # generates/stores strong token, loopback-only
+npm run relay:secure -- status
+npm run relay:secure -- rotate  # rotates token (+ restarts if running)
+npm run relay:secure -- stop
 ```
 
 **CLI commands:**

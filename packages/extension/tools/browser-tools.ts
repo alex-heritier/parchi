@@ -60,6 +60,7 @@ export class BrowserTools {
   private currentSessionTabId: number | null;
   private sessionTabGroupId: number | null;
   private supportsTabGroups: boolean;
+  screenshotQuality: 'high' | 'medium' | 'low' | undefined;
 
   constructor() {
     this.sessionTabs = new Map();
@@ -1700,6 +1701,12 @@ export class BrowserTools {
     return result || { success: false, error: 'Script execution failed.' };
   }
 
+  private static readonly JPEG_QUALITY_MAP: Record<string, number> = {
+    high: 80,
+    medium: 60,
+    low: 40,
+  };
+
   private async screenshot(args: Record<string, any>) {
     const tabId = await this.resolveTabId(args);
     if (!tabId) {
@@ -1710,7 +1717,11 @@ export class BrowserTools {
       };
     }
     const tab = await chrome.tabs.get(tabId);
-    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+    const quality = BrowserTools.JPEG_QUALITY_MAP[this.screenshotQuality || ''] ?? 70;
+    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+      format: 'jpeg',
+      quality,
+    });
     await this.sendOverlay(tabId, { label: 'Screenshot captured', durationMs: 1000 }, 1);
     return { success: true, dataUrl };
   }

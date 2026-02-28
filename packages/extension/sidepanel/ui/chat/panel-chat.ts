@@ -660,5 +660,33 @@ const PRUNE_PLACEHOLDER_CLASS = 'chat-pruned-placeholder';
 
     // Restore scroll position relative to bottom to prevent visual jump
     container.scrollTop = container.scrollHeight - container.clientHeight - scrollBottom;
+
+    // Sweep toolCallViews — null out stale DOM refs for entries whose elements were pruned
+    for (const entry of this.toolCallViews.values()) {
+      if (entry.element && !entry.element.isConnected) {
+        entry.abortController?.abort();
+        entry.element = null;
+        entry.statusEl = null;
+        entry.durationEl = null;
+      }
+    }
+
+    // Sweep reportImages — revoke blob URLs and remove orphaned non-selected images
+    const orphanIds: string[] = [];
+    for (const [id, img] of this.reportImages.entries()) {
+      if (this.selectedReportImageIds.has(id)) continue;
+      // Check if any live DOM preview references this image
+      const livePreview = document.querySelector(`.report-image-toggle[data-report-image-id="${id}"]`);
+      if (!livePreview) {
+        if (img._blobUrl) URL.revokeObjectURL(img._blobUrl);
+        orphanIds.push(id);
+      }
+    }
+    for (const id of orphanIds) {
+      this.reportImages.delete(id);
+    }
+    if (orphanIds.length > 0) {
+      this.reportImageOrder = this.reportImageOrder.filter((id: string) => this.reportImages.has(id));
+    }
   }
 };

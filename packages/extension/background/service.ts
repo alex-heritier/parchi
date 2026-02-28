@@ -78,6 +78,9 @@ export class BackgroundService {
   relay: RelayBridge;
   relayActiveRunIds: Set<string>;
   private applyRelayConfig: () => Promise<void>;
+  private _applyingRelayConfig = false;
+  private _relayStatusTimer: ReturnType<typeof setTimeout> | undefined;
+  private _relayAutoPairTimer: ReturnType<typeof setTimeout> | undefined;
   private relayKeepalivePorts: Set<chrome.runtime.Port>;
   private sidepanelLifecyclePorts: Set<chrome.runtime.Port>;
   // State tracking for enforcement
@@ -149,29 +152,39 @@ export class BackgroundService {
       },
       onRequest: async (req) => this.handleRelayRpc(req.method, req.params),
       onStatus: (status) => {
-        const payload: Record<string, any> = { relayConnected: !!status.connected };
-        if (status.connected) payload.relayLastConnectedAt = Date.now();
-        if (status.lastError !== undefined) payload.relayLastError = status.lastError;
-        chrome.storage.local.set(payload).catch(() => {});
+        if (!status.connected) this.scheduleRelayAutoPairCheck();
+        clearTimeout(this._relayStatusTimer);
+        this._relayStatusTimer = setTimeout(() => {
+          const payload: Record<string, any> = { relayConnected: !!status.connected };
+          if (status.connected) payload.relayLastConnectedAt = Date.now();
+          if (status.lastError !== undefined) payload.relayLastError = status.lastError;
+          chrome.storage.local.set(payload).catch(() => {});
+        }, 500);
       },
     });
 
     this.applyRelayConfig = async () => {
-      const stored = await chrome.storage.local.get(['relayEnabled', 'relayUrl', 'relayToken']);
-      const enabled = stored.relayEnabled === true || stored.relayEnabled === 'true';
-      const url = typeof stored.relayUrl === 'string' ? stored.relayUrl.trim() : '';
-      const token = typeof stored.relayToken === 'string' ? stored.relayToken.trim() : '';
-      if (enabled && (!url || !token)) {
-        await chrome.storage.local
-          .set({ relayConnected: false, relayLastError: 'Missing relay URL or token' })
-          .catch(() => {});
+      if (this._applyingRelayConfig) return;
+      this._applyingRelayConfig = true;
+      try {
+        const stored = await chrome.storage.local.get(['relayEnabled', 'relayUrl', 'relayToken']);
+        const enabled = stored.relayEnabled === true || stored.relayEnabled === 'true';
+        const url = typeof stored.relayUrl === 'string' ? stored.relayUrl.trim() : '';
+        const token = typeof stored.relayToken === 'string' ? stored.relayToken.trim() : '';
+        if (enabled && (!url || !token)) {
+          await chrome.storage.local
+            .set({ relayConnected: false, relayLastError: 'Missing relay URL or token' })
+            .catch(() => {});
+        }
+        if (enabled && url && token) {
+          await this.ensureRelayKeepalive();
+        } else {
+          await this.closeRelayKeepalive();
+        }
+        this.relay.configure({ enabled, url, token });
+      } finally {
+        this._applyingRelayConfig = false;
       }
-      if (enabled && url && token) {
-        await this.ensureRelayKeepalive();
-      } else {
-        await this.closeRelayKeepalive();
-      }
-      this.relay.configure({ enabled, url, token });
     };
 
     this.init();
@@ -285,13 +298,106 @@ export class BackgroundService {
       console.warn('[relay] init failed:', err);
     }
 
-    chrome.storage.onChanged.addListener((_changes, areaName) => {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
       if (areaName !== 'local') return;
+      const relayKeys = ['relayEnabled', 'relayUrl', 'relayToken'];
+      if (!relayKeys.some(k => k in changes)) return;
       void this.applyRelayConfig();
     });
 
     // Try native messaging auto-pair after initial relay config
     this.tryNativeMessagingPair();
+    this.scheduleRelayAutoPairCheck(800);
+  }
+
+  private scheduleRelayAutoPairCheck(delayMs = 1500) {
+    clearTimeout(this._relayAutoPairTimer);
+    this._relayAutoPairTimer = setTimeout(() => {
+      this._relayAutoPairTimer = undefined;
+      void this.tryLoopbackHttpPair();
+    }, Math.max(0, delayMs));
+  }
+
+  private isLoopbackHost(hostname: string) {
+    const value = String(hostname || '').toLowerCase();
+    return value === '127.0.0.1' || value === 'localhost' || value === '::1';
+  }
+
+  private toRelayHttpOrigin(rawUrl: string) {
+    const value = String(rawUrl || '').trim();
+    if (!value) return '';
+    try {
+      const parsed = new URL(value);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:' && parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
+        return '';
+      }
+      parsed.protocol = parsed.protocol === 'https:' || parsed.protocol === 'wss:' ? 'https:' : 'http:';
+      parsed.pathname = '';
+      parsed.search = '';
+      parsed.hash = '';
+      return parsed.origin;
+    } catch {
+      return '';
+    }
+  }
+
+  private async fetchLoopbackPairToken(origin: string): Promise<string> {
+    const controller = new AbortController();
+    const timerId = setTimeout(() => controller.abort(), 1_500);
+    try {
+      const res = await fetch(`${origin}/v1/pair`, {
+        method: 'GET',
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      if (!res.ok) return '';
+      const data = await res.json().catch(() => null);
+      const token = typeof data?.token === 'string' ? data.token.trim() : '';
+      return token;
+    } catch {
+      return '';
+    } finally {
+      clearTimeout(timerId);
+    }
+  }
+
+  private async tryLoopbackHttpPair() {
+    const stored = await chrome.storage.local
+      .get(['relayConnected', 'relayEnabled', 'relayUrl', 'relayToken'])
+      .catch(() => ({} as Record<string, any>));
+    if (stored.relayConnected === true) return;
+    if (stored.relayEnabled === false || stored.relayEnabled === 'false') return;
+
+    const configuredOrigin = this.toRelayHttpOrigin(typeof stored.relayUrl === 'string' ? stored.relayUrl : '');
+    const candidates: string[] = [];
+    if (configuredOrigin) {
+      const host = (() => {
+        try {
+          return new URL(configuredOrigin).hostname;
+        } catch {
+          return '';
+        }
+      })();
+      if (this.isLoopbackHost(host)) candidates.push(configuredOrigin);
+      else return;
+    } else {
+      candidates.push('http://127.0.0.1:17373');
+    }
+
+    const existingToken = typeof stored.relayToken === 'string' ? stored.relayToken.trim() : '';
+    for (const origin of candidates) {
+      const token = await this.fetchLoopbackPairToken(origin);
+      if (!token) continue;
+      if (existingToken === token && configuredOrigin === origin && stored.relayEnabled === true) return;
+      await chrome.storage.local
+        .set({
+          relayEnabled: true,
+          relayUrl: origin,
+          relayToken: token,
+        })
+        .catch(() => {});
+      return;
+    }
   }
 
   private tryNativeMessagingPair() {
@@ -2660,6 +2766,10 @@ Rules:
       if (oldestKey !== undefined) this.browserToolsBySessionId.delete(oldestKey);
     }
     const created = new BrowserTools();
+    const quality = this.currentSettings?.screenshotQuality;
+    if (quality === 'high' || quality === 'medium' || quality === 'low') {
+      created.screenshotQuality = quality;
+    }
     this.browserToolsBySessionId.set(id, created);
     return created;
   }

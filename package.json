@@ -17,6 +17,7 @@
     "backend:codegen": "npm run codegen -w @parchi/backend",
     "relay:daemon": "node dist-relay/relay-daemon.js",
     "relay": "node dist-relay/relay.js",
+    "relay:secure": "node scripts/relay-secure.mjs",
     "parchi": "node dist-cli/parchi.js",
     "validate": "node scripts/build.mjs && node dist/tests/validate-extension.js",
     "test": "node scripts/build.mjs && node dist/tests/run-tests.js",

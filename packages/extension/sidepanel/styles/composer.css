@@ -567,66 +567,6 @@
   transform: scale(0.98);
 }
 
-.paid-status-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 7px;
-  height: 28px;
-  min-width: 84px;
-  border-radius: 9999px;
-  padding: 0 10px;
-  border: 1px solid var(--ink-2);
-  background: color-mix(in oklab, var(--card) 82%, transparent);
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-out-expo);
-}
-
-.paid-status-badge:hover {
-  border-color: rgb(var(--accent-rgb) / 0.35);
-  background: color-mix(in oklab, var(--card-hover) 85%, transparent);
-}
-
-.paid-status-badge .paid-status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: currentColor;
-  flex: 0 0 auto;
-  box-shadow: 0 0 0 3px color-mix(in oklab, currentColor 18%, transparent);
-}
-
-.paid-status-badge .paid-status-text {
-  display: inline-block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.paid-status-badge.is-active {
-  color: rgb(var(--success-rgb, 86 194 106));
-  border-color: rgb(var(--success-rgb, 86 194 106) / 0.4);
-  background: rgb(var(--success-rgb, 86 194 106) / 0.12);
-}
-
-.paid-status-badge.is-warning {
-  color: rgb(var(--warning-rgb, 245 171 53));
-  border-color: rgb(var(--warning-rgb, 245 171 53) / 0.4);
-  background: rgb(var(--warning-rgb, 245 171 53) / 0.12);
-}
-
-.paid-status-badge.is-error {
-  color: rgb(var(--error-rgb, 239 68 68));
-  border-color: rgb(var(--error-rgb, 239 68 68) / 0.4);
-  background: rgb(var(--error-rgb, 239 68 68) / 0.12);
-}
-
 @media (max-width: 640px) {
   .model-selector {
     max-width: 200px;
@@ -634,11 +574,6 @@
   }
   .model-selector select {
     font-size: 11px;
-  }
-  .paid-status-badge {
-    min-width: 72px;
-    padding: 0 8px;
-    gap: 6px;
   }
 }
 

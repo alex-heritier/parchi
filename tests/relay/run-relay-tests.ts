@@ -146,6 +146,14 @@ const main = async () => {
       if (res.status !== 401) throw new Error(`expected 401, got ${res.status}`);
     });
 
+    await runner.test('pair endpoint returns loopback token for auto-pair', async () => {
+      const res = await fetch(`http://${host}:${port}/v1/pair`);
+      if (res.status !== 200) throw new Error(`expected 200, got ${res.status}`);
+      const data = await res.json();
+      if (data?.ok !== true) throw new Error(`expected ok=true, got ${JSON.stringify(data)}`);
+      if (data?.token !== token) throw new Error('expected pair endpoint token to match daemon token');
+    });
+
     await runner.test('ping works', async () => {
       const res = await rpc({ host, port, token, method: 'relay.ping' });
       if (!res.data?.result?.ok) throw new Error('expected ok=true');
