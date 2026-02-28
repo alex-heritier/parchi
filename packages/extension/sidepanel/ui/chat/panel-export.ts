@@ -1,11 +1,10 @@
 import type { Message } from '../../../ai/message-schema.js';
 import { SidePanelUI } from '../core/panel-ui.js';
+import { getSessionTraces } from './trace-store.js';
 
-/**
- * Show export menu with options.
- */
+/* ── Export menu ──────────────────────────────────────────────────────── */
+
 (SidePanelUI.prototype as any).showExportMenu = function showExportMenu(): void {
-  // Remove any existing menu
   const existing = document.getElementById('exportMenu');
   if (existing) {
     existing.remove();
@@ -27,45 +26,28 @@ import { SidePanelUI } from '../core/panel-ui.js';
           </svg>
         </button>
       </div>
-      <div class="export-menu-options">
-        <button class="export-option" data-action="conversation">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
+      <div class="export-menu-body">
+        <div class="export-scope-row">
+          <button class="export-scope-btn active" data-scope="all">Full session</button>
+          <button class="export-scope-btn" data-scope="last">Last response</button>
+        </div>
+        <label class="export-actions-row">
+          <span class="export-toggle-track"><span class="export-toggle-thumb"></span></span>
+          <span class="export-actions-label">Include tool actions</span>
+        </label>
+        <button class="export-go-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
           </svg>
-          <span>
-            <strong>Full Conversation</strong>
-            <small>Export all messages as markdown</small>
-          </span>
-        </button>
-        <button class="export-option" data-action="response">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-          </svg>
-          <span>
-            <strong>Last Response</strong>
-            <small>Export just the last assistant message</small>
-          </span>
-        </button>
-        <button class="export-option" data-action="turns">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="8" y1="6" x2="21" y2="6"></line>
-            <line x1="8" y1="12" x2="21" y2="12"></line>
-            <line x1="8" y1="18" x2="21" y2="18"></line>
-            <line x1="3" y1="6" x2="3.01" y2="6"></line>
-            <line x1="3" y1="12" x2="3.01" y2="12"></line>
-            <line x1="3" y1="18" x2="3.01" y2="18"></line>
-          </svg>
-          <span>
-            <strong>Detailed Turns</strong>
-            <small>Export with tool events and plans</small>
-          </span>
+          Export
         </button>
       </div>
     </div>
   `;
 
-  // Position menu near the export button
+  // Position near export button
   const btn = this.elements.exportBtn;
   if (btn) {
     const rect = btn.getBoundingClientRect();
@@ -74,30 +56,35 @@ import { SidePanelUI } from '../core/panel-ui.js';
     menu.style.right = `${window.innerWidth - rect.right}px`;
   }
 
-  // Add event listeners
-  const closeBtn = menu.querySelector('.export-menu-close');
-  closeBtn?.addEventListener('click', () => menu.remove());
+  // State
+  let scope: 'all' | 'last' = 'all';
+  let includeActions = false;
 
-  menu.querySelectorAll('.export-option').forEach((option) => {
-    option.addEventListener('click', () => {
-      const action = (option as HTMLElement).dataset.action;
-      menu.remove();
-
-      switch (action) {
-        case 'conversation':
-          this.exportConversationToMarkdown();
-          break;
-        case 'response':
-          this.exportLastResponseToMarkdown();
-          break;
-        case 'turns':
-          this.exportTurnsToMarkdown();
-          break;
-      }
+  // Scope toggle
+  const scopeBtns = menu.querySelectorAll('.export-scope-btn');
+  scopeBtns.forEach((b) => {
+    b.addEventListener('click', () => {
+      scopeBtns.forEach((s) => s.classList.remove('active'));
+      b.classList.add('active');
+      scope = (b as HTMLElement).dataset.scope as 'all' | 'last';
     });
   });
 
-  // Close on outside click
+  // Actions toggle
+  const actionsRow = menu.querySelector('.export-actions-row') as HTMLElement;
+  actionsRow?.addEventListener('click', () => {
+    includeActions = !includeActions;
+    actionsRow.classList.toggle('active', includeActions);
+  });
+
+  // Export button
+  menu.querySelector('.export-go-btn')?.addEventListener('click', () => {
+    menu.remove();
+    this.runExport(scope, includeActions);
+  });
+
+  // Close
+  menu.querySelector('.export-menu-close')?.addEventListener('click', () => menu.remove());
   const closeOnOutside = (e: MouseEvent) => {
     if (!menu.contains(e.target as Node)) {
       menu.remove();
@@ -109,113 +96,99 @@ import { SidePanelUI } from '../core/panel-ui.js';
   document.body.appendChild(menu);
 };
 
-/**
- * Export the current conversation to a markdown file.
- * Handles both display history and tool events from turns.
- */
-(SidePanelUI.prototype as any).exportConversationToMarkdown = function exportConversationToMarkdown(): void {
+/* ── Unified export ───────────────────────────────────────────────────── */
+
+(SidePanelUI.prototype as any).runExport = async function runExport(
+  scope: 'all' | 'last',
+  includeActions: boolean,
+): Promise<void> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const filename = `conversation-${timestamp}.md`;
+  const tag = scope === 'all' ? 'session' : 'response';
+  const filename = `${tag}-${timestamp}.md`;
 
-  let markdown = '';
-
-  // Add header
-  markdown += '# Conversation Export\n\n';
-  markdown += `**Exported:** ${new Date().toLocaleString()}\n`;
-  markdown += `**Session ID:** ${this.sessionId || 'unknown'}\n\n`;
-  markdown += '---\n\n';
-
-  // Export from display history (clean messages)
-  if (this.displayHistory && this.displayHistory.length > 0) {
-    for (const entry of this.displayHistory) {
-      if (entry.role === 'user') {
-        markdown += '## User\n\n';
-        markdown += `${this.extractTextContent(entry.content)}\n\n`;
-      } else if (entry.role === 'assistant') {
-        markdown += '## Assistant\n\n';
-        if (entry.thinking) {
-          markdown += `<details>\n<summary>Thinking</summary>\n\n${entry.thinking}\n\n</details>\n\n`;
-        }
-        markdown += `${this.extractTextContent(entry.content)}\n\n`;
-      } else if (entry.role === 'system' && entry.meta?.kind === 'summary') {
-        markdown += `> **Context Summary:** ${this.extractTextContent(entry.content)}\n\n`;
-      }
-    }
+  if (scope === 'last') {
+    this.exportLastResponse(filename, includeActions);
+  } else {
+    await this.exportFullSession(filename, includeActions);
   }
-
-  // Export tool events from turns if available
-  if (this.historyTurnMap && this.historyTurnMap.size > 0) {
-    markdown += '---\n\n## Tool Events\n\n';
-
-    this.historyTurnMap.forEach((turn: any, _turnId: string) => {
-      if (turn.toolEvents && turn.toolEvents.length > 0) {
-        markdown += `### Turn: ${turn.userMessage?.substring(0, 50) || 'Unknown'}...\n\n`;
-
-        for (const event of turn.toolEvents) {
-          if (event.type === 'tool_execution_start') {
-            markdown += `**${event.tool}**`;
-            if (event.args && Object.keys(event.args).length > 0) {
-              markdown += ` \`${JSON.stringify(event.args).substring(0, 100)}\``;
-            }
-            markdown += '\n';
-          } else if (event.type === 'tool_execution_result') {
-            const resultPreview = event.result ? JSON.stringify(event.result).substring(0, 200) : 'no result';
-            markdown += `  → ${resultPreview}${resultPreview.length >= 200 ? '...' : ''}\n\n`;
-          }
-        }
-      }
-    });
-  }
-
-  // Add subagent info if any
-  if (this.subagents && this.subagents.size > 0) {
-    markdown += '---\n\n## Subagents\n\n';
-    this.subagents.forEach((agent: any, _id: string) => {
-      markdown += `- **${agent.name}** (${agent.status})\n`;
-      if (agent.tasks && agent.tasks.length > 0) {
-        for (const task of agent.tasks) {
-          markdown += `  - ${task}\n`;
-        }
-      }
-      markdown += '\n';
-    });
-  }
-
-  // Add plan if exists
-  if (this.currentPlan && this.currentPlan.steps) {
-    markdown += '---\n\n## Plan\n\n';
-    for (let i = 0; i < this.currentPlan.steps.length; i++) {
-      const step = this.currentPlan.steps[i];
-      const checkbox = step.status === 'done' ? '[x]' : '[ ]';
-      markdown += `${checkbox} ${step.title}\n`;
-    }
-    markdown += '\n';
-  }
-
-  // Add usage stats if available
-  if (this.sessionTokenTotals && (this.sessionTokenTotals.inputTokens || this.sessionTokenTotals.outputTokens)) {
-    markdown += '---\n\n## Usage Statistics\n\n';
-    markdown += `- **Input tokens:** ${this.sessionTokenTotals.inputTokens.toLocaleString()}\n`;
-    markdown += `- **Output tokens:** ${this.sessionTokenTotals.outputTokens.toLocaleString()}\n`;
-    markdown += `- **Total tokens:** ${this.sessionTokenTotals.totalTokens.toLocaleString()}\n`;
-  }
-
-  markdown = this.appendSelectedReportImagesMarkdown(markdown);
-
-  // Download the file
-  this.downloadMarkdown(markdown, filename);
 };
 
-/**
- * Export just the last assistant response to markdown.
- */
-(SidePanelUI.prototype as any).exportLastResponseToMarkdown = function exportLastResponseToMarkdown(): void {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const filename = `response-${timestamp}.md`;
+/* ── Full session export ──────────────────────────────────────────────── */
 
-  // Find the last assistant message
+(SidePanelUI.prototype as any).exportFullSession = async function exportFullSession(
+  filename: string,
+  includeActions: boolean,
+): Promise<void> {
+  let md = '';
+
+  // Header
+  md += '# Session Export\n\n';
+  md += `**Exported:** ${new Date().toLocaleString()}\n`;
+  md += `**Session:** ${this.sessionId || 'unknown'}\n`;
+  if (this.sessionTokenTotals?.totalTokens) {
+    md += `**Tokens:** ${this.sessionTokenTotals.totalTokens.toLocaleString()} total `;
+    md += `(${this.sessionTokenTotals.inputTokens.toLocaleString()} in / `;
+    md += `${this.sessionTokenTotals.outputTokens.toLocaleString()} out)\n`;
+  }
+  md += '\n---\n\n';
+
+  // Conversation messages
+  if (this.displayHistory?.length) {
+    for (const entry of this.displayHistory) {
+      if (entry.role === 'user') {
+        md += '## User\n\n';
+        md += `${this.extractTextContent(entry.content)}\n\n`;
+      } else if (entry.role === 'assistant') {
+        md += '## Assistant\n\n';
+        if (entry.thinking) {
+          md += `<details>\n<summary>Thinking</summary>\n\n${entry.thinking}\n\n</details>\n\n`;
+        }
+        md += `${this.extractTextContent(entry.content)}\n\n`;
+      } else if (entry.role === 'system' && entry.meta?.kind === 'summary') {
+        md += `> **Context Summary:** ${this.extractTextContent(entry.content)}\n\n`;
+      }
+    }
+  }
+
+  // Tool actions (full traces)
+  if (includeActions) {
+    md += await this.buildActionsMarkdown('all');
+  }
+
+  // Plan
+  if (this.currentPlan?.steps) {
+    md += '---\n\n## Plan\n\n';
+    for (const step of this.currentPlan.steps) {
+      md += `${step.status === 'done' ? '[x]' : '[ ]'} ${step.title}\n`;
+    }
+    md += '\n';
+  }
+
+  // Subagents
+  if (this.subagents?.size > 0) {
+    md += '---\n\n## Subagents\n\n';
+    this.subagents.forEach((agent: any) => {
+      md += `- **${agent.name}** (${agent.status})\n`;
+      if (agent.tasks?.length) {
+        for (const task of agent.tasks) md += `  - ${task}\n`;
+      }
+      md += '\n';
+    });
+  }
+
+  md = this.appendSelectedReportImagesMarkdown(md);
+  this.downloadMarkdown(md, filename);
+};
+
+/* ── Last response export ─────────────────────────────────────────────── */
+
+(SidePanelUI.prototype as any).exportLastResponse = async function exportLastResponse(
+  filename: string,
+  includeActions: boolean,
+): Promise<void> {
+  // Find last assistant message
   let lastAssistant: Message | null = null;
-  if (this.displayHistory && this.displayHistory.length > 0) {
+  if (this.displayHistory?.length) {
     for (let i = this.displayHistory.length - 1; i >= 0; i--) {
       if (this.displayHistory[i].role === 'assistant') {
         lastAssistant = this.displayHistory[i];
@@ -229,82 +202,191 @@ import { SidePanelUI } from '../core/panel-ui.js';
     return;
   }
 
-  let markdown = '';
+  let md = '';
 
   if (lastAssistant.thinking) {
-    markdown += `<details>\n<summary>Thinking</summary>\n\n${lastAssistant.thinking}\n\n</details>\n\n`;
+    md += `<details>\n<summary>Thinking</summary>\n\n${lastAssistant.thinking}\n\n</details>\n\n`;
+  }
+  md += `${this.extractTextContent(lastAssistant.content)}\n\n`;
+
+  // Include tool actions from the last turn only
+  if (includeActions) {
+    md += await this.buildActionsMarkdown('last');
   }
 
-  markdown += `${this.extractTextContent(lastAssistant.content)}\n`;
-  markdown = this.appendSelectedReportImagesMarkdown(markdown);
-
-  this.downloadMarkdown(markdown, filename);
+  md = this.appendSelectedReportImagesMarkdown(md);
+  this.downloadMarkdown(md, filename);
 };
 
-/**
- * Export selected/all turns from history.
- */
-(SidePanelUI.prototype as any).exportTurnsToMarkdown = function exportTurnsToMarkdown(): void {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const filename = `turns-${timestamp}.md`;
+/* ── Build full actions markdown ──────────────────────────────────────── */
 
-  let markdown = '# Conversation Turns\n\n';
-  markdown += `**Exported:** ${new Date().toLocaleString()}\n\n`;
-  markdown += '---\n\n';
+(SidePanelUI.prototype as any).buildActionsMarkdown = async function buildActionsMarkdown(
+  scope: 'all' | 'last',
+): Promise<string> {
+  let md = '---\n\n## Tool Actions\n\n';
 
-  if (!this.historyTurnMap || this.historyTurnMap.size === 0) {
-    markdown += 'No turn data available.\n';
-    this.downloadMarkdown(markdown, filename);
-    return;
+  // Try to get full traces from IndexedDB first
+  let traces: any[] = [];
+  try {
+    traces = await getSessionTraces(this.sessionId);
+  } catch {
+    // Fall back to in-memory historyTurnMap
   }
 
-  this.historyTurnMap.forEach((turn: any, turnId: string) => {
-    markdown += `## Turn ${turnId}\n\n`;
-    markdown += `**User:** ${turn.userMessage || 'N/A'}\n\n`;
-
-    if (turn.plan && turn.plan.steps) {
-      markdown += '### Plan\n\n';
-      for (const step of turn.plan.steps) {
-        const checkbox = step.status === 'done' ? '[x]' : '[ ]';
-        markdown += `${checkbox} ${step.title}\n`;
-      }
-      markdown += '\n';
+  if (traces.length > 0) {
+    // Use persisted traces — full fidelity
+    const events = scope === 'last' ? this.getLastTurnTraces(traces) : traces;
+    md += this.formatTraceEvents(events);
+  } else if (this.historyTurnMap?.size > 0) {
+    // Fallback to in-memory data
+    const turns = scope === 'last' ? [this.getLastTurnFromMap()] : Array.from(this.historyTurnMap.values());
+    for (const turn of turns) {
+      if (!turn) continue;
+      md += this.formatTurnEvents(turn);
     }
+  } else {
+    md += '_No tool action data available._\n\n';
+  }
 
-    if (turn.toolEvents && turn.toolEvents.length > 0) {
-      markdown += '### Tool Events\n\n';
-      markdown += '| Tool | Args | Result |\n';
-      markdown += '|------|------|--------|\n';
-      for (const event of turn.toolEvents) {
-        if (event.type === 'tool_execution_result') {
-          const argsPreview = event.args ? JSON.stringify(event.args).substring(0, 50).replace(/\|/g, '\\|') : '';
-          const resultPreview = event.result ? JSON.stringify(event.result).substring(0, 80).replace(/\|/g, '\\|') : '';
-          markdown += `| ${event.tool} | ${argsPreview} | ${resultPreview} |\n`;
+  return md;
+};
+
+/** Get traces belonging to the last turn only. */
+(SidePanelUI.prototype as any).getLastTurnTraces = function getLastTurnTraces(traces: any[]): any[] {
+  // Find the last user_message, then return everything from that point on
+  let lastUserIdx = -1;
+  for (let i = traces.length - 1; i >= 0; i--) {
+    if (traces[i].kind === 'user_message') {
+      lastUserIdx = i;
+      break;
+    }
+  }
+  return lastUserIdx >= 0 ? traces.slice(lastUserIdx) : traces;
+};
+
+/** Get the last turn entry from historyTurnMap. */
+(SidePanelUI.prototype as any).getLastTurnFromMap = function getLastTurnFromMap(): any | null {
+  if (!this.historyTurnMap?.size) return null;
+  let last: any = null;
+  this.historyTurnMap.forEach((turn: any) => {
+    last = turn;
+  });
+  return last;
+};
+
+/** Format persisted trace events into markdown — FULL data, no truncation. */
+(SidePanelUI.prototype as any).formatTraceEvents = function formatTraceEvents(events: any[]): string {
+  let md = '';
+  for (const ev of events) {
+    const time = new Date(ev.ts).toLocaleTimeString();
+    switch (ev.kind) {
+      case 'user_message':
+        md += `### User \`${time}\`\n\n`;
+        md += `${ev.content || ''}\n\n`;
+        break;
+
+      case 'tool_start':
+        md += `**\`${ev.tool}\`** `;
+        if (ev.stepTitle) md += `(${ev.stepTitle}) `;
+        md += `\`${time}\`\n\n`;
+        if (ev.args != null) {
+          const argsStr = typeof ev.args === 'string' ? ev.args : JSON.stringify(ev.args, null, 2);
+          md += `<details>\n<summary>Arguments</summary>\n\n\`\`\`json\n${argsStr}\n\`\`\`\n\n</details>\n\n`;
+        }
+        break;
+
+      case 'tool_result':
+        md += `**\`${ev.tool}\` result** \`${time}\`\n\n`;
+        if (ev.result != null) {
+          const resultStr = typeof ev.result === 'string' ? ev.result : JSON.stringify(ev.result, null, 2);
+          md += `<details>\n<summary>Result</summary>\n\n\`\`\`json\n${resultStr}\n\`\`\`\n\n</details>\n\n`;
+        }
+        break;
+
+      case 'assistant_final':
+        md += `### Assistant \`${time}\`\n\n`;
+        if (ev.thinking) {
+          md += `<details>\n<summary>Thinking</summary>\n\n${ev.thinking}\n\n</details>\n\n`;
+        }
+        md += `${ev.content || ''}\n\n`;
+        if (ev.model) md += `_Model: ${ev.model}_\n`;
+        if (ev.usage) {
+          const u = ev.usage as any;
+          if (u.inputTokens || u.outputTokens) {
+            md += `_Tokens: ${u.inputTokens ?? 0} in / ${u.outputTokens ?? 0} out_\n`;
+          }
+        }
+        md += '\n';
+        break;
+
+      case 'plan_update':
+        md += `**Plan updated** \`${time}\`\n\n`;
+        if (ev.plan && (ev.plan as any).steps) {
+          for (const step of (ev.plan as any).steps) {
+            md += `${step.status === 'done' ? '[x]' : '[ ]'} ${step.title}\n`;
+          }
+        }
+        md += '\n';
+        break;
+    }
+  }
+  return md;
+};
+
+/** Format a single in-memory turn into markdown — full data, no truncation. */
+(SidePanelUI.prototype as any).formatTurnEvents = function formatTurnEvents(turn: any): string {
+  let md = '';
+
+  if (turn.userMessage) {
+    md += `### ${turn.userMessage}\n\n`;
+  }
+
+  if (turn.plan?.steps) {
+    md += '**Plan:**\n';
+    for (const step of turn.plan.steps) {
+      md += `${step.status === 'done' ? '[x]' : '[ ]'} ${step.title}\n`;
+    }
+    md += '\n';
+  }
+
+  if (turn.toolEvents?.length) {
+    for (const ev of turn.toolEvents) {
+      if (ev.type === 'tool_execution_start') {
+        md += `**\`${ev.tool}\`**`;
+        if (ev.stepTitle) md += ` (${ev.stepTitle})`;
+        md += '\n\n';
+        if (ev.args != null) {
+          const argsStr = typeof ev.args === 'string' ? ev.args : JSON.stringify(ev.args, null, 2);
+          md += `<details>\n<summary>Arguments</summary>\n\n\`\`\`json\n${argsStr}\n\`\`\`\n\n</details>\n\n`;
+        }
+      } else if (ev.type === 'tool_execution_result') {
+        if (ev.result != null) {
+          const resultStr = typeof ev.result === 'string' ? ev.result : JSON.stringify(ev.result, null, 2);
+          md += `<details>\n<summary>${ev.tool} result</summary>\n\n\`\`\`json\n${resultStr}\n\`\`\`\n\n</details>\n\n`;
         }
       }
-      markdown += '\n';
     }
+  }
 
-    if (turn.assistantFinal) {
-      markdown += '### Assistant Response\n\n';
-      if (turn.assistantFinal.thinking) {
-        markdown += `<details>\n<summary>Thinking</summary>\n\n${turn.assistantFinal.thinking}\n\n</details>\n\n`;
-      }
-      markdown += `${turn.assistantFinal.content || ''}\n\n`;
+  if (turn.assistantFinal) {
+    if (turn.assistantFinal.thinking) {
+      md += `<details>\n<summary>Thinking</summary>\n\n${turn.assistantFinal.thinking}\n\n</details>\n\n`;
     }
+    md += `${turn.assistantFinal.content || ''}\n\n`;
+  }
 
-    markdown += '---\n\n';
-  });
-
-  markdown = this.appendSelectedReportImagesMarkdown(markdown);
-  this.downloadMarkdown(markdown, filename);
+  md += '---\n\n';
+  return md;
 };
+
+/* ── Helpers (unchanged) ──────────────────────────────────────────────── */
 
 (SidePanelUI.prototype as any).getSelectedReportImagesForExport = function getSelectedReportImagesForExport() {
   if (!this.reportImages || this.reportImages.size === 0) return [];
-  const order = Array.isArray(this.reportImageOrder) && this.reportImageOrder.length > 0
-    ? this.reportImageOrder
-    : Array.from(this.reportImages.keys());
+  const order =
+    Array.isArray(this.reportImageOrder) && this.reportImageOrder.length > 0
+      ? this.reportImageOrder
+      : Array.from(this.reportImages.keys());
   const selected = this.selectedReportImageIds instanceof Set ? this.selectedReportImageIds : new Set<string>();
 
   return order
@@ -333,9 +415,6 @@ import { SidePanelUI } from '../core/panel-ui.js';
   return next;
 };
 
-/**
- * Helper to extract text content from various content formats.
- */
 (SidePanelUI.prototype as any).extractTextContent = function extractTextContent(content: unknown): string {
   if (!content) return '';
   if (typeof content === 'string') return content;
@@ -363,9 +442,6 @@ import { SidePanelUI } from '../core/panel-ui.js';
   return String(content);
 };
 
-/**
- * Download markdown content as a file.
- */
 (SidePanelUI.prototype as any).downloadMarkdown = function downloadMarkdown(content: string, filename: string): void {
   const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
   const url = URL.createObjectURL(blob);

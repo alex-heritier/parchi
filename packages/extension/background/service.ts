@@ -44,6 +44,7 @@ type RunMeta = {
 type ReportImage = {
   id: string;
   dataUrl: string;
+  byteSize: number;
   capturedAt: number;
   toolCallId?: string;
   tabId?: number;
@@ -63,6 +64,7 @@ type SessionState = {
   kimiWarningSent: boolean;
   failureTracker: Map<string, { count: number; lastError: string }>;
   reportImages: ReportImage[];
+  reportImageBytes: number;
   selectedReportImageIds: Set<string>;
 };
 
@@ -287,6 +289,48 @@ export class BackgroundService {
       if (areaName !== 'local') return;
       void this.applyRelayConfig();
     });
+
+    // Try native messaging auto-pair after initial relay config
+    this.tryNativeMessagingPair();
+  }
+
+  private tryNativeMessagingPair() {
+    // Skip if relay is already configured (has token + URL in storage)
+    chrome.storage.local.get(['relayEnabled', 'relayUrl', 'relayToken'], (stored) => {
+      const enabled = stored.relayEnabled === true || stored.relayEnabled === 'true';
+      const hasUrl = typeof stored.relayUrl === 'string' && stored.relayUrl.trim() !== '';
+      const hasToken = typeof stored.relayToken === 'string' && stored.relayToken.trim() !== '';
+      if (enabled && hasUrl && hasToken) return; // Already configured
+
+      try {
+        const port = chrome.runtime.connectNative('com.parchi.bridge');
+
+        port.onMessage.addListener((msg: any) => {
+          if (msg?.type === 'auth_config' && typeof msg.url === 'string' && typeof msg.token === 'string') {
+            chrome.storage.local.set({
+              relayEnabled: true,
+              relayUrl: msg.url,
+              relayToken: msg.token,
+            }).catch(() => {});
+            // The storage change triggers applyRelayConfig() automatically
+          }
+          port.disconnect();
+        });
+
+        port.onDisconnect.addListener(() => {
+          // Silently ignore — means CLI is not installed yet
+          const err = chrome.runtime.lastError;
+          if (err) {
+            console.debug('[native-messaging] Not available:', err.message);
+          }
+        });
+
+        // Send a hello message to trigger the native host
+        port.postMessage({ type: 'hello' });
+      } catch {
+        // Native messaging not available — silently ignore
+      }
+    });
   }
 
   async handleRelayRpc(method: string, params: unknown) {
@@ -374,11 +418,7 @@ export class BackgroundService {
       }
 
       case 'agent.run': {
-        const prompt = typeof (params as any)?.prompt === 'string' ? String((params as any).prompt) : '';
-        if (!prompt.trim()) throw new Error('agent.run: missing prompt');
-        const selectedTabIds = Array.isArray((params as any)?.selectedTabIds) ? (params as any).selectedTabIds : null;
-        const sessionId =
-          typeof (params as any)?.sessionId === 'string' ? (params as any).sessionId : `session-${Date.now()}`;
+        const { prompt, sessionId, selectedTabIds } = this.validateRelayRunParams(params);
         const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const turnId = `turn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
@@ -407,6 +447,57 @@ export class BackgroundService {
       default:
         throw new Error(`Unknown method: ${method}`);
     }
+  }
+
+  private validateRelayRunParams(params: unknown) {
+    if (!params || typeof params !== 'object' || Array.isArray(params)) {
+      throw new Error('agent.run: params must be an object');
+    }
+
+    const promptRaw = (params as any).prompt;
+    const prompt = typeof promptRaw === 'string' ? promptRaw.trim() : '';
+    if (!prompt) {
+      throw new Error('agent.run: missing prompt');
+    }
+    if (prompt.length > 20_000) {
+      throw new Error('agent.run: prompt too large (max 20,000 chars)');
+    }
+
+    const sessionIdRaw = (params as any).sessionId;
+    const sessionId =
+      typeof sessionIdRaw === 'string' && sessionIdRaw.trim() ? sessionIdRaw.trim() : `session-${Date.now()}`;
+    if (sessionId.length > 120) {
+      throw new Error('agent.run: sessionId too long (max 120 chars)');
+    }
+    if (!/^[a-zA-Z0-9._:-]+$/.test(sessionId)) {
+      throw new Error('agent.run: sessionId contains invalid characters');
+    }
+
+    const selectedTabIdsRaw = (params as any).selectedTabIds;
+    if (selectedTabIdsRaw !== undefined && !Array.isArray(selectedTabIdsRaw)) {
+      throw new Error('agent.run: selectedTabIds must be an array when provided');
+    }
+    if (Array.isArray(selectedTabIdsRaw) && selectedTabIdsRaw.length > 25) {
+      throw new Error('agent.run: selectedTabIds supports at most 25 tabs');
+    }
+
+    const selectedTabIds = Array.isArray(selectedTabIdsRaw)
+      ? Array.from(
+          new Set(
+            selectedTabIdsRaw.map((n) => Number(n)).filter((n) => Number.isInteger(n) && Number.isFinite(n) && n > 0),
+          ),
+        )
+      : null;
+
+    if (Array.isArray(selectedTabIdsRaw) && selectedTabIdsRaw.length > 0 && (!selectedTabIds || selectedTabIds.length === 0)) {
+      throw new Error('agent.run: selectedTabIds must contain positive integer tab IDs');
+    }
+
+    return {
+      prompt,
+      sessionId,
+      selectedTabIds,
+    };
   }
 
   async handleMessage(message, _sender, sendResponse) {
@@ -551,6 +642,7 @@ export class BackgroundService {
     meta?: Partial<RunMeta> & { origin?: 'sidepanel' | 'relay' },
     recordedContext?: any,
   ) {
+    const runStartedAt = Date.now();
     const runMeta: RunMeta = {
       runId:
         typeof meta?.runId === 'string' && meta.runId
@@ -568,6 +660,13 @@ export class BackgroundService {
     const abortSignal = controller.signal;
     const sessionState = this.getSessionState(sessionId);
     const browserTools = this.getBrowserTools(sessionId);
+    let streamResponsesEnabled = false;
+    let firstChunkAt: number | null = null;
+    let firstTextTokenAt: number | null = null;
+    let modelAttempts = 0;
+    let benchmarkRoute = 'none';
+    let benchmarkProvider = '';
+    let benchmarkModel = '';
     let latestErrorContext: {
       route?: string;
       provider?: string;
@@ -576,11 +675,46 @@ export class BackgroundService {
       useProxy?: boolean;
     } = {};
 
+    const markFirstChunk = () => {
+      if (firstChunkAt == null) firstChunkAt = Date.now();
+    };
+    const markFirstTextToken = () => {
+      if (firstTextTokenAt == null) firstTextTokenAt = Date.now();
+    };
+    const buildLatencyMetrics = () => {
+      const completedAt = Date.now();
+      const metrics: Record<string, unknown> = {
+        runStartAt: runStartedAt,
+        completedAt,
+        totalMs: Math.max(0, completedAt - runStartedAt),
+        stream: streamResponsesEnabled,
+      };
+      if (firstChunkAt != null) metrics.ttfbMs = Math.max(0, firstChunkAt - runStartedAt);
+      if (firstTextTokenAt != null) metrics.firstTokenMs = Math.max(0, firstTextTokenAt - runStartedAt);
+      if (modelAttempts > 0) metrics.modelAttempts = modelAttempts;
+      return metrics;
+    };
+    const buildBenchmarkContext = (success: boolean, errorCategory?: string) => {
+      const payload: Record<string, unknown> = { success };
+      const provider = benchmarkProvider || latestErrorContext.provider;
+      const model = benchmarkModel || latestErrorContext.model;
+      const route = benchmarkRoute || latestErrorContext.route;
+      if (provider) payload.provider = provider;
+      if (model) payload.model = model;
+      if (route) payload.route = route;
+      if (errorCategory) payload.errorCategory = errorCategory;
+      return payload;
+    };
+
     // Reset enforcement state at the start of every turn so stale verification
     // requirements from the previous turn don't pollute the system prompt.
     sessionState.lastBrowserAction = null;
     sessionState.awaitingVerification = false;
     sessionState.currentStepVerified = false;
+    this.sendRuntime(runMeta, {
+      type: 'user_run_start',
+      message: userMessage,
+    });
 
     try {
       const settings = await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[]);
@@ -643,10 +777,15 @@ export class BackgroundService {
       }
 
       const runtimeProfileResolution = this.resolveRuntimeModelProfile(orchestratorProfile, settings);
+      benchmarkRoute = runtimeProfileResolution.route;
+      benchmarkProvider = String(orchestratorProfile?.provider || '');
+      benchmarkModel = String(orchestratorProfile?.model || settings.model || '');
       if (!runtimeProfileResolution.allowed) {
         this.sendRuntime(runMeta, {
           type: 'run_error',
           message: runtimeProfileResolution.errorMessage || 'Please configure your API key in settings',
+          latency: buildLatencyMetrics(),
+          benchmark: buildBenchmarkContext(false, 'config'),
         });
         return;
       }
@@ -678,6 +817,7 @@ export class BackgroundService {
       const visionToolsEnabled = this.isVisionModelProfile(orchestratorProfile);
       const tools = this.getToolsForSession(settings, orchestratorEnabled, teamProfiles, visionToolsEnabled);
       const streamEnabled = settings.streamResponses !== false && settings.streamResponses !== 'false';
+      streamResponsesEnabled = streamEnabled;
       const showThinking = settings.showThinking !== false && settings.showThinking !== 'false';
       const enableAnthropicThinking =
         showThinking && (orchestratorProfile.provider === 'anthropic' || orchestratorProfile.provider === 'kimi' ||
@@ -767,6 +907,7 @@ export class BackgroundService {
         };
         activeModelId = trimmed;
         model = resolveLanguageModel(orchestratorProfile);
+        benchmarkModel = trimmed;
         return true;
       };
 
@@ -931,6 +1072,7 @@ export class BackgroundService {
 
         const sendTextDelta = (textPart: string) => {
           if (!textPart) return;
+          markFirstTextToken();
           textDeltaCount += 1;
           this.sendRuntime(runMeta, {
             type: 'assistant_stream_delta',
@@ -988,6 +1130,7 @@ export class BackgroundService {
               }
             : undefined,
           onChunk: ({ chunk }) => {
+            markFirstChunk();
             const chunkType = typeof (chunk as any).type === 'string' ? String((chunk as any).type) : '';
             if (chunkType.includes('reasoning') || chunkType.includes('thinking')) {
               sendReasoningDelta((chunk as any).text || (chunk as any).delta || '');
@@ -1011,6 +1154,7 @@ export class BackgroundService {
           if (streamEnabled) {
             try {
               for await (const textPart of result.textStream) {
+                markFirstChunk();
                 sendTextDelta(textPart || '');
               }
             } catch (error) {
@@ -1088,6 +1232,7 @@ export class BackgroundService {
         let lastModelError: unknown = null;
         let refreshedProxyAuthOnce = false;
         for (let idx = 0; idx < modelRetryOrder.length; idx += 1) {
+          modelAttempts += 1;
           const candidateModelId = modelRetryOrder[idx];
           if (!switchActiveModel(candidateModelId)) {
             continue;
@@ -1286,6 +1431,8 @@ export class BackgroundService {
               errorCategory: 'finalize',
               action: 'Try a different model, increase maxTokens, or disable streaming if enabled.',
               recoverable: true,
+              latency: buildLatencyMetrics(),
+              benchmark: buildBenchmarkContext(false, 'finalize'),
             });
             return;
           }
@@ -1333,6 +1480,8 @@ export class BackgroundService {
           totalTokens: totalUsage.totalTokens || 0,
         },
         responseMessages,
+        latency: buildLatencyMetrics(),
+        benchmark: buildBenchmarkContext(true),
       });
 
       const nextHistory = normalizeConversationHistory([...currentHistory, ...responseMessages]);
@@ -1454,6 +1603,8 @@ export class BackgroundService {
         errorCategory: classified.category,
         action: classified.action,
         recoverable: classified.recoverable,
+        latency: buildLatencyMetrics(),
+        benchmark: buildBenchmarkContext(false, classified.category),
       });
     } finally {
       this.cleanupRun(runMeta, origin);
@@ -1836,6 +1987,15 @@ Rules:
       existing.count++;
       existing.lastError = String(finalResult.error || '');
       tracker.set(failureKey, existing);
+      if (tracker.size > BackgroundService.MAX_FAILURE_TRACKER_ENTRIES) {
+        const overflow = tracker.size - BackgroundService.MAX_FAILURE_TRACKER_ENTRIES;
+        const keys = tracker.keys();
+        for (let i = 0; i < overflow; i += 1) {
+          const key = keys.next().value;
+          if (key === undefined) break;
+          tracker.delete(key);
+        }
+      }
       if (existing.count >= 3) {
         finalResult._failureAdvice = `This tool+target has failed ${existing.count} times. Try a fundamentally different approach (different selector, different strategy, or skip this step).`;
       }
@@ -2023,11 +2183,17 @@ Rules:
   ): ReportImage | null {
     const dataUrl = typeof result?.dataUrl === 'string' ? result.dataUrl : '';
     if (!dataUrl) return null;
+    const byteSize = this.estimateDataUrlBytes(dataUrl);
+    if (!Number.isFinite(byteSize) || byteSize <= 0) return null;
+    if (byteSize > BackgroundService.MAX_REPORT_IMAGE_BYTES_PER_IMAGE) {
+      return null;
+    }
 
     const id = `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const image: ReportImage = {
       id,
       dataUrl,
+      byteSize,
       capturedAt: Date.now(),
       toolCallId,
       tabId: typeof args?.tabId === 'number' ? args.tabId : undefined,
@@ -2036,7 +2202,35 @@ Rules:
       visionDescription: typeof result?.visionDescription === 'string' ? result.visionDescription : undefined,
     };
     sessionState.reportImages.push(image);
+    sessionState.reportImageBytes += byteSize;
+    this.trimReportImages(sessionState);
     return image;
+  }
+
+  private estimateDataUrlBytes(dataUrl: string): number {
+    if (!dataUrl) return 0;
+    const commaIndex = dataUrl.indexOf(',');
+    const payload = commaIndex >= 0 ? dataUrl.slice(commaIndex + 1) : dataUrl;
+    if (!payload) return 0;
+    const rawLength = payload.length;
+    const padding = payload.endsWith('==') ? 2 : payload.endsWith('=') ? 1 : 0;
+    return Math.max(0, Math.floor((rawLength * 3) / 4) - padding);
+  }
+
+  private trimReportImages(sessionState: SessionState) {
+    while (
+      sessionState.reportImages.length > BackgroundService.MAX_REPORT_IMAGES_PER_SESSION ||
+      sessionState.reportImageBytes > BackgroundService.MAX_REPORT_IMAGE_BYTES_PER_SESSION
+    ) {
+      let evictionIndex = sessionState.reportImages.findIndex(
+        (candidate) => !sessionState.selectedReportImageIds.has(candidate.id),
+      );
+      if (evictionIndex < 0) evictionIndex = 0;
+      const [evicted] = sessionState.reportImages.splice(evictionIndex, 1);
+      if (!evicted) break;
+      sessionState.reportImageBytes = Math.max(0, sessionState.reportImageBytes - Number(evicted.byteSize || 0));
+      sessionState.selectedReportImageIds.delete(evicted.id);
+    }
   }
 
   private applyReportImageSelection(
@@ -2317,11 +2511,28 @@ Rules:
   }
 
   private static readonly MAX_SESSIONS = 10;
+  private static readonly MAX_FAILURE_TRACKER_ENTRIES = 250;
+  private static readonly MAX_REPORT_IMAGES_PER_SESSION = 50;
+  private static readonly MAX_REPORT_IMAGE_BYTES_PER_IMAGE = 4 * 1024 * 1024;
+  private static readonly MAX_REPORT_IMAGE_BYTES_PER_SESSION = 48 * 1024 * 1024;
 
   private getSessionState(sessionId: string): SessionState {
     const id = typeof sessionId === 'string' && sessionId.trim() ? sessionId : 'default';
     const existing = this.sessionStateById.get(id);
-    if (existing) return existing;
+    if (existing) {
+      if (!Array.isArray(existing.reportImages)) existing.reportImages = [];
+      if (!(existing.selectedReportImageIds instanceof Set)) {
+        existing.selectedReportImageIds = new Set<string>();
+      }
+      if (!Number.isFinite(existing.reportImageBytes)) {
+        existing.reportImageBytes = existing.reportImages.reduce(
+          (sum, image) => sum + this.estimateDataUrlBytes(String(image?.dataUrl || '')),
+          0,
+        );
+      }
+      this.trimReportImages(existing);
+      return existing;
+    }
     // Evict oldest sessions when at capacity
     if (this.sessionStateById.size >= BackgroundService.MAX_SESSIONS) {
       const oldestKey = this.sessionStateById.keys().next().value;
@@ -2338,6 +2549,7 @@ Rules:
       kimiWarningSent: false,
       failureTracker: new Map(),
       reportImages: [],
+      reportImageBytes: 0,
       selectedReportImageIds: new Set(),
     };
     this.sessionStateById.set(id, created);

@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Nunito+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Geist:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&family=Nunito+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap");
 
 /* Parchi — Modern Void Design System (Dark) */
 
@@ -38,6 +38,9 @@
   --font-sans-default: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   --font-sans-geist: "Geist", "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   --font-sans-soft: "Nunito Sans", "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --font-sans-dm: "DM Sans", system-ui, -apple-system, sans-serif;
+  --font-sans-plex: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-sans-manrope: "Manrope", system-ui, -apple-system, sans-serif;
   --font-sans: var(--font-sans-default);
   --font-mono: "JetBrains Mono", "SF Mono", monospace;
   --font-base-weight: 400;

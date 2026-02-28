@@ -5,6 +5,7 @@ node_modules/
 dist/
 dist-firefox/
 dist-relay/
+dist-cli/
 build/
 server/dist/
 *.map
@@ -44,6 +45,7 @@ logs/
 tmp/
 temp/
 *.tmp
+test-output/
 
 
 # Vendored tarballs

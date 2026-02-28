@@ -1,0 +1,19 @@
+{
+  "name": "@parchi/extension",
+  "version": "0.4.10",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ../../scripts/build.mjs",
+    "build:firefox": "BROWSER=firefox node ../../scripts/build.mjs",
+    "typecheck": "tsc -p ../../tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "3.0.17",
+    "@ai-sdk/openai": "3.0.13",
+    "@ai-sdk/openai-compatible": "2.0.16",
+    "@ai-sdk/provider": "3.0.4",
+    "ai": "6.0.42",
+    "convex": "1.31.7"
+  }
+}

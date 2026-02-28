@@ -3,6 +3,7 @@ import type { Message } from '../../../ai/message-schema.js';
 import { dedupeThinking, extractThinking } from '../../../ai/message-utils.js';
 import { getActiveTab } from '../../../utils/active-tab.js';
 import { SidePanelUI } from '../core/panel-ui.js';
+import { appendTrace } from './trace-store.js';
 import type { UsagePayload } from '../types/panel-types.js';
 
 const MAX_DISPLAY_HISTORY = 400;
@@ -86,6 +87,14 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
 
   this.pendingTurnDraft = { userMessage, startedAt: Date.now() };
 
+  // Persist user message trace to IndexedDB
+  appendTrace({
+    sessionId: this.sessionId,
+    ts: Date.now(),
+    kind: 'user_message',
+    content: userMessage,
+  });
+
   this.elements.userInput.value = '';
   this.elements.userInput.style.height = '';
   if (!this.firstUserMessage) {
@@ -120,8 +129,24 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
   }
 
   const fullMessage = userMessage + tabsContext;
+  const recordedContextForMessage = this.pendingRecordedContext
+    ? {
+        id: this.pendingRecordedContext.id,
+        duration: this.pendingRecordedContext.duration,
+        summary: this.pendingRecordedContext.summary,
+        events: Array.isArray(this.pendingRecordedContext.events) ? this.pendingRecordedContext.events : [],
+        selectedImages: Array.isArray(this.pendingRecordedContext.selectedImages)
+          ? this.pendingRecordedContext.selectedImages.map((img: any) => ({
+              index: Number(img?.index ?? 0),
+              timestamp: Number(img?.timestamp ?? 0),
+              url: String(img?.url || ''),
+            }))
+          : [],
+      }
+    : null;
+  const mediaAttachmentsForMessage = Array.isArray(this.pendingComposerAttachments) ? [...this.pendingComposerAttachments] : [];
 
-  this.displayUserMessage(userMessage);
+  this.displayUserMessage(userMessage, recordedContextForMessage, mediaAttachmentsForMessage);
 
   const displayEntry = createMessage({ role: 'user', content: userMessage });
   if (displayEntry) {
@@ -157,6 +182,10 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
       this.pendingRecordedContext = null;
       this.hideRecordedContextBadge?.();
     }
+    if (mediaAttachmentsForMessage.length > 0) {
+      payload.attachments = mediaAttachmentsForMessage;
+      this.pendingComposerAttachments = [];
+    }
     const response = await sendRuntimeMessageWithRetry(payload);
     if (response?.sessionId && typeof response.sessionId === 'string') {
       this.sessionId = response.sessionId;
@@ -176,14 +205,81 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
   }
 };
 
-(SidePanelUI.prototype as any).displayUserMessage = function displayUserMessage(content: string) {
+(SidePanelUI.prototype as any).displayUserMessage = function displayUserMessage(
+  content: string,
+  recordedContext: any = null,
+  mediaAttachments: any[] = [],
+) {
   const turn = document.createElement('div');
   turn.className = 'chat-turn';
   const messageDiv = document.createElement('div');
   messageDiv.className = 'message user';
+  const buildRecordingHtml = () => {
+    if (!recordedContext) return '';
+    const events = Array.isArray(recordedContext.events)
+      ? recordedContext.events.filter((event: any) => String(event?.type || '') !== 'dom_mutation')
+      : [];
+    const selectedImages = Array.isArray(recordedContext.selectedImages) ? recordedContext.selectedImages : [];
+    const durationMs = Math.max(0, Number(recordedContext.duration || 0));
+    const durationSec = Math.round(durationMs / 1000);
+    const summary = String(recordedContext.summary || '').trim();
+    const origin = String(events[0]?.url || selectedImages[0]?.url || '').trim();
+    const baseTs = Number(events[0]?.timestamp || 0);
+    const stepRows = events
+      .map((event: any, index: number) => {
+        const ts = Number(event?.timestamp || 0);
+        const deltaSec = baseTs > 0 && ts >= baseTs ? Math.round((ts - baseTs) / 1000) : null;
+        const type = String(event?.type || 'event');
+        const line = type === 'click'
+          ? `Click ${event?.selector || event?.tagName || 'element'}`
+          : type === 'input'
+            ? `Input ${event?.selector || event?.placeholder || ''}`.trim()
+            : type === 'navigation'
+              ? `Navigate to ${event?.toUrl || event?.url || ''}`.trim()
+              : type === 'scroll'
+                ? `Scroll ${event?.direction || ''}`.trim()
+                : `${type}`;
+        const suffix = deltaSec === null ? '' : ` (+${deltaSec}s)`;
+        return `<li>${this.escapeHtml(`${index + 1}. ${line}${suffix}`)}</li>`;
+      })
+      .join('');
+    const sourceHtml = origin ? `<div class="user-recording-origin">${this.escapeHtml(origin)}</div>` : '';
+    return `
+      <details class="user-recording-block">
+        <summary>Recording attached · ${events.length} steps · ${selectedImages.length} images · ${durationSec}s</summary>
+        <div class="user-recording-content">
+          ${summary ? `<div class="user-recording-summary">${this.escapeHtml(summary)}</div>` : ''}
+          ${sourceHtml}
+          <ol class="user-recording-steps">${stepRows || '<li>No interaction steps captured.</li>'}</ol>
+        </div>
+      </details>
+    `;
+  };
+  const buildMediaHtml = () => {
+    const attachments = Array.isArray(mediaAttachments) ? mediaAttachments : [];
+    if (!attachments.length) return '';
+    const rows = attachments
+      .map((attachment: any) => {
+        const kind = String(attachment?.kind || 'file');
+        const name = String(attachment?.name || `${kind}-attachment`);
+        const mimeType = String(attachment?.mimeType || '');
+        const size = Number(attachment?.size || 0);
+        const kb = Math.max(1, Math.round(size / 1024));
+        return `<li>${this.escapeHtml(`${kind.toUpperCase()}: ${name} (${mimeType || 'unknown'}, ${kb} KB)`)}</li>`;
+      })
+      .join('');
+    return `
+      <details class="user-attachments-block">
+        <summary>Media attached · ${attachments.length}</summary>
+        <ul class="user-attachments-list">${rows}</ul>
+      </details>
+    `;
+  };
   messageDiv.innerHTML = `
       <div class="message-header">You</div>
       <div class="message-content">${this.escapeHtml(content)}</div>
+      ${buildRecordingHtml()}
+      ${buildMediaHtml()}
     `;
   turn.appendChild(messageDiv);
   this.elements.chatMessages.appendChild(turn);
@@ -207,6 +303,20 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
   this.updateChatEmptyState();
 };
 
+const EMPTY_TIPS = [
+  'Add open tabs as context with the tab selector button.',
+  'Type / in the composer to use skills.',
+  'Click the record button to teach the model a workflow.',
+  'Sessions older than 7 days are auto-pruned to keep things fast.',
+  'Attach files like .md, .csv, or .json for richer answers.',
+  'Switch profiles to try different models or prompts.',
+  'Export your conversation as markdown from the toolbar.',
+  'Use the history drawer to revisit past sessions.',
+];
+
+let _tipTimer: ReturnType<typeof setInterval> | null = null;
+let _tipIndex = Math.floor(Math.random() * EMPTY_TIPS.length);
+
 (SidePanelUI.prototype as any).updateChatEmptyState = function updateChatEmptyState() {
   const emptyState = this.elements.chatEmptyState;
   if (!emptyState) return;
@@ -214,6 +324,31 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
     (this.displayHistory && this.displayHistory.length > 0) ||
     (this.elements.chatMessages && this.elements.chatMessages.children.length > 0);
   emptyState.classList.toggle('hidden', hasMessages);
+
+  const tipEl = emptyState.querySelector('#emptyTip') as HTMLElement | null;
+  if (!tipEl) return;
+
+  if (hasMessages) {
+    if (_tipTimer) { clearInterval(_tipTimer); _tipTimer = null; }
+    return;
+  }
+
+  // Show first tip immediately
+  if (!tipEl.textContent) {
+    tipEl.textContent = EMPTY_TIPS[_tipIndex];
+    tipEl.classList.add('visible');
+  }
+
+  if (!_tipTimer) {
+    _tipTimer = setInterval(() => {
+      tipEl.classList.remove('visible');
+      setTimeout(() => {
+        _tipIndex = (_tipIndex + 1) % EMPTY_TIPS.length;
+        tipEl.textContent = EMPTY_TIPS[_tipIndex];
+        tipEl.classList.add('visible');
+      }, 300);
+    }, 6000);
+  }
 };
 
 (SidePanelUI.prototype as any).displayAssistantMessage = function displayAssistantMessage(
@@ -419,6 +554,7 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
     this.pruneOldChatTurns();
     this.persistHistory();
     this.updateChatEmptyState();
+    this.flushQueuedMessage?.();
     return;
   }
 
@@ -484,6 +620,7 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
   this.pruneOldChatTurns();
   this.persistHistory();
   this.updateChatEmptyState();
+  this.flushQueuedMessage?.();
 };
 
 const MAX_CHAT_TURNS = 100;

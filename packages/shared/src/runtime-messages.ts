@@ -20,6 +20,24 @@ export type RetryCounts = {
   finalize: number;
 };
 
+export type RuntimeLatencyMetrics = {
+  runStartAt: number;
+  completedAt: number;
+  totalMs: number;
+  ttfbMs?: number;
+  firstTokenMs?: number;
+  stream: boolean;
+  modelAttempts?: number;
+};
+
+export type RuntimeBenchmarkContext = {
+  success: boolean;
+  provider?: string;
+  model?: string;
+  route?: string;
+  errorCategory?: string;
+};
+
 export type UserRunStart = RuntimeMessageBase & {
   type: 'user_run_start';
   message: string;
@@ -104,6 +122,8 @@ export type AssistantFinal = RuntimeMessageBase & {
     percent?: number;
   };
   responseMessages?: Array<Record<string, unknown>>;
+  latency?: RuntimeLatencyMetrics;
+  benchmark?: RuntimeBenchmarkContext;
 };
 
 export type RunError = RuntimeMessageBase & {
@@ -112,6 +132,8 @@ export type RunError = RuntimeMessageBase & {
   errorCategory?: string;
   action?: string;
   recoverable?: boolean;
+  latency?: RuntimeLatencyMetrics;
+  benchmark?: RuntimeBenchmarkContext;
 };
 
 export type RunWarning = RuntimeMessageBase & {

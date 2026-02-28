@@ -359,7 +359,7 @@ const formatTime = (ms: number): string => {
 
 (SidePanelUI.prototype as any).showRecordedContextBadge = function showRecordedContextBadge() {
   const badge = this.elements.recordedContextBadge;
-  if (badge) badge.classList.remove('hidden');
+  if (badge) badge.classList.add('hidden');
 };
 
 (SidePanelUI.prototype as any).hideRecordedContextBadge = function hideRecordedContextBadge() {

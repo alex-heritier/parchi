@@ -485,3 +485,16 @@
   color: var(--foreground);
   font-weight: 600;
 }
+
+.usage-model-bar {
+  height: 2px;
+  margin-top: 4px;
+  border-radius: 1px;
+  background: rgb(var(--accent-rgb) / 0.25);
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.usage-header-actions {
+  display: flex;
+  gap: 6px;
+}

@@ -5,7 +5,9 @@ import { convexAuth } from '@convex-dev/auth/server';
 
 const hasGitHubProviderCredentials = Boolean(process.env.AUTH_GITHUB_ID && process.env.AUTH_GITHUB_SECRET);
 const hasGoogleProviderCredentials = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
-const configuredSiteUrl = String(process.env.SITE_URL || '').trim().replace(/\/+$/, '');
+const configuredSiteUrl = String(process.env.SITE_URL || '')
+  .trim()
+  .replace(/\/+$/, '');
 
 const CHROMIUM_EXTENSION_REDIRECT = /^https:\/\/[a-z0-9]{32}\.chromiumapp\.org\/.*$/i;
 const FIREFOX_EXTENSION_REDIRECT = /^https:\/\/[a-z0-9-]+\.extensions\.(?:allizom|mozilla)\.org\/.*$/i;

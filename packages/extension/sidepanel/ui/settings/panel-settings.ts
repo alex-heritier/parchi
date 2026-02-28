@@ -402,6 +402,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   this.fetchAvailableModels();
 
   this.updateStatus('Settings saved successfully', 'success');
+  this.openChatView?.();
 };
 
 (SidePanelUI.prototype as any).exportSettings = async function exportSettings() {

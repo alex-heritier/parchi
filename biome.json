@@ -53,6 +53,7 @@
       "dist-firefox/**",
       "node_modules/**",
       "server/node_modules/**",
+      "packages/backend/convex/_generated/**",
       "*.json",
       "*.md"
     ]

@@ -43,6 +43,18 @@ import { SidePanelUI } from '../core/panel-ui.js';
   const percent = Math.min(100, Math.round((approxTokens / maxContextTokens) * 100));
   this.contextUsage = { approxTokens, maxContextTokens, percent };
   this.updateActivityState();
+
+  // Drive the context bar visual
+  const bar = document.getElementById('contextBar');
+  const composer = document.getElementById('composer');
+  if (bar && composer) {
+    composer.style.setProperty('--context-percent', `${percent}%`);
+    bar.classList.remove('level-low', 'level-mid', 'level-high', 'level-critical');
+    if (percent >= 90) bar.classList.add('level-critical');
+    else if (percent >= 70) bar.classList.add('level-high');
+    else if (percent >= 35) bar.classList.add('level-mid');
+    else if (percent > 0) bar.classList.add('level-low');
+  }
 };
 
 (SidePanelUI.prototype as any).getConfiguredContextLimit = function getConfiguredContextLimit() {

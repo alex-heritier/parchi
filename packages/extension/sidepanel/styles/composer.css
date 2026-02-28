@@ -29,6 +29,67 @@
   display: none;
 }
 
+/* ── Context usage bar ── fills bottom border based on token consumption */
+.context-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: var(--context-percent, 0%);
+  background: transparent;
+  z-index: 10;
+  pointer-events: none;
+  transition:
+    width 1.2s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.6s ease,
+    box-shadow 0.6s ease;
+}
+
+.context-bar.level-low {
+  background: rgb(var(--accent-rgb) / 0.12);
+}
+
+.context-bar.level-mid {
+  background: rgb(var(--accent-rgb) / 0.35);
+}
+
+.context-bar.level-high {
+  background: rgb(245 171 53 / 0.55);
+  box-shadow: 0 0 6px rgb(245 171 53 / 0.15);
+}
+
+.context-bar.level-critical {
+  background: rgb(239 68 68 / 0.65);
+  box-shadow: 0 0 8px rgb(239 68 68 / 0.2);
+}
+
+/* Compaction sweep — bar flashes full-width then settles to new % */
+.context-bar.compacting {
+  animation: compactionSweep 1.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes compactionSweep {
+  0% {
+    width: var(--context-percent, 0%);
+    opacity: 1;
+  }
+  12% {
+    width: 100%;
+    background: rgb(var(--accent-rgb) / 0.5);
+    box-shadow: 0 0 14px rgb(var(--accent-rgb) / 0.35);
+  }
+  30% {
+    width: 100%;
+    background: rgb(var(--accent-rgb) / 0.3);
+    box-shadow: 0 0 6px rgb(var(--accent-rgb) / 0.15);
+  }
+  100% {
+    width: var(--context-percent, 0%);
+    opacity: 1;
+    box-shadow: none;
+  }
+}
+
 /* Running state — model is working */
 .composer.running {
   border-color: var(--ink-2);
@@ -307,7 +368,12 @@
   padding-left: 6px;
   border-left: 1px solid var(--ink-1);
   opacity: 0;
+  display: inline-block;
+  max-width: clamp(140px, 22vw, 280px);
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
   transition: all var(--duration-fast) ease;
 }
 
@@ -504,47 +570,60 @@
 .paid-status-badge {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 0;
-  height: 22px;
-  width: 18px;
-  min-width: 18px;
+  justify-content: flex-start;
+  gap: 7px;
+  height: 28px;
+  min-width: 84px;
   border-radius: 9999px;
-  padding: 0;
-  border: none;
-  background: rgba(255, 255, 255, 0.03);
+  padding: 0 10px;
+  border: 1px solid var(--ink-2);
+  background: color-mix(in oklab, var(--card) 82%, transparent);
   color: var(--muted);
-  font-size: 10px;
-  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
   transition: all var(--duration-fast) var(--ease-out-expo);
 }
 
+.paid-status-badge:hover {
+  border-color: rgb(var(--accent-rgb) / 0.35);
+  background: color-mix(in oklab, var(--card-hover) 85%, transparent);
+}
+
 .paid-status-badge .paid-status-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 999px;
   background: currentColor;
   flex: 0 0 auto;
+  box-shadow: 0 0 0 3px color-mix(in oklab, currentColor 18%, transparent);
 }
 
 .paid-status-badge .paid-status-text {
-  display: none;
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .paid-status-badge.is-active {
   color: rgb(var(--success-rgb, 86 194 106));
+  border-color: rgb(var(--success-rgb, 86 194 106) / 0.4);
   background: rgb(var(--success-rgb, 86 194 106) / 0.12);
 }
 
 .paid-status-badge.is-warning {
   color: rgb(var(--warning-rgb, 245 171 53));
+  border-color: rgb(var(--warning-rgb, 245 171 53) / 0.4);
   background: rgb(var(--warning-rgb, 245 171 53) / 0.12);
 }
 
 .paid-status-badge.is-error {
   color: rgb(var(--error-rgb, 239 68 68));
+  border-color: rgb(var(--error-rgb, 239 68 68) / 0.4);
   background: rgb(var(--error-rgb, 239 68 68) / 0.12);
 }
 
@@ -557,8 +636,9 @@
     font-size: 11px;
   }
   .paid-status-badge {
-    width: 16px;
-    min-width: 16px;
+    min-width: 72px;
+    padding: 0 8px;
+    gap: 6px;
   }
 }
 

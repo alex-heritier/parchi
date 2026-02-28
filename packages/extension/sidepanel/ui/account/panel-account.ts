@@ -609,7 +609,7 @@ const renderUsageCharts = (
       } else {
         this.elements.paidStatusBadge.textContent = paidLabel;
       }
-      this.elements.paidStatusBadge.title = detail ? `${setupState.paidStatusLabel} — ${detail}` : setupState.paidStatusLabel;
+      this.elements.paidStatusBadge.title = 'Open billing';
       this.paidStatusHoverLabel = detail ? `${paidLabel}: ${detail}` : paidLabel;
       this.elements.paidStatusBadge.classList.remove('hidden', 'is-active', 'is-warning', 'is-error');
       if (setupState.paidStatusTone === 'error') {

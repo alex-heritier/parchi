@@ -33,6 +33,85 @@ const autoResizeTextArea = (textarea: HTMLTextAreaElement | null, maxHeight: num
   textarea.style.overflowY = textarea.scrollHeight > resolvedMaxHeight || clampedHeight >= resolvedMaxHeight ? 'auto' : 'hidden';
 };
 
+const MAX_HISTORY_TURN_ENTRIES = 200;
+const MAX_TOOL_EVENTS_PER_TURN = 160;
+const MAX_TRACE_STRING_LENGTH = 4000;
+const MAX_TRACE_ARRAY_ITEMS = 40;
+const MAX_TRACE_OBJECT_KEYS = 60;
+
+const clampHistoryTurnMap = (self: any) => {
+  if (!self?.historyTurnMap || self.historyTurnMap.size <= MAX_HISTORY_TURN_ENTRIES) return;
+  const overflow = self.historyTurnMap.size - MAX_HISTORY_TURN_ENTRIES;
+  const keys = self.historyTurnMap.keys();
+  for (let i = 0; i < overflow; i += 1) {
+    const key = keys.next().value;
+    if (key === undefined) break;
+    self.historyTurnMap.delete(key);
+  }
+};
+
+const capTurnToolEvents = (turnEntry: any) => {
+  if (!turnEntry || !Array.isArray(turnEntry.toolEvents)) return;
+  if (turnEntry.toolEvents.length <= MAX_TOOL_EVENTS_PER_TURN) return;
+  turnEntry.toolEvents.splice(0, turnEntry.toolEvents.length - MAX_TOOL_EVENTS_PER_TURN);
+};
+
+const sanitizeTracePayload = (value: any, depth = 0): any => {
+  if (value == null) return value;
+  if (typeof value === 'string') {
+    if (value.startsWith('data:image/') || value.startsWith('data:application/octet-stream')) {
+      return '[omitted dataUrl]';
+    }
+    if (value.length <= MAX_TRACE_STRING_LENGTH) return value;
+    return `${value.slice(0, MAX_TRACE_STRING_LENGTH)}…`;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'function') return undefined;
+  if (depth > 5) return '[truncated]';
+  if (Array.isArray(value)) {
+    const cap = Math.min(value.length, MAX_TRACE_ARRAY_ITEMS);
+    const out = new Array(cap);
+    for (let i = 0; i < cap; i += 1) {
+      out[i] = sanitizeTracePayload(value[i], depth + 1);
+    }
+    if (value.length > cap) {
+      out.push(`[+${value.length - cap} items truncated]`);
+    }
+    return out;
+  }
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: value.message,
+      stack: sanitizeTracePayload(value.stack || '', depth + 1),
+    };
+  }
+  if (typeof value === 'object') {
+    const out: Record<string, any> = {};
+    let keysSeen = 0;
+    for (const [key, raw] of Object.entries(value)) {
+      keysSeen += 1;
+      if (keysSeen > MAX_TRACE_OBJECT_KEYS) {
+        out.__truncatedKeys = `[+${Object.keys(value).length - MAX_TRACE_OBJECT_KEYS} keys truncated]`;
+        break;
+      }
+      const lower = key.toLowerCase();
+      if (lower.includes('dataurl') || lower === 'dataurl' || lower.endsWith('base64')) {
+        out[key] = '[omitted dataUrl]';
+        continue;
+      }
+      if (lower === 'frames' && Array.isArray(raw)) {
+        out[key] = { count: raw.length, omitted: true };
+        continue;
+      }
+      out[key] = sanitizeTracePayload(raw, depth + 1);
+    }
+    return out;
+  }
+  return String(value);
+};
+
 (SidePanelUI.prototype as any).init = async function init() {
   try {
     this.connectLifecyclePort();
@@ -361,6 +440,12 @@ export PARCHI_RELAY_PORT="${port}"`;
       }
     }
   });
+  this.elements.userInput?.addEventListener('paste', (event: ClipboardEvent) => {
+    const files = Array.from(event.clipboardData?.files || []) as File[];
+    if (!files.length) return;
+    event.preventDefault();
+    void this.ingestFilesIntoComposer?.(files, 'paste');
+  });
 
   // Auto-expand textarea height as user types
   const userInput = this.elements.userInput;
@@ -384,6 +469,10 @@ export PARCHI_RELAY_PORT="${port}"`;
   });
   this.elements.setupAccessBtn?.addEventListener('click', () => {
     void this.handleSetupAccessClick?.();
+  });
+  this.elements.paidStatusBadge?.addEventListener('click', () => {
+    this.openSettingsPanel?.();
+    this.switchSettingsTab?.('oauth');
   });
 
   // File upload
@@ -431,6 +520,18 @@ export PARCHI_RELAY_PORT="${port}"`;
   this.elements.exportBtn?.addEventListener('click', () => this.showExportMenu());
 
   this.elements.chatMessages?.addEventListener('scroll', () => this.handleChatScroll());
+  this.elements.chatMessages?.addEventListener(
+    'wheel',
+    (event: WheelEvent) => {
+      const chat = this.elements.chatMessages;
+      if (!chat) return;
+      if (Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
+      if (chat.scrollHeight <= chat.clientHeight) return;
+      chat.scrollTop += event.deltaY;
+      event.preventDefault();
+    },
+    { passive: false },
+  );
 
   // Delegated click: copy button inside code blocks
   this.elements.chatMessages?.addEventListener('click', (e: Event) => {
@@ -726,12 +827,14 @@ export PARCHI_RELAY_PORT="${port}"`;
         type: 'tool_execution_start',
         tool: message.tool,
         id: (message as any).id,
-        args: (message as any).args,
+        args: sanitizeTracePayload((message as any).args),
         stepIndex: (message as any).stepIndex,
         stepTitle: (message as any).stepTitle,
         timestamp: (message as any).timestamp,
       });
+      capTurnToolEvents(entry);
       this.historyTurnMap.set(turnId, entry);
+      clampHistoryTurnMap(this);
 
       // Persist full trace to IndexedDB
       appendTrace({
@@ -740,7 +843,7 @@ export PARCHI_RELAY_PORT="${port}"`;
         kind: 'tool_start',
         tool: message.tool,
         toolId: (message as any).id,
-        args: (message as any).args,
+        args: sanitizeTracePayload((message as any).args),
         stepIndex: (message as any).stepIndex,
         stepTitle: (message as any).stepTitle,
       });
@@ -781,13 +884,15 @@ export PARCHI_RELAY_PORT="${port}"`;
         type: 'tool_execution_result',
         tool: message.tool,
         id: (message as any).id,
-        args: (message as any).args,
-        result: (message as any).result,
+        args: sanitizeTracePayload((message as any).args),
+        result: sanitizeTracePayload((message as any).result),
         stepIndex: (message as any).stepIndex,
         stepTitle: (message as any).stepTitle,
         timestamp: (message as any).timestamp,
       });
+      capTurnToolEvents(entry);
       this.historyTurnMap.set(turnId, entry);
+      clampHistoryTurnMap(this);
 
       // Persist full trace to IndexedDB
       appendTrace({
@@ -796,8 +901,8 @@ export PARCHI_RELAY_PORT="${port}"`;
         kind: 'tool_result',
         tool: message.tool,
         toolId: (message as any).id,
-        args: (message as any).args,
-        result: (message as any).result,
+        args: sanitizeTracePayload((message as any).args),
+        result: sanitizeTracePayload((message as any).result),
         stepIndex: (message as any).stepIndex,
         stepTitle: (message as any).stepTitle,
       });
@@ -828,6 +933,7 @@ export PARCHI_RELAY_PORT="${port}"`;
         usage: (message as any).usage || null,
       };
       this.historyTurnMap.set(turnId, entry);
+      clampHistoryTurnMap(this);
 
       // Persist full trace to IndexedDB
       appendTrace({
@@ -839,16 +945,6 @@ export PARCHI_RELAY_PORT="${port}"`;
         model: message.model || null,
         usage: (message as any).usage || null,
       });
-    }
-
-    // Cap historyTurnMap to prevent unbounded memory growth
-    if (this.historyTurnMap.size > 200) {
-      const iter = this.historyTurnMap.keys();
-      const excess = this.historyTurnMap.size - 200;
-      for (let i = 0; i < excess; i++) {
-        const key = iter.next().value;
-        if (key !== undefined) this.historyTurnMap.delete(key);
-      }
     }
 
     this.displayAssistantMessage(message.content, message.thinking, message.usage, message.model);
