@@ -303,6 +303,7 @@ npm run typecheck             # repo-wide type checking
 npm run lint                  # biome linter
 npm run lint:fix              # auto-fix lint issues
 npm run test:unit             # run unit tests
+npm run perf:tabs             # sample Firefox/Chrome tab CPU + RAM
 npm run backend:dev           # run Convex dev backend workspace
 npm run dev -w @parchi/website  # run website workspace locally
 ```
@@ -315,6 +316,14 @@ After building, reload the extension in `chrome://extensions` to pick up changes
 npm run build:firefox       # build for Firefox → dist/
 npm run build:firefox:xpi   # package as .xpi for distribution
 ```
+
+### Performance leak audits
+
+```bash
+TAB_AUDIT_SAMPLES=6 TAB_AUDIT_INTERVAL_MS=10000 npm run perf:tabs
+```
+
+Use the full workflow in [`docs/tab-process-performance-playbook.md`](docs/tab-process-performance-playbook.md) to run active/idle audits and validate regressions in Firefox + Chrome.
 
 ---
 
