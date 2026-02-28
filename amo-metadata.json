@@ -1,0 +1,11 @@
+{
+  "categories": {
+    "firefox": ["other"]
+  },
+  "summary": {
+    "en-US": "Warm-paper browser automation assistant with configurable LLM providers"
+  },
+  "version": {
+    "license": "MIT"
+  }
+}

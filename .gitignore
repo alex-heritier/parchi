@@ -40,6 +40,7 @@ logs/
 # Environment files
 .env
 .env.local
+.env.publish
 
 # Temporary files
 tmp/
