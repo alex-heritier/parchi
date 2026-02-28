@@ -179,7 +179,10 @@ const sanitizeTracePayload = (value: any, depth = 0): any => {
     this.requestRunStop('Stopped (panel closed)');
   };
   window.addEventListener('pagehide', stopOnClose);
-  window.addEventListener('beforeunload', stopOnClose);
+  window.addEventListener('beforeunload', () => {
+    stopOnClose();
+    this.autoSaveSessionJsonl?.();
+  });
 
   this.elements.startNewSessionBtn?.addEventListener('click', () => this.startNewSession());
   this.elements.newSessionFab?.addEventListener('click', () => this.startNewSession());
@@ -303,6 +306,22 @@ const sanitizeTracePayload = (value: any, depth = 0): any => {
   this.elements.sendScreenshotsAsImages?.addEventListener('change', () => this.updateScreenshotToggleState());
   this.elements.orchestratorToggle?.addEventListener('change', () => this.updatePromptSections?.());
   this.elements.orchestratorProfile?.addEventListener('change', () => this.updatePromptSections?.());
+
+  // Auto-save sessions toggle
+  this.elements.autoSaveSession?.addEventListener('change', () => {
+    const enabled = this.elements.autoSaveSession?.value === 'true';
+    const folderGroup = document.getElementById('autoSaveFolderGroup');
+    if (folderGroup) folderGroup.style.display = enabled ? '' : 'none';
+  });
+  this.elements.autoSaveFolderBtn?.addEventListener('click', async () => {
+    try {
+      const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
+      this._autoSaveDirHandle = handle;
+      if (this.elements.autoSaveFolderLabel) this.elements.autoSaveFolderLabel.textContent = handle.name;
+    } catch {
+      // User cancelled or API unavailable
+    }
+  });
 
   // Save settings
   this.elements.saveSettingsBtn?.addEventListener('click', () => {
@@ -469,10 +488,6 @@ export PARCHI_RELAY_PORT="${port}"`;
   });
   this.elements.setupAccessBtn?.addEventListener('click', () => {
     void this.handleSetupAccessClick?.();
-  });
-  this.elements.paidStatusBadge?.addEventListener('click', () => {
-    this.openSettingsPanel?.();
-    this.switchSettingsTab?.('oauth');
   });
 
   // File upload
@@ -1071,6 +1086,12 @@ export PARCHI_RELAY_PORT="${port}"`;
   }
   const normalized = normalizeConversationHistory(responseMessages as unknown as Message[]);
   this.contextHistory.push(...normalized);
+
+  // Soft cap — prevent unbounded growth if compaction is delayed
+  const CONTEXT_HISTORY_SOFT_CAP = 600;
+  if (this.contextHistory.length > CONTEXT_HISTORY_SOFT_CAP) {
+    this.contextHistory.splice(0, this.contextHistory.length - CONTEXT_HISTORY_SOFT_CAP);
+  }
 };
 
 (SidePanelUI.prototype as any).handleContextCompaction = function handleContextCompaction(message: any) {

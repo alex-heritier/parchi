@@ -51,6 +51,9 @@ import { SidePanelUI } from './panel-ui.js';
 };
 
 (SidePanelUI.prototype as any).startNewSession = function startNewSession() {
+  // Auto-save current session before clearing state
+  this.autoSaveSessionJsonl?.();
+
   if (this.elements.composer?.classList.contains('running')) {
     this.requestRunStop?.('Stopped (new session)');
   }
@@ -84,11 +87,20 @@ import { SidePanelUI } from './panel-ui.js';
   this.subagents.clear();
   this.activeAgent = 'main';
   this.historyTurnMap.clear();
+  // Revoke blob URLs and abort listeners before clearing
+  for (const img of this.reportImages.values()) {
+    if (img._blobUrl) {
+      URL.revokeObjectURL(img._blobUrl);
+    }
+  }
   this.reportImages.clear();
   this.reportImageOrder = [];
   this.selectedReportImageIds.clear();
   this.pendingTurnDraft = null;
   this.elements.chatMessages.innerHTML = '';
+  for (const entry of this.toolCallViews.values()) {
+    entry.abortController?.abort();
+  }
   this.toolCallViews.clear();
   this.updateChatEmptyState?.();
   this.resetActivityPanel();

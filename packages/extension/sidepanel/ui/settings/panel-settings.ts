@@ -328,6 +328,12 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
       settings.confirmActions !== undefined ? String(settings.confirmActions) : 'true';
   if (this.elements.saveHistory)
     this.elements.saveHistory.value = settings.saveHistory !== undefined ? String(settings.saveHistory) : 'true';
+  if (this.elements.autoSaveSession)
+    this.elements.autoSaveSession.value = settings.autoSaveSession !== undefined ? String(settings.autoSaveSession) : 'false';
+  const autoSaveFolderGroup = document.getElementById('autoSaveFolderGroup');
+  if (autoSaveFolderGroup) {
+    autoSaveFolderGroup.style.display = this.elements.autoSaveSession?.value === 'true' ? '' : 'none';
+  }
   this.timelineCollapsed = settings.timelineCollapsed !== undefined ? settings.timelineCollapsed !== false : true;
 
   if (this.elements.relayEnabled)
@@ -540,6 +546,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
       autoScroll: activeProfile.autoScroll !== false,
       confirmActions: activeProfile.confirmActions !== false,
       saveHistory: activeProfile.saveHistory !== false,
+      autoSaveSession: this.elements.autoSaveSession?.value === 'true',
       visionBridge: this.elements.visionBridge?.value === 'true',
       visionProfile: this.elements.visionProfile?.value || '',
       useOrchestrator: this.elements.orchestratorToggle?.value === 'true',

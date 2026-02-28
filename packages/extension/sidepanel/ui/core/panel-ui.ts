@@ -141,6 +141,7 @@ export class SidePanelUI {
   modelCatalogEntries: Array<{ provider: string; model: string }>;
   modelCatalogUpdatedAt: number;
   modelCatalogRefreshPromise: Promise<void> | null;
+  _autoSaveDirHandle: any;
 
   // Methods attached via prototype in panel-modules
   declare init: () => Promise<void>;
@@ -243,6 +244,7 @@ export class SidePanelUI {
     this.modelCatalogEntries = [];
     this.modelCatalogUpdatedAt = 0;
     this.modelCatalogRefreshPromise = null;
+    this._autoSaveDirHandle = null;
     void this.init();
   }
 }

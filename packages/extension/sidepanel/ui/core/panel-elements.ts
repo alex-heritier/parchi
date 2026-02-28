@@ -182,6 +182,9 @@ export const getSidePanelElements = (): SidePanelElements => ({
   autoScroll: byId<HTMLSelectElement>('autoScroll'),
   confirmActions: byId<HTMLInputElement>('confirmActions'),
   saveHistory: byId<HTMLInputElement>('saveHistory'),
+  autoSaveSession: byId<HTMLSelectElement>('autoSaveSession'),
+  autoSaveFolderBtn: byId<HTMLButtonElement>('autoSaveFolderBtn'),
+  autoSaveFolderLabel: byId<HTMLSpanElement>('autoSaveFolderLabel'),
 
   // Form elements - Orchestrator
   orchestratorToggle: byId<HTMLInputElement>('orchestratorToggle'),
@@ -222,7 +225,6 @@ export const getSidePanelElements = (): SidePanelElements => ({
   setupAccessBtn: byId<HTMLButtonElement>('setupAccessBtn'),
   modelSelectorWrap: byId<HTMLElement>('modelSelectorWrap'),
   modelSelect: byId<HTMLSelectElement>('modelSelect'),
-  paidStatusBadge: byId<HTMLElement>('paidStatusBadge'),
   fileBtn: byId<HTMLButtonElement>('fileBtn'),
   fileInput: byId<HTMLInputElement>('fileInput'),
   zoomOutBtn: byId<HTMLButtonElement>('zoomOutBtn'),

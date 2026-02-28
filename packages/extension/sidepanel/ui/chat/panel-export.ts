@@ -442,8 +442,12 @@ import { getSessionTraces } from './trace-store.js';
   return String(content);
 };
 
-(SidePanelUI.prototype as any).downloadMarkdown = function downloadMarkdown(content: string, filename: string): void {
-  const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+(SidePanelUI.prototype as any).downloadFile = function downloadFile(
+  content: string,
+  filename: string,
+  mimeType: string,
+): void {
+  const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
   const url = URL.createObjectURL(blob);
 
   const link = document.createElement('a');
@@ -458,6 +462,94 @@ import { getSessionTraces } from './trace-store.js';
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   }, 100);
+};
 
+(SidePanelUI.prototype as any).downloadMarkdown = function downloadMarkdown(content: string, filename: string): void {
+  this.downloadFile(content, filename, 'text/markdown');
   this.updateStatus(`Exported to ${filename}`, 'success');
+};
+
+/* ── Auto-save session as JSONL ─────────────────────────────────────── */
+
+(SidePanelUI.prototype as any).autoSaveSessionJsonl = async function autoSaveSessionJsonl(): Promise<void> {
+  // Guard: check setting and session content
+  let autoSaveEnabled = false;
+  try {
+    const stored = await chrome.storage.local.get('autoSaveSession');
+    autoSaveEnabled = stored.autoSaveSession === true || stored.autoSaveSession === 'true';
+  } catch { /* ignore */ }
+  if (!autoSaveEnabled) return;
+  if (!this.displayHistory || this.displayHistory.length === 0) return;
+
+  const lines: string[] = [];
+
+  // Line 1: session metadata
+  const meta = {
+    kind: 'session_meta',
+    sessionId: this.sessionId || '',
+    startedAt: this.sessionStartedAt || Date.now(),
+    endedAt: Date.now(),
+    title: this.firstUserMessage || '',
+    tokenTotals: this.sessionTokenTotals || {},
+    messageCount: this.displayHistory.length,
+  };
+  lines.push(JSON.stringify(meta));
+
+  // Lines 2+: traces from IndexedDB, or fallback to displayHistory
+  let traces: any[] = [];
+  try {
+    traces = await getSessionTraces(this.sessionId);
+  } catch { /* ignore */ }
+
+  if (traces.length > 0) {
+    for (const ev of traces) {
+      lines.push(JSON.stringify(ev));
+    }
+  } else {
+    for (const msg of this.displayHistory) {
+      const entry: Record<string, any> = {
+        kind: 'display_message',
+        role: msg.role || '',
+        content: typeof msg.content === 'string' ? msg.content : this.extractTextContent(msg.content),
+      };
+      if (msg.thinking) entry.thinking = msg.thinking;
+      if (msg.meta) entry.meta = msg.meta;
+      lines.push(JSON.stringify(entry));
+    }
+  }
+
+  // Append selected report images
+  const selectedImages = this.getSelectedReportImagesForExport?.() || [];
+  for (const img of selectedImages) {
+    lines.push(JSON.stringify({
+      kind: 'report_image',
+      id: img.id,
+      capturedAt: img.capturedAt,
+      url: img.url || '',
+      title: img.title || '',
+      dataUrl: img.dataUrl || '',
+    }));
+  }
+
+  const content = lines.join('\n') + '\n';
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const filename = `session-${timestamp}.jsonl`;
+
+  // Try File System Access API directory handle first
+  if (this._autoSaveDirHandle) {
+    try {
+      const fileHandle = await this._autoSaveDirHandle.getFileHandle(filename, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(content);
+      await writable.close();
+      this.updateStatus?.(`Session auto-saved to ${filename}`, 'success');
+      return;
+    } catch {
+      // Fall through to anchor download
+    }
+  }
+
+  // Fallback: anchor-click download
+  this.downloadFile(content, filename, 'application/x-ndjson');
+  this.updateStatus?.(`Session auto-saved to ${filename}`, 'success');
 };

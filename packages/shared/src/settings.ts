@@ -34,6 +34,7 @@ export const PARCHI_STORAGE_KEYS = [
   'autoScroll',
   'confirmActions',
   'saveHistory',
+  'autoSaveSession',
   'toolPermissions',
   'allowedDomains',
   'activeConfig',

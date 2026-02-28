@@ -205,6 +205,18 @@
             <option value="false">Disabled</option>
         </select>
     </div>
+    <div class="form-group">
+        <label for="autoSaveSession">Auto-Save Sessions</label>
+        <select id="autoSaveSession">
+            <option value="false">Disabled</option>
+            <option value="true">Enabled (Downloads)</option>
+        </select>
+    </div>
+    <div class="form-group" id="autoSaveFolderGroup" style="display:none">
+        <label>Save Location</label>
+        <button id="autoSaveFolderBtn" class="settings-btn-sm" type="button">Choose folder…</button>
+        <span id="autoSaveFolderLabel" class="form-hint"></span>
+    </div>
 </div>
 
 <!-- ===== DESIGN TAB (appearance) ===== -->
