@@ -500,7 +500,7 @@ export class BackgroundService {
     };
   }
 
-  async handleMessage(message, _sender, sendResponse) {
+  async handleMessage(message, sender, sendResponse) {
     try {
       switch (message.type) {
         case 'relay_reconfigure': {
@@ -621,6 +621,12 @@ export class BackgroundService {
           break;
         }
 
+        case 'content_perf_event': {
+          void this.recordContentPerfEvent(message.event, sender);
+          sendResponse({ success: true });
+          break;
+        }
+
         default:
           console.warn('Unknown message type:', message.type);
       }
@@ -632,6 +638,89 @@ export class BackgroundService {
       });
       sendResponse({ success: false, error: error.message });
     }
+  }
+
+  private async recordContentPerfEvent(event: any, sender?: chrome.runtime.MessageSender) {
+    const source = typeof event?.source === 'string' ? event.source : 'unknown';
+    const reason = typeof event?.reason === 'string' ? event.reason : 'unspecified';
+    const normalized = {
+      source,
+      reason,
+      ts: Number.isFinite(Number(event?.ts)) ? Number(event.ts) : Date.now(),
+      url: typeof event?.url === 'string' ? this.clampContentPerfString(event.url, 400) : '',
+      tabId: typeof sender?.tab?.id === 'number' ? sender.tab.id : null,
+      frameId: typeof sender?.frameId === 'number' ? sender.frameId : null,
+      details: this.sanitizeContentPerfDetails(event),
+    };
+
+    console.warn('[content-perf]', normalized);
+
+    try {
+      const stored = await chrome.storage.local.get(['contentPerfEvents']);
+      const history = Array.isArray(stored.contentPerfEvents) ? stored.contentPerfEvents : [];
+      history.push(normalized);
+      if (history.length > BackgroundService.MAX_CONTENT_PERF_EVENTS) {
+        history.splice(0, history.length - BackgroundService.MAX_CONTENT_PERF_EVENTS);
+      }
+      await chrome.storage.local.set({
+        contentPerfEvents: history,
+        contentPerfLastEventAt: Date.now(),
+      });
+    } catch {
+      // Ignore storage write failures for telemetry-only path.
+    }
+  }
+
+  private sanitizeContentPerfDetails(event: unknown): Record<string, unknown> {
+    if (!event || typeof event !== 'object') return {};
+    const details: Record<string, unknown> = {};
+    const raw = event as Record<string, unknown>;
+    const visited = new WeakSet<object>();
+    for (const [key, value] of Object.entries(raw)) {
+      if (key === 'source' || key === 'reason' || key === 'ts' || key === 'url') continue;
+      details[key] = this.sanitizeContentPerfValue(value, 0, visited);
+    }
+    return details;
+  }
+
+  private sanitizeContentPerfValue(value: unknown, depth: number, visited: WeakSet<object>): unknown {
+    if (value == null) return value;
+    if (depth >= BackgroundService.MAX_CONTENT_PERF_DEPTH) {
+      return '[truncated-depth]';
+    }
+
+    if (typeof value === 'string') return this.clampContentPerfString(value);
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    if (typeof value === 'boolean') return value;
+    if (typeof value !== 'object') return String(value);
+
+    if (visited.has(value as object)) return '[circular]';
+    visited.add(value as object);
+
+    if (Array.isArray(value)) {
+      return value
+        .slice(0, BackgroundService.MAX_CONTENT_PERF_ARRAY_ITEMS)
+        .map((entry) => this.sanitizeContentPerfValue(entry, depth + 1, visited));
+    }
+
+    const output: Record<string, unknown> = {};
+    const entries = Object.entries(value as Record<string, unknown>).slice(
+      0,
+      BackgroundService.MAX_CONTENT_PERF_OBJECT_KEYS,
+    );
+    for (const [key, entry] of entries) {
+      if (key.toLowerCase().includes('dataurl')) {
+        output[key] = '[omitted-dataurl]';
+        continue;
+      }
+      output[key] = this.sanitizeContentPerfValue(entry, depth + 1, visited);
+    }
+    return output;
+  }
+
+  private clampContentPerfString(input: string, maxLength: number = BackgroundService.MAX_CONTENT_PERF_STRING_LENGTH) {
+    if (input.length <= maxLength) return input;
+    return `${input.slice(0, maxLength)}…`;
   }
 
   async processUserMessage(
@@ -2515,6 +2604,11 @@ Rules:
   private static readonly MAX_REPORT_IMAGES_PER_SESSION = 50;
   private static readonly MAX_REPORT_IMAGE_BYTES_PER_IMAGE = 4 * 1024 * 1024;
   private static readonly MAX_REPORT_IMAGE_BYTES_PER_SESSION = 48 * 1024 * 1024;
+  private static readonly MAX_CONTENT_PERF_EVENTS = 100;
+  private static readonly MAX_CONTENT_PERF_STRING_LENGTH = 240;
+  private static readonly MAX_CONTENT_PERF_ARRAY_ITEMS = 8;
+  private static readonly MAX_CONTENT_PERF_OBJECT_KEYS = 12;
+  private static readonly MAX_CONTENT_PERF_DEPTH = 3;
 
   private getSessionState(sessionId: string): SessionState {
     const id = typeof sessionId === 'string' && sessionId.trim() ? sessionId : 'default';

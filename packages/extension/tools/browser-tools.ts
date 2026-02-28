@@ -31,6 +31,29 @@ const DEFAULT_SESSION_GROUP: Required<GroupOptions> = {
   color: 'blue',
 };
 
+const DEFAULT_WAIT_TIMEOUT_MS = 5000;
+const MAX_WAIT_TIMEOUT_MS = 15_000;
+
+type WaitTimeoutResolution = {
+  timeoutMs: number;
+  wasClamped: boolean;
+};
+
+const resolveWaitTimeoutMs = (rawValue: unknown): WaitTimeoutResolution => {
+  if (typeof rawValue !== 'number' || !Number.isFinite(rawValue)) {
+    return {
+      timeoutMs: DEFAULT_WAIT_TIMEOUT_MS,
+      wasClamped: false,
+    };
+  }
+  const normalized = Math.max(0, rawValue);
+  const clamped = Math.min(normalized, MAX_WAIT_TIMEOUT_MS);
+  return {
+    timeoutMs: clamped,
+    wasClamped: clamped !== normalized,
+  };
+};
+
 export class BrowserTools {
   tools: Record<string, true>;
   private sessionTabs: Map<number, SessionTabSummary>;
@@ -764,8 +787,8 @@ export class BrowserTools {
     if (!selector) {
       return { success: false, error: 'Missing selector.' };
     }
-    const timeoutMs =
-      typeof args.timeoutMs === 'number' && Number.isFinite(args.timeoutMs) ? Math.max(0, args.timeoutMs) : 5000;
+    const timeout = resolveWaitTimeoutMs(args.timeoutMs);
+    const timeoutMs = timeout.timeoutMs;
     await this.sendOverlay(tabId, {
       label: 'Click',
       selector,
@@ -774,6 +797,9 @@ export class BrowserTools {
     });
     const clickScript = async (sel: string, waitMs: number) => {
       const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+      const pollIntervalMs = 200;
+      const deepQueryMinIntervalMs = 700;
+      let lastDeepQueryAt = 0;
 
       const isVisible = (el: HTMLElement) => {
         const rect = el.getBoundingClientRect();
@@ -857,7 +883,11 @@ export class BrowserTools {
         return out;
       };
 
-      const findByText = (text: string, baseSelector = ''): { el: HTMLElement | null; candidates: number } => {
+      const findByText = (
+        text: string,
+        baseSelector = '',
+        allowDeepSearch = true,
+      ): { el: HTMLElement | null; candidates: number } => {
         const wanted = normalizeText(text);
         if (!wanted) return { el: null, candidates: 0 };
         const preferred = baseSelector
@@ -865,7 +895,7 @@ export class BrowserTools {
               try {
                 return Array.from(document.querySelectorAll<HTMLElement>(baseSelector));
               } catch {
-                return deepQuerySelectorAll(baseSelector);
+                return allowDeepSearch ? deepQuerySelectorAll(baseSelector) : [];
               }
             })()
           : Array.from(document.querySelectorAll<HTMLElement>('a, button, input, [role="button"], [role="link"]'));
@@ -896,7 +926,7 @@ export class BrowserTools {
         return { el: best, candidates: seen };
       };
 
-      const resolveElement = (rawSelector: string) => {
+      const resolveElement = (rawSelector: string, allowDeepSearch = true) => {
         const trimmed = String(rawSelector || '').trim();
         if (!trimmed)
           return { el: null as HTMLElement | null, strategy: 'none', candidates: 0, error: 'Missing selector.' };
@@ -906,7 +936,7 @@ export class BrowserTools {
         // - xpath=... (XPath expression)
         const lower = trimmed.toLowerCase();
         if (lower.startsWith('css=')) {
-          return resolveElement(trimmed.slice(4));
+          return resolveElement(trimmed.slice(4), allowDeepSearch);
         }
         if (lower.startsWith('xpath=')) {
           const expr = trimmed.slice(6).trim();
@@ -929,7 +959,7 @@ export class BrowserTools {
 
         const textSel = parseTextSelector(trimmed);
         if (textSel) {
-          const { el, candidates } = findByText(textSel);
+          const { el, candidates } = findByText(textSel, '', allowDeepSearch);
           return el
             ? { el, strategy: 'text', candidates }
             : { el: null, strategy: 'text', candidates, error: 'Element not found.' };
@@ -958,17 +988,19 @@ export class BrowserTools {
         // If CSS yielded nothing (or was invalid but looked like contains), try contains-based matching.
         const containsSel = parseContainsSelector(trimmed);
         if (containsSel) {
-          const { el, candidates } = findByText(containsSel.text, containsSel.base);
+          const { el, candidates } = findByText(containsSel.text, containsSel.base, allowDeepSearch);
           return el
             ? { el, strategy: 'contains/text', candidates }
             : { el: null, strategy: 'contains', candidates, error: 'Element not found.' };
         }
 
         // Finally, try a deep selector match for open shadow roots if the normal query returned nothing.
-        const deep = deepQuerySelectorAll(trimmed);
-        const deepVisible = deep.filter(isVisible);
-        const el = deepVisible[0] || deep[0] || null;
-        if (el) return { el, strategy: 'css(deep)', candidates: deep.length };
+        if (allowDeepSearch) {
+          const deep = deepQuerySelectorAll(trimmed);
+          const deepVisible = deep.filter(isVisible);
+          const el = deepVisible[0] || deep[0] || null;
+          if (el) return { el, strategy: 'css(deep)', candidates: deep.length };
+        }
 
         return { el: null, strategy: 'css', candidates: 0, error: 'Element not found.' };
       };
@@ -1030,16 +1062,19 @@ export class BrowserTools {
       const start = performance.now();
       const deadline = start + Math.max(0, waitMs || 0);
       while (performance.now() <= deadline) {
-        const resolved = resolveElement(sel);
+        const now = performance.now();
+        const allowDeepSearch = now - lastDeepQueryAt >= deepQueryMinIntervalMs;
+        if (allowDeepSearch) lastDeepQueryAt = now;
+        const resolved = resolveElement(sel, allowDeepSearch);
         if (resolved.el) {
           const result = clickElement(resolved.el);
           return { ...result, strategy: resolved.strategy, candidates: resolved.candidates };
         }
-        await sleep(120);
+        await sleep(pollIntervalMs);
       }
 
       // One last attempt after timeout to return the best error/hint.
-      const resolved = resolveElement(sel);
+      const resolved = resolveElement(sel, true);
       if (resolved.el) {
         const result = clickElement(resolved.el);
         return { ...result, strategy: resolved.strategy, candidates: resolved.candidates };
@@ -1058,6 +1093,14 @@ export class BrowserTools {
     let result = await this.runInTab(tabId, clickScript, [selector, timeoutMs]);
     if (result?.error === 'Element not found.') {
       result = await this.runInAllFrames(tabId, clickScript, [selector, timeoutMs]);
+    }
+    if (timeout.wasClamped && result && typeof result === 'object') {
+      return {
+        ...result,
+        warning: `timeoutMs capped at ${MAX_WAIT_TIMEOUT_MS}ms to prevent runaway polling.`,
+        timeoutMsRequested: args.timeoutMs,
+        timeoutMsUsed: timeoutMs,
+      };
     }
     return result || { success: false, error: 'Script execution failed.' };
   }
@@ -1192,8 +1235,8 @@ export class BrowserTools {
     }
     const selector = String(args.selector || '');
     const text = String(args.text ?? '');
-    const timeoutMs =
-      typeof args.timeoutMs === 'number' && Number.isFinite(args.timeoutMs) ? Math.max(0, args.timeoutMs) : 5000;
+    const timeout = resolveWaitTimeoutMs(args.timeoutMs);
+    const timeoutMs = timeout.timeoutMs;
     const preview = text.length > 28 ? `${text.slice(0, 28)}…` : text;
     await this.sendOverlay(tabId, {
       label: 'Type',
@@ -1204,6 +1247,7 @@ export class BrowserTools {
     });
     const typeScript = async (sel: string, value: string, waitMs: number) => {
       const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+      const pollIntervalMs = 200;
       const isVisible = (el: HTMLElement) => {
         const rect = el.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) return false;
@@ -1274,7 +1318,7 @@ export class BrowserTools {
           if (fallback) el = fallback;
         }
         if (el) break;
-        await sleep(120);
+        await sleep(pollIntervalMs);
       }
 
       if (!el) {
@@ -1356,6 +1400,14 @@ export class BrowserTools {
     let result = await this.runInTab(tabId, typeScript, [selector, text, timeoutMs]);
     if (result?.error === 'Element not found.') {
       result = await this.runInAllFrames(tabId, typeScript, [selector, text, timeoutMs]);
+    }
+    if (timeout.wasClamped && result && typeof result === 'object') {
+      return {
+        ...result,
+        warning: `timeoutMs capped at ${MAX_WAIT_TIMEOUT_MS}ms to prevent runaway polling.`,
+        timeoutMsRequested: args.timeoutMs,
+        timeoutMsUsed: timeoutMs,
+      };
     }
     return result || { success: false, error: 'Script execution failed.' };
   }

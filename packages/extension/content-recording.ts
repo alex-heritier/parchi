@@ -3,7 +3,6 @@
 
 import type { RecordingEvent, RecordingEventType } from '../shared/src/recording.js';
 
-
 declare global {
   interface Window {
     __parchiRecording?: boolean;
@@ -19,10 +18,15 @@ declare global {
   const SCROLL_THROTTLE_MS = 1000;
   const SCROLL_DELTA_MIN = 200;
   const MUTATION_DEBOUNCE_MS = 500;
+  const MAX_RECORDING_RUNTIME_MS = 75_000;
+  const MAX_MUTATION_BATCH_ITEMS = 5000;
 
   let lastScrollY = window.scrollY;
   let lastScrollTime = 0;
   let mutationBatchTimer: ReturnType<typeof setTimeout> | null = null;
+  let hardStopTimer: ReturnType<typeof setTimeout> | null = null;
+  let isCleaningUp = false;
+  let droppedMutationEvents = 0;
   let mutationBatch = { added: 0, removed: 0, attributes: 0, target: '' };
 
   const isInsideOverlay = (el: Element | null): boolean => {
@@ -37,12 +41,32 @@ declare global {
     return cls ? `${tag}.${cls}` : tag;
   };
 
-  const sendEvent = (event: RecordingEvent) => {
+  const sendMessageSafely = (payload: Record<string, unknown>) => {
     try {
-      chrome.runtime.sendMessage({ type: 'recording_event', event });
+      const maybePromise = chrome.runtime.sendMessage(payload);
+      if (maybePromise && typeof (maybePromise as Promise<unknown>).catch === 'function') {
+        (maybePromise as Promise<unknown>).catch(() => {});
+      }
     } catch {
       // Extension context may be invalidated
     }
+  };
+
+  const sendEvent = (event: RecordingEvent) => {
+    sendMessageSafely({ type: 'recording_event', event });
+  };
+
+  const sendPerfEvent = (reason: string, payload: Record<string, unknown> = {}) => {
+    sendMessageSafely({
+      type: 'content_perf_event',
+      event: {
+        source: 'recording',
+        reason,
+        ts: Date.now(),
+        url: location.href,
+        ...payload,
+      },
+    });
   };
 
   const buildBase = (type: RecordingEventType): RecordingEvent => ({
@@ -95,15 +119,19 @@ declare global {
   const flushMutations = () => {
     if (mutationBatch.added === 0 && mutationBatch.removed === 0 && mutationBatch.attributes === 0) return;
     const ev = buildBase('dom_mutation');
-    ev.summary = `+${mutationBatch.added} nodes, -${mutationBatch.removed} nodes, ${mutationBatch.attributes} attr changes in ${mutationBatch.target}`;
+    const droppedSuffix =
+      droppedMutationEvents > 0 ? ` (+${droppedMutationEvents} dropped due to cap)` : '';
+    ev.summary = `+${mutationBatch.added} nodes, -${mutationBatch.removed} nodes, ${mutationBatch.attributes} attr changes in ${mutationBatch.target}${droppedSuffix}`;
     ev.addedCount = mutationBatch.added;
     ev.removedCount = mutationBatch.removed;
     ev.attributeChanges = mutationBatch.attributes;
     sendEvent(ev);
+    droppedMutationEvents = 0;
     mutationBatch = { added: 0, removed: 0, attributes: 0, target: '' };
   };
 
   const observer = new MutationObserver((mutations) => {
+    if (isCleaningUp || document.hidden) return;
     for (const m of mutations) {
       if (isInsideOverlay(m.target as Element)) continue;
       if (m.type === 'childList') {
@@ -115,16 +143,25 @@ declare global {
       if (!mutationBatch.target && m.target instanceof Element) {
         mutationBatch.target = getSelector(m.target);
       }
+
+      if (mutationBatch.added + mutationBatch.removed + mutationBatch.attributes > MAX_MUTATION_BATCH_ITEMS) {
+        droppedMutationEvents += 1;
+        break;
+      }
     }
     if (mutationBatchTimer) clearTimeout(mutationBatchTimer);
     mutationBatchTimer = setTimeout(flushMutations, MUTATION_DEBOUNCE_MS);
   });
 
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-  });
+  const mutationRoot = document.body || document.documentElement;
+  if (mutationRoot) {
+    observer.observe(mutationRoot, {
+      childList: true,
+      subtree: true,
+    });
+  } else {
+    sendPerfEvent('mutation_root_missing');
+  }
 
   // --- SPA navigation detection ---
   const originalPushState = history.pushState;
@@ -164,22 +201,35 @@ declare global {
   // --- Listen for stop command ---
   const onMessage = (message: any) => {
     if (message?.type === 'recording_content_stop') {
-      cleanup();
+      cleanup('stop_message');
     }
   };
   chrome.runtime.onMessage.addListener(onMessage);
 
   // --- Cleanup ---
-  const cleanup = () => {
+  const cleanup = (reason: string = 'manual') => {
+    if (isCleaningUp) return;
+    isCleaningUp = true;
     document.removeEventListener('click', onClickCapture, { capture: true } as EventListenerOptions);
     document.removeEventListener('scroll', onScroll);
     document.removeEventListener('input', onInputCapture, { capture: true } as EventListenerOptions);
     window.removeEventListener('popstate', onPopState);
+    window.removeEventListener('pagehide', onPageHide);
     chrome.runtime.onMessage.removeListener(onMessage);
     observer.disconnect();
+    if (hardStopTimer) {
+      clearTimeout(hardStopTimer);
+      hardStopTimer = null;
+    }
     if (mutationBatchTimer) {
       clearTimeout(mutationBatchTimer);
+      mutationBatchTimer = null;
       flushMutations();
+    }
+    if (reason === 'max_runtime') {
+      sendPerfEvent('auto_stop_after_runtime_cap', {
+        maxRuntimeMs: MAX_RECORDING_RUNTIME_MS,
+      });
     }
     history.pushState = originalPushState;
     history.replaceState = originalReplaceState;
@@ -187,5 +237,9 @@ declare global {
     window.__parchiRecordingCleanup = undefined;
   };
 
+  const onPageHide = () => cleanup('pagehide');
+
+  window.addEventListener('pagehide', onPageHide);
+  hardStopTimer = setTimeout(() => cleanup('max_runtime'), MAX_RECORDING_RUNTIME_MS);
   window.__parchiRecordingCleanup = cleanup;
 })();

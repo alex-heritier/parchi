@@ -14,9 +14,13 @@ type OverlayState = {
   label: HTMLElement | null;
   styleEl: HTMLStyleElement | null;
   cleanupTimer: number | null;
-  rafId: number | null;
+  trackTimer: number | null;
   trackedElement: HTMLElement | null;
+  trackingStartedAt: number | null;
 };
+
+const OVERLAY_TRACK_INTERVAL_MS = 120;
+const OVERLAY_MAX_TRACK_MS = 15_000;
 
 class ContentScriptHandler {
   highlightedElements: Set<HighlightEntry>;
@@ -31,8 +35,9 @@ class ContentScriptHandler {
       label: null,
       styleEl: null,
       cleanupTimer: null,
-      rafId: null,
+      trackTimer: null,
       trackedElement: null,
+      trackingStartedAt: null,
     };
     this.init();
   }
@@ -227,19 +232,56 @@ class ContentScriptHandler {
     };
   }
 
+  reportOverlayPerfEvent(reason: string, payload: Record<string, unknown> = {}) {
+    try {
+      const maybePromise = chrome.runtime.sendMessage({
+        type: 'content_perf_event',
+        event: {
+          source: 'overlay',
+          reason,
+          url: window.location.href,
+          ts: Date.now(),
+          ...payload,
+        },
+      });
+      if (maybePromise && typeof (maybePromise as Promise<unknown>).catch === 'function') {
+        (maybePromise as Promise<unknown>).catch(() => {});
+      }
+    } catch {
+      // Ignore perf telemetry failures in content script context.
+    }
+  }
+
+  startOverlayTracking() {
+    if (this.overlay.trackTimer != null) {
+      window.clearInterval(this.overlay.trackTimer);
+      this.overlay.trackTimer = null;
+    }
+    this.overlay.trackingStartedAt = Date.now();
+    this.overlay.trackTimer = window.setInterval(() => {
+      this.updateOverlayPosition();
+    }, OVERLAY_TRACK_INTERVAL_MS);
+  }
+
+  hideTrackedOverlay() {
+    if (this.overlay.target) this.overlay.target.style.opacity = '0';
+    if (this.overlay.label) this.overlay.label.style.opacity = '0';
+  }
+
   clearActionOverlay() {
     if (this.overlay.cleanupTimer) {
       window.clearTimeout(this.overlay.cleanupTimer);
       this.overlay.cleanupTimer = null;
     }
-    if (this.overlay.rafId) {
-      window.cancelAnimationFrame(this.overlay.rafId);
-      this.overlay.rafId = null;
+    if (this.overlay.trackTimer != null) {
+      window.clearInterval(this.overlay.trackTimer);
+      this.overlay.trackTimer = null;
     }
     if (this.overlay.toast) this.overlay.toast.style.opacity = '0';
     if (this.overlay.target) this.overlay.target.style.opacity = '0';
     if (this.overlay.label) this.overlay.label.style.opacity = '0';
     this.overlay.trackedElement = null;
+    this.overlay.trackingStartedAt = null;
   }
 
   showActionOverlay(payload) {
@@ -247,8 +289,6 @@ class ContentScriptHandler {
     this.ensureOverlayRoot();
 
     const toast = this.overlay.toast;
-    const label = this.overlay.label;
-    const target = this.overlay.target;
 
     const actionLabel = [overlayLabel, note].filter(Boolean).join(' · ');
     if (toast) {
@@ -265,16 +305,15 @@ class ContentScriptHandler {
           element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
         }
         this.overlay.trackedElement = element;
+        this.startOverlayTracking();
         this.updateOverlayPosition();
       } else {
         this.overlay.trackedElement = null;
-        if (target) target.style.opacity = '0';
-        if (label) label.style.opacity = '0';
+        this.hideTrackedOverlay();
       }
     } else {
       this.overlay.trackedElement = null;
-      if (target) target.style.opacity = '0';
-      if (label) label.style.opacity = '0';
+      this.hideTrackedOverlay();
     }
 
     if (this.overlay.cleanupTimer) {
@@ -285,15 +324,30 @@ class ContentScriptHandler {
   }
 
   updateOverlayPosition() {
+    if (this.overlay.trackingStartedAt && Date.now() - this.overlay.trackingStartedAt > OVERLAY_MAX_TRACK_MS) {
+      this.reportOverlayPerfEvent('max_tracking_window_exceeded', {
+        maxTrackMs: OVERLAY_MAX_TRACK_MS,
+      });
+      this.clearActionOverlay();
+      return;
+    }
+
     const element = this.overlay.trackedElement;
     const target = this.overlay.target;
     const label = this.overlay.label;
     if (!element || !target || !label) return;
+    if (!element.isConnected || !document.documentElement.contains(element)) {
+      this.clearActionOverlay();
+      return;
+    }
+    if (document.hidden) {
+      this.hideTrackedOverlay();
+      return;
+    }
 
     const rect = element.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) {
-      target.style.opacity = '0';
-      label.style.opacity = '0';
+      this.hideTrackedOverlay();
       return;
     }
 
@@ -310,11 +364,6 @@ class ContentScriptHandler {
     label.style.left = `${labelLeft}px`;
     label.textContent =
       element.getAttribute('aria-label') || element.getAttribute('name') || element.tagName.toLowerCase();
-
-    if (this.overlay.rafId) {
-      window.cancelAnimationFrame(this.overlay.rafId);
-    }
-    this.overlay.rafId = window.requestAnimationFrame(() => this.updateOverlayPosition());
   }
 
   isElementInViewport(element: HTMLElement) {

@@ -133,6 +133,7 @@ export class RecordingCoordinator {
       } catch {
         // Tab may have been closed
       }
+      await this.forceCleanupContentScript(this.state.tabId);
     }
 
     // Deduplicate events
@@ -197,11 +198,15 @@ export class RecordingCoordinator {
   }
 
   discard(): void {
+    const tabId = this.state?.tabId;
     this.clearTimers();
     this.removeTabListeners();
     this.screenshotBuffer = [];
     this.eventBuffer = [];
     this.state = null;
+    if (typeof tabId === 'number') {
+      void this.forceCleanupContentScript(tabId);
+    }
   }
 
   private async injectContentScript(tabId: number): Promise<void> {
@@ -212,6 +217,21 @@ export class RecordingCoordinator {
       });
     } catch (err) {
       console.warn('[RecordingCoordinator] Failed to inject content script:', err);
+    }
+  }
+
+  private async forceCleanupContentScript(tabId: number): Promise<void> {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => {
+          try {
+            (window as any).__parchiRecordingCleanup?.();
+          } catch {}
+        },
+      });
+    } catch {
+      // Ignore if the tab is gone or script context is unavailable.
     }
   }
 
