@@ -130,6 +130,11 @@ class RelayDaemon {
     return crypto.timingSafeEqual(aa, bb);
   }
 
+  private isLoopbackRequest(req: IncomingMessage) {
+    const remote = String(req.socket.remoteAddress || '').toLowerCase();
+    return remote === '127.0.0.1' || remote === '::1' || remote === '::ffff:127.0.0.1';
+  }
+
   private isAuthorized(req: IncomingMessage) {
     const auth = String(req.headers.authorization || '').trim();
     if (!auth.toLowerCase().startsWith('bearer ')) return false;
@@ -367,6 +372,15 @@ class RelayDaemon {
 
     if (url.pathname === '/healthz') {
       json(res, 200, { ok: true });
+      return;
+    }
+
+    if (url.pathname === '/v1/pair') {
+      const payload: Record<string, unknown> = { ok: true, paired: this.agents.size > 0 };
+      // Auto-pair is for localhost-only setup flows. Do not expose token to
+      // non-loopback clients.
+      if (this.isLoopbackRequest(req)) payload.token = this.token;
+      json(res, 200, payload);
       return;
     }
 

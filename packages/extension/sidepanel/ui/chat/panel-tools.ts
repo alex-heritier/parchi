@@ -2,6 +2,25 @@ import { dedupeThinking } from '../../../ai/message-utils.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 
 // ============================================================================
+// Blob URL helper — converts data: URLs to object URLs to avoid DOM base64 duplication
+// ============================================================================
+
+function dataUrlToBlobUrl(dataUrl: string): string | null {
+  try {
+    const [header, b64] = dataUrl.split(',', 2);
+    if (!header || !b64) return null;
+    const mimeMatch = header.match(/data:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return URL.createObjectURL(new Blob([bytes], { type: mime }));
+  } catch {
+    return null;
+  }
+}
+
+// ============================================================================
 // Tool Icons - Clean SVG icons instead of emoji
 // ============================================================================
 
@@ -78,6 +97,7 @@ const toolIcons: Record<string, string> = {
         const next = iter.next().value;
         if (next) {
           const [key, old] = next;
+          old.abortController?.abort();
           old.element?.remove();
           this.toolCallViews.delete(key);
         }
@@ -93,6 +113,7 @@ const toolIcons: Record<string, string> = {
       element: null,
       statusEl: null,
       durationEl: null,
+      abortController: new AbortController(),
     };
     this.toolCallViews.set(entryId, entry);
 
@@ -145,6 +166,7 @@ const toolIcons: Record<string, string> = {
   this.animateToolDuration(entry);
 
   // Click to expand/collapse tool result details
+  const signal = entry.abortController?.signal;
   container.addEventListener('click', () => {
     const existing = container.querySelector('.tool-detail');
     if (existing) {
@@ -160,7 +182,7 @@ const toolIcons: Record<string, string> = {
     const truncated = resultText.length > 2000 ? resultText.slice(0, 2000) + '\n...(truncated)' : resultText;
     detail.textContent = truncated;
     container.appendChild(detail);
-  });
+  }, signal ? { signal } : undefined);
   container.style.cursor = 'pointer';
 
   return container;
@@ -226,9 +248,15 @@ const toolIcons: Record<string, string> = {
   // Store result for potential expansion
   entry.result = result;
   this.attachScreenshotPreview(entry, result);
+
+  // Strip dataUrl from result after preview is created to avoid holding a third copy
+  if (entry.result && typeof entry.result === 'object' && entry.result.dataUrl) {
+    entry.result = { ...entry.result, dataUrl: '[stored in reportImages]' };
+  }
 };
 
 const MAX_REPORT_IMAGES = 50;
+const MAX_REPORT_IMAGE_BYTES = 12 * 1024 * 1024; // 12 MB safety valve
 const MAX_TOOL_CALL_VIEWS = 200;
 
 (SidePanelUI.prototype as any).recordReportImage = function recordReportImage(image: any) {
@@ -264,12 +292,41 @@ const MAX_TOOL_CALL_VIEWS = 200;
       }
     }
     for (const id of toEvict) {
+      const evicted = this.reportImages.get(id);
+      if (evicted?._blobUrl) URL.revokeObjectURL(evicted._blobUrl);
       this.reportImages.delete(id);
       // Remove DOM preview if it exists
       const previewEl = document.querySelector(`.report-image-toggle[data-report-image-id="${id}"]`);
       previewEl?.closest('.tool-screenshot-preview')?.remove();
     }
     this.reportImageOrder = this.reportImageOrder.filter((id: string) => this.reportImages.has(id));
+  }
+
+  // Byte-based cap — evict oldest non-selected until under budget
+  let totalBytes = 0;
+  for (const img of this.reportImages.values()) {
+    totalBytes += (img.dataUrl?.length || 0);
+  }
+  if (totalBytes > MAX_REPORT_IMAGE_BYTES) {
+    const byteEvict: string[] = [];
+    for (const id of this.reportImageOrder) {
+      if (totalBytes <= MAX_REPORT_IMAGE_BYTES) break;
+      if (!this.selectedReportImageIds.has(id)) {
+        const img = this.reportImages.get(id);
+        totalBytes -= (img?.dataUrl?.length || 0);
+        byteEvict.push(id);
+      }
+    }
+    for (const id of byteEvict) {
+      const evicted = this.reportImages.get(id);
+      if (evicted?._blobUrl) URL.revokeObjectURL(evicted._blobUrl);
+      this.reportImages.delete(id);
+      const previewEl = document.querySelector(`.report-image-toggle[data-report-image-id="${id}"]`);
+      previewEl?.closest('.tool-screenshot-preview')?.remove();
+    }
+    if (byteEvict.length > 0) {
+      this.reportImageOrder = this.reportImageOrder.filter((id: string) => this.reportImages.has(id));
+    }
   }
 
   if (normalized.toolCallId) {
@@ -328,6 +385,12 @@ const MAX_TOOL_CALL_VIEWS = 200;
 
   if (!image || typeof image.dataUrl !== 'string') return;
 
+  // Create or reuse a blob URL to avoid holding base64 in the DOM
+  if (!image._blobUrl) {
+    image._blobUrl = dataUrlToBlobUrl(image.dataUrl);
+  }
+  const imgSrc = image._blobUrl || image.dataUrl;
+
   let preview = entry.element.querySelector('.tool-screenshot-preview') as HTMLElement | null;
   if (!preview) {
     preview = document.createElement('div');
@@ -340,7 +403,7 @@ const MAX_TOOL_CALL_VIEWS = 200;
   const isSelected = this.selectedReportImageIds.has(image.id) || image.selected === true;
   preview.classList.toggle('selected', isSelected);
   preview.innerHTML = `
-    <img class="tool-screenshot-image" src="${image.dataUrl}" alt="${this.escapeHtml(imageLabel)}" />
+    <img class="tool-screenshot-image" src="${this.escapeHtml(imgSrc)}" alt="${this.escapeHtml(imageLabel)}" />
     <div class="tool-screenshot-meta">
       <span class="tool-screenshot-label">${this.escapeHtml(imageLabel)}</span>
       <label class="tool-screenshot-toggle">
@@ -355,9 +418,11 @@ const MAX_TOOL_CALL_VIEWS = 200;
     </div>
   `;
 
-  preview.addEventListener('click', (event) => event.stopPropagation());
+  const previewSignal = entry.abortController?.signal;
+  const listenerOpts = previewSignal ? { signal: previewSignal } as AddEventListenerOptions : undefined;
+  preview.addEventListener('click', (event) => event.stopPropagation(), listenerOpts);
   const checkbox = preview.querySelector('.report-image-toggle') as HTMLInputElement | null;
-  checkbox?.addEventListener('click', (event) => event.stopPropagation());
+  checkbox?.addEventListener('click', (event) => event.stopPropagation(), listenerOpts);
   checkbox?.addEventListener('change', (event) => {
     event.stopPropagation();
     const checked = checkbox.checked;
@@ -368,7 +433,7 @@ const MAX_TOOL_CALL_VIEWS = 200;
     }
     image.selected = checked;
     preview.classList.toggle('selected', checked);
-  });
+  }, listenerOpts);
 };
 
 (SidePanelUI.prototype as any).nullifyFinalizedToolData = function nullifyFinalizedToolData() {

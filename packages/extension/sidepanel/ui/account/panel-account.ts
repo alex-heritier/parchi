@@ -593,34 +593,6 @@ const renderUsageCharts = (
     this.elements.setupAccessBtn.title = setupState.setupButtonLabel;
   }
 
-  if (this.elements.paidStatusBadge) {
-    const shouldShowPaidBadge = setupState.mode === ACCOUNT_MODE_PAID || !setupState.hasConfiguredProvider;
-    if (!shouldShowPaidBadge) {
-      this.elements.paidStatusBadge.classList.add('hidden');
-      this.elements.paidStatusBadge.classList.remove('is-active', 'is-warning', 'is-error');
-      this.elements.paidStatusBadge.title = '';
-      this.paidStatusHoverLabel = '';
-    } else {
-      const detail = String(setupState.paidStatusDetail || '').trim();
-      const paidLabel = String(setupState.paidStatusLabel || 'Paid: unavailable');
-      const badgeText = this.elements.paidStatusBadge.querySelector('.paid-status-text') as HTMLElement | null;
-      if (badgeText) {
-        badgeText.textContent = paidLabel;
-      } else {
-        this.elements.paidStatusBadge.textContent = paidLabel;
-      }
-      this.elements.paidStatusBadge.title = 'Open billing';
-      this.paidStatusHoverLabel = detail ? `${paidLabel}: ${detail}` : paidLabel;
-      this.elements.paidStatusBadge.classList.remove('hidden', 'is-active', 'is-warning', 'is-error');
-      if (setupState.paidStatusTone === 'error') {
-        this.elements.paidStatusBadge.classList.add('is-error');
-      } else if (setupState.paidStatusTone === 'active') {
-        this.elements.paidStatusBadge.classList.add('is-active');
-      } else {
-        this.elements.paidStatusBadge.classList.add('is-warning');
-      }
-    }
-  }
   this.updateActivityState?.();
 };
 

@@ -68,24 +68,28 @@ export function normalizePlanSteps(input: unknown, options: { maxSteps?: number 
 
 export function buildRunPlan(
   stepsInput: unknown,
-  options: { existingPlan?: RunPlan | null; now?: number; maxSteps?: number } = {},
+  options: { existingPlan?: RunPlan | null; now?: number; maxSteps?: number; mode?: 'replace' | 'append' } = {},
 ): RunPlan {
   const now = options.now ?? Date.now();
   const maxSteps = options.maxSteps ?? 8;
+  const mode = options.mode ?? 'replace';
   const incomingSteps = normalizePlanSteps(stepsInput, { maxSteps });
   const existingPlan = options.existingPlan ?? null;
   const existingSteps = existingPlan?.steps || [];
 
-  const steps = [
-    ...existingSteps.map((step, index) => ({
-      ...step,
-      id: step.id || `step-${index + 1}`,
-    })),
-    ...incomingSteps.map((step, index) => ({
-      ...step,
-      id: `step-${existingSteps.length + index + 1}`,
-    })),
-  ].slice(0, maxSteps);
+  const steps =
+    mode === 'append'
+      ? [
+          ...existingSteps.map((step, index) => ({
+            ...step,
+            id: step.id || `step-${index + 1}`,
+          })),
+          ...incomingSteps.map((step, index) => ({
+            ...step,
+            id: `step-${existingSteps.length + index + 1}`,
+          })),
+        ].slice(0, maxSteps)
+      : incomingSteps;
 
   const createdAt = options.existingPlan?.createdAt ?? now;
   return {
