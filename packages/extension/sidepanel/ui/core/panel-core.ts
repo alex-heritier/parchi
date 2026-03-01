@@ -124,6 +124,9 @@ sidePanelProto.init = async function init() {
     setSidebarOpen(this.elements, false);
     await this.loadSettings();
     await this.initAccountPanel?.();
+    this.initProviderCardListeners?.();
+    this.populateProviderDropdown?.();
+    this.renderApiProviderGrid?.();
     await this.loadWorkflows();
     await this.loadHistoryList();
     this.updateStatus('Ready', 'success');
