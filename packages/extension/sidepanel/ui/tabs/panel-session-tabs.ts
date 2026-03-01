@@ -67,7 +67,7 @@ sidePanelProto.renderSessionTabsHud = function renderSessionTabsHud() {
 
   const { tabs, activeTabId, interactingTabId } = this.sessionTabsState;
 
-  if (tabs.length === 0) {
+  if (tabs.length <= 1) {
     hud.classList.add('hidden');
     hud.classList.remove('expanded');
     return;
