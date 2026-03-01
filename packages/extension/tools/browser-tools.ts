@@ -1,5 +1,8 @@
 import type { ToolDefinition } from '../../shared/src/tools.js';
 import { getActiveTab } from '../utils/active-tab.js';
+import { parseSelectorSpec } from './selector-spec.js';
+import { injectedClick } from './injected/click.js';
+import { injectedType } from './injected/type.js';
 
 type SessionTabSummary = {
   id: number;
@@ -549,16 +552,19 @@ export class BrowserTools {
     }
   }
 
-  private async runInTab(tabId: number, func: (...args: any[]) => unknown, args: any[] = []): Promise<any> {
+  private async runInTab<TArgs extends unknown[], TResult>(
+    tabId: number,
+    func: (...args: TArgs) => TResult,
+    args: TArgs,
+  ): Promise<TResult | { success: false; error: string; details: string }> {
     try {
       const results = await chrome.scripting.executeScript({
         target: { tabId },
-        func,
-        args,
+        func: func as (...args: any[]) => unknown,
+        args: args as any[],
       });
-      return results?.[0]?.result ?? null;
+      return (results?.[0]?.result ?? null) as TResult;
     } catch (error: any) {
-      // Return a structured error so the UI can surface the real cause (e.g. restricted URL).
       return {
         success: false,
         error: 'executeScript failed.',
@@ -567,17 +573,21 @@ export class BrowserTools {
     }
   }
 
-  private async runInAllFrames(tabId: number, func: (...args: any[]) => unknown, args: any[] = []): Promise<any> {
+  private async runInAllFrames<TArgs extends unknown[], TResult>(
+    tabId: number,
+    func: (...args: TArgs) => TResult,
+    args: TArgs,
+  ): Promise<TResult | { success: false; error: string; details: string }> {
     try {
       const results = await chrome.scripting.executeScript({
         target: { tabId, allFrames: true },
-        func,
-        args,
+        func: func as (...args: any[]) => unknown,
+        args: args as any[],
       });
       const success = results.find((entry) => (entry?.result as any)?.success);
-      if (success?.result) return success.result;
+      if (success?.result) return success.result as TResult;
       const first = results.find((entry) => entry?.result);
-      return first?.result ?? null;
+      return (first?.result ?? null) as TResult;
     } catch (error: any) {
       return {
         success: false,
@@ -784,317 +794,29 @@ export class BrowserTools {
           'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
       };
     }
-    const selector = String(args.selector || '');
-    if (!selector) {
+
+    const rawSelector = String(args.selector || '');
+    if (!rawSelector) {
       return { success: false, error: 'Missing selector.' };
     }
+
     const timeout = resolveWaitTimeoutMs(args.timeoutMs);
     const timeoutMs = timeout.timeoutMs;
+
     await this.sendOverlay(tabId, {
       label: 'Click',
-      selector,
+      selector: rawSelector,
       bringIntoView: true,
       durationMs: 2000,
     });
-    const clickScript = async (sel: string, waitMs: number) => {
-      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-      const pollIntervalMs = 200;
-      const deepQueryMinIntervalMs = 700;
-      let lastDeepQueryAt = 0;
 
-      const isVisible = (el: HTMLElement) => {
-        const rect = el.getBoundingClientRect();
-        if (rect.width <= 0 || rect.height <= 0) return false;
-        const style = window.getComputedStyle(el);
-        if (style.display === 'none' || style.visibility === 'hidden') return false;
-        if (Number.parseFloat(style.opacity || '1') === 0) return false;
-        return true;
-      };
+    const spec = parseSelectorSpec(rawSelector);
 
-      const normalizeText = (value: string) => value.replace(/\s+/g, ' ').trim().toLowerCase();
-
-      const parseTextSelector = (raw: string) => {
-        const trimmed = String(raw || '').trim();
-        const m = /^text\s*=\s*(.+)$/i.exec(trimmed);
-        if (!m) return null;
-        let text = m[1].trim();
-        if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))) {
-          text = text.slice(1, -1);
-        }
-        return text.trim();
-      };
-
-      const parseContainsSelector = (raw: string): { base: string; text: string } | null => {
-        // Supports:
-        // - button.contains("Create note")
-        // - button:contains("Create note") (jQuery-style)
-        // - button:has-text("Create note") (Playwright-style)
-        const trimmed = String(raw || '').trim();
-        const dotQuoted = /^([a-zA-Z][\\w-]*)\\s*\\.\\s*contains\\s*\\(\\s*(['"])([\\s\\S]*?)\\2\\s*\\)\\s*$/.exec(
-          trimmed,
-        );
-        if (dotQuoted) return { base: dotQuoted[1], text: dotQuoted[3].trim() };
-        const dotBare = /^([a-zA-Z][\\w-]*)\\s*\\.\\s*contains\\s*\\(\\s*([\\s\\S]*?)\\s*\\)\\s*$/.exec(trimmed);
-        if (dotBare) return { base: dotBare[1], text: String(dotBare[2] || '').trim() };
-
-        const pseudoContainsQuoted = /^(.+?):\\s*contains\\s*\\(\\s*(['"])([\\s\\S]*?)\\2\\s*\\)\\s*$/.exec(trimmed);
-        if (pseudoContainsQuoted) return { base: pseudoContainsQuoted[1].trim(), text: pseudoContainsQuoted[3].trim() };
-        const pseudoContainsBare = /^(.+?):\\s*contains\\s*\\(\\s*([\\s\\S]*?)\\s*\\)\\s*$/.exec(trimmed);
-        if (pseudoContainsBare)
-          return { base: pseudoContainsBare[1].trim(), text: String(pseudoContainsBare[2] || '').trim() };
-
-        const pseudoHasTextQuoted = /^(.+?):\\s*has-text\\s*\\(\\s*(['"])([\\s\\S]*?)\\2\\s*\\)\\s*$/.exec(trimmed);
-        if (pseudoHasTextQuoted) return { base: pseudoHasTextQuoted[1].trim(), text: pseudoHasTextQuoted[3].trim() };
-        const pseudoHasTextBare = /^(.+?):\\s*has-text\\s*\\(\\s*([\\s\\S]*?)\\s*\\)\\s*$/.exec(trimmed);
-        if (pseudoHasTextBare)
-          return { base: pseudoHasTextBare[1].trim(), text: String(pseudoHasTextBare[2] || '').trim() };
-        return null;
-      };
-
-      const deepQuerySelectorAll = (css: string, maxNodes = 25000): HTMLElement[] => {
-        const out: HTMLElement[] = [];
-        let parsedOk = true;
-        try {
-          // Validate selector early; matches() will throw too, but this gives a consistent error path.
-          document.querySelector(css);
-        } catch {
-          parsedOk = false;
-        }
-        if (!parsedOk) return out;
-
-        const stack: Array<Document | ShadowRoot | Element> = [document];
-        let visited = 0;
-        while (stack.length && visited < maxNodes) {
-          const node = stack.pop()!;
-          if (node instanceof Element) {
-            visited += 1;
-            try {
-              if ((node as Element).matches(css)) out.push(node as HTMLElement);
-            } catch {
-              // Selector parse issues should have been caught above.
-            }
-            const sr = (node as any).shadowRoot as ShadowRoot | null | undefined;
-            if (sr) stack.push(sr);
-            for (const child of Array.from(node.children)) stack.push(child);
-          } else {
-            const children = node instanceof Document ? [node.documentElement] : Array.from(node.children);
-            for (const child of children) if (child) stack.push(child);
-          }
-        }
-        return out;
-      };
-
-      const findByText = (
-        text: string,
-        baseSelector = '',
-        allowDeepSearch = true,
-      ): { el: HTMLElement | null; candidates: number } => {
-        const wanted = normalizeText(text);
-        if (!wanted) return { el: null, candidates: 0 };
-        const preferred = baseSelector
-          ? (() => {
-              try {
-                return Array.from(document.querySelectorAll<HTMLElement>(baseSelector));
-              } catch {
-                return allowDeepSearch ? deepQuerySelectorAll(baseSelector) : [];
-              }
-            })()
-          : Array.from(document.querySelectorAll<HTMLElement>('a, button, input, [role="button"], [role="link"]'));
-
-        const pool = preferred.length > 0 ? preferred : Array.from(document.querySelectorAll<HTMLElement>('body *'));
-        let best: HTMLElement | null = null;
-        let bestScore = -1;
-        let seen = 0;
-        for (const el of pool) {
-          if (!(el instanceof HTMLElement)) continue;
-          if (!isVisible(el)) continue;
-          const txt = normalizeText(el.innerText || el.textContent || '');
-          if (!txt) continue;
-          if (!txt.includes(wanted)) continue;
-          seen += 1;
-          // Prefer common interactive elements.
-          const tag = el.tagName.toLowerCase();
-          let score = 1;
-          if (tag === 'button') score += 4;
-          if (tag === 'a') score += 3;
-          if (tag === 'input') score += 2;
-          if (el.getAttribute('role') === 'button') score += 2;
-          if (score > bestScore) {
-            best = el;
-            bestScore = score;
-          }
-        }
-        return { el: best, candidates: seen };
-      };
-
-      const resolveElement = (rawSelector: string, allowDeepSearch = true) => {
-        const trimmed = String(rawSelector || '').trim();
-        if (!trimmed)
-          return { el: null as HTMLElement | null, strategy: 'none', candidates: 0, error: 'Missing selector.' };
-
-        // Prefixes:
-        // - css=... (explicit CSS)
-        // - xpath=... (XPath expression)
-        const lower = trimmed.toLowerCase();
-        if (lower.startsWith('css=')) {
-          return resolveElement(trimmed.slice(4), allowDeepSearch);
-        }
-        if (lower.startsWith('xpath=')) {
-          const expr = trimmed.slice(6).trim();
-          if (!expr) return { el: null, strategy: 'xpath', candidates: 0, error: 'Missing XPath.' };
-          try {
-            const res = document.evaluate(expr, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-            const node = res.singleNodeValue as HTMLElement | null;
-            if (node && node instanceof HTMLElement) return { el: node, strategy: 'xpath', candidates: 1 };
-            return { el: null, strategy: 'xpath', candidates: 0, error: 'Element not found.' };
-          } catch (error: any) {
-            return {
-              el: null,
-              strategy: 'xpath',
-              candidates: 0,
-              error: 'Invalid selector.',
-              hint: `XPath failed: ${error?.message || String(error)}`,
-            };
-          }
-        }
-
-        const textSel = parseTextSelector(trimmed);
-        if (textSel) {
-          const { el, candidates } = findByText(textSel, '', allowDeepSearch);
-          return el
-            ? { el, strategy: 'text', candidates }
-            : { el: null, strategy: 'text', candidates, error: 'Element not found.' };
-        }
-
-        // First try native CSS selector.
-        try {
-          const matches = Array.from(document.querySelectorAll<HTMLElement>(trimmed));
-          const visible = matches.filter(isVisible);
-          const el = visible[0] || matches[0] || null;
-          if (el) return { el, strategy: 'css', candidates: matches.length };
-        } catch (error: any) {
-          // Fall through to "contains" parsing and provide a better hint if that fails too.
-          const containsSel = parseContainsSelector(trimmed);
-          if (!containsSel) {
-            return {
-              el: null,
-              strategy: 'css',
-              candidates: 0,
-              error: 'Invalid selector.',
-              hint: `querySelector failed: ${error?.message || String(error)}`,
-            };
-          }
-        }
-
-        // If CSS yielded nothing (or was invalid but looked like contains), try contains-based matching.
-        const containsSel = parseContainsSelector(trimmed);
-        if (containsSel) {
-          const { el, candidates } = findByText(containsSel.text, containsSel.base, allowDeepSearch);
-          return el
-            ? { el, strategy: 'contains/text', candidates }
-            : { el: null, strategy: 'contains', candidates, error: 'Element not found.' };
-        }
-
-        // Finally, try a deep selector match for open shadow roots if the normal query returned nothing.
-        if (allowDeepSearch) {
-          const deep = deepQuerySelectorAll(trimmed);
-          const deepVisible = deep.filter(isVisible);
-          const el = deepVisible[0] || deep[0] || null;
-          if (el) return { el, strategy: 'css(deep)', candidates: deep.length };
-        }
-
-        return { el: null, strategy: 'css', candidates: 0, error: 'Element not found.' };
-      };
-
-      const clickElement = (el: HTMLElement) => {
-        try {
-          el.scrollIntoView({ block: 'center', inline: 'center' } as any);
-        } catch {}
-        el.focus?.();
-
-        const rect = el.getBoundingClientRect();
-        const cx = Math.max(1, Math.min(window.innerWidth - 2, rect.left + rect.width / 2));
-        const cy = Math.max(1, Math.min(window.innerHeight - 2, rect.top + rect.height / 2));
-        const top = document.elementFromPoint(cx, cy) as HTMLElement | null;
-        const target = top && (top === el || el.contains(top)) ? top : el;
-
-        const fireMouse = (type: string) => {
-          target.dispatchEvent(
-            new MouseEvent(type, {
-              bubbles: true,
-              cancelable: true,
-              view: window,
-              clientX: cx,
-              clientY: cy,
-              button: 0,
-            }),
-          );
-        };
-
-        const firePointer = (type: string) => {
-          try {
-            (target as any).dispatchEvent(
-              new PointerEvent(type, {
-                bubbles: true,
-                cancelable: true,
-                view: window,
-                clientX: cx,
-                clientY: cy,
-                button: 0,
-                pointerId: 1,
-                pointerType: 'mouse',
-                isPrimary: true,
-              }),
-            );
-          } catch {}
-        };
-
-        firePointer('pointerover');
-        fireMouse('mouseover');
-        firePointer('pointerdown');
-        fireMouse('mousedown');
-        firePointer('pointerup');
-        fireMouse('mouseup');
-        fireMouse('click');
-        (target as any).click?.();
-        return { success: true };
-      };
-
-      const start = performance.now();
-      const deadline = start + Math.max(0, waitMs || 0);
-      while (performance.now() <= deadline) {
-        const now = performance.now();
-        const allowDeepSearch = now - lastDeepQueryAt >= deepQueryMinIntervalMs;
-        if (allowDeepSearch) lastDeepQueryAt = now;
-        const resolved = resolveElement(sel, allowDeepSearch);
-        if (resolved.el) {
-          const result = clickElement(resolved.el);
-          return { ...result, strategy: resolved.strategy, candidates: resolved.candidates };
-        }
-        await sleep(pollIntervalMs);
-      }
-
-      // One last attempt after timeout to return the best error/hint.
-      const resolved = resolveElement(sel, true);
-      if (resolved.el) {
-        const result = clickElement(resolved.el);
-        return { ...result, strategy: resolved.strategy, candidates: resolved.candidates };
-      }
-
-      return {
-        success: false,
-        error: resolved.error || 'Element not found.',
-        hint:
-          resolved.hint ||
-          (sel.trim().toLowerCase().includes('contains') || sel.trim().toLowerCase().includes('has-text')
-            ? 'Use a CSS selector, `text=...`, `tag.contains("...")`, or `button:has-text("...")`.'
-            : 'Try a more specific selector or increase timeoutMs.'),
-      };
-    };
-    let result = await this.runInTab(tabId, clickScript, [selector, timeoutMs]);
+    let result = await this.runInTab(tabId, injectedClick, [spec, timeoutMs]);
     if (result?.error === 'Element not found.') {
-      result = await this.runInAllFrames(tabId, clickScript, [selector, timeoutMs]);
+      result = await this.runInAllFrames(tabId, injectedClick, [spec, timeoutMs]);
     }
+
     if (timeout.wasClamped && result && typeof result === 'object') {
       return {
         ...result,
@@ -1103,6 +825,7 @@ export class BrowserTools {
         timeoutMsUsed: timeoutMs,
       };
     }
+
     return result || { success: false, error: 'Script execution failed.' };
   }
 
@@ -1234,10 +957,12 @@ export class BrowserTools {
           'No session tab available. Pass tabId from describeSessionTabs(), or select a tab in the UI before running.',
       };
     }
+
     const selector = String(args.selector || '');
     const text = String(args.text ?? '');
     const timeout = resolveWaitTimeoutMs(args.timeoutMs);
     const timeoutMs = timeout.timeoutMs;
+
     const preview = text.length > 28 ? `${text.slice(0, 28)}…` : text;
     await this.sendOverlay(tabId, {
       label: 'Type',
@@ -1246,162 +971,12 @@ export class BrowserTools {
       bringIntoView: true,
       durationMs: 2200,
     });
-    const typeScript = async (sel: string, value: string, waitMs: number) => {
-      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-      const pollIntervalMs = 200;
-      const isVisible = (el: HTMLElement) => {
-        const rect = el.getBoundingClientRect();
-        if (rect.width <= 0 || rect.height <= 0) return false;
-        const style = window.getComputedStyle(el);
-        if (style.display === 'none' || style.visibility === 'hidden') return false;
-        return true;
-      };
 
-      const safeQuery = (selector: string) => {
-        try {
-          return document.querySelector<HTMLElement>(selector);
-        } catch (error: any) {
-          return { __error: `Invalid selector: ${error?.message || String(error)}` } as any;
-        }
-      };
-
-      const safeQueryAll = (selector: string) => {
-        try {
-          return Array.from(document.querySelectorAll<HTMLElement>(selector));
-        } catch {
-          return [] as HTMLElement[];
-        }
-      };
-
-      const resolveEditable = (candidate: HTMLElement | null) => {
-        if (!candidate) return null;
-        if (
-          candidate instanceof HTMLInputElement ||
-          candidate instanceof HTMLTextAreaElement ||
-          (candidate as HTMLElement).isContentEditable
-        ) {
-          return candidate;
-        }
-        // Common pattern: selector points at a wrapper (e.g. CodeMirror/Monaco); find an editable descendant.
-        const descendant =
-          candidate.querySelector<HTMLElement>(
-            'textarea, input, [contenteditable="true"], [contenteditable=""], [role="textbox"]',
-          ) || null;
-        if (descendant) return descendant;
-        return null;
-      };
-
-      let el: HTMLElement | null = null;
-      const start = performance.now();
-      const deadline = start + Math.max(0, waitMs || 0);
-      while (performance.now() <= deadline) {
-        if (sel) {
-          const q = safeQuery(sel);
-          if ((q as any)?.__error) {
-            return { success: false, error: (q as any).__error };
-          }
-          el = resolveEditable(q as HTMLElement | null);
-        }
-        if (!el) {
-          const active = document.activeElement as HTMLElement | null;
-          if (
-            active &&
-            (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || active.isContentEditable)
-          ) {
-            el = active;
-          }
-        }
-        if (!el) {
-          const candidates = safeQueryAll(
-            'input, textarea, [contenteditable="true"], [contenteditable=""], [role="textbox"]',
-          );
-          const fallback = candidates.find(isVisible) || candidates[0] || null;
-          if (fallback) el = fallback;
-        }
-        if (el) break;
-        await sleep(pollIntervalMs);
-      }
-
-      if (!el) {
-        return {
-          success: false,
-          error: 'Element not found.',
-          hint: 'Try a more specific selector or increase timeoutMs.',
-        };
-      }
-
-      const dispatchInputEvents = (target: HTMLElement) => {
-        try {
-          target.dispatchEvent(
-            new InputEvent('input', {
-              bubbles: true,
-              inputType: 'insertText',
-              data: value,
-            }),
-          );
-        } catch {
-          target.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-        target.dispatchEvent(new Event('change', { bubbles: true }));
-      };
-
-      const setNativeValue = (target: HTMLInputElement | HTMLTextAreaElement, nextValue: string) => {
-        const proto = Object.getPrototypeOf(target);
-        const descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
-        if (descriptor?.set) {
-          descriptor.set.call(target, nextValue);
-        } else {
-          target.value = nextValue;
-        }
-      };
-
-      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-        const inputType = el instanceof HTMLInputElement ? el.type : 'text';
-        if (inputType === 'checkbox' || inputType === 'radio') {
-          return { success: false, error: 'Element is a checkbox/radio. Use click instead.' };
-        }
-        try {
-          el.scrollIntoView({ block: 'center', inline: 'center' } as any);
-        } catch {}
-        el.focus();
-        if (typeof el.select === 'function') {
-          el.select();
-        }
-        setNativeValue(el, value);
-        dispatchInputEvents(el);
-        return { success: true };
-      }
-
-      if ((el as HTMLElement).isContentEditable) {
-        try {
-          el.scrollIntoView({ block: 'center', inline: 'center' } as any);
-        } catch {}
-        el.focus();
-        const selection = window.getSelection();
-        if (selection) {
-          selection.removeAllRanges();
-          const range = document.createRange();
-          range.selectNodeContents(el);
-          selection.addRange(range);
-        }
-        document.execCommand?.('insertText', false, value);
-        if (el.textContent !== value) {
-          el.textContent = value;
-        }
-        dispatchInputEvents(el);
-        return { success: true };
-      }
-
-      return {
-        success: false,
-        error: 'Target is not an input or editable element.',
-        hint: 'Use a selector that targets an <input>, <textarea>, or [contenteditable] node (or click to focus it first).',
-      };
-    };
-    let result = await this.runInTab(tabId, typeScript, [selector, text, timeoutMs]);
+    let result = await this.runInTab(tabId, injectedType, [selector, text, timeoutMs]);
     if (result?.error === 'Element not found.') {
-      result = await this.runInAllFrames(tabId, typeScript, [selector, text, timeoutMs]);
+      result = await this.runInAllFrames(tabId, injectedType, [selector, text, timeoutMs]);
     }
+
     if (timeout.wasClamped && result && typeof result === 'object') {
       return {
         ...result,
@@ -1410,6 +985,7 @@ export class BrowserTools {
         timeoutMsUsed: timeoutMs,
       };
     }
+
     return result || { success: false, error: 'Script execution failed.' };
   }
 
