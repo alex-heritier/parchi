@@ -11,7 +11,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     redirectUri: 'http://localhost:54545/callback',
     scopes: 'org:create_api_key user:profile user:inference',
     extraAuthorizeParams: { code: 'true' },
-    apiBaseUrl: 'https://api.anthropic.com',
+    apiBaseUrl: 'https://api.anthropic.com/v1',
     models: [
       { id: 'claude-sonnet-4-6-20260220', label: 'Claude Sonnet 4.6', contextWindow: 200000, supportsVision: true },
       { id: 'claude-opus-4-6-20260204', label: 'Claude Opus 4.6', contextWindow: 200000, supportsVision: true },
@@ -35,7 +35,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       id_token_add_organizations: 'true',
       codex_cli_simplified_flow: 'true',
     },
-    apiBaseUrl: 'https://api.openai.com',
+    apiBaseUrl: 'https://api.openai.com/v1',
     models: [
       { id: 'gpt-4o', label: 'GPT-4o', contextWindow: 128000, supportsVision: true },
       { id: 'gpt-4o-mini', label: 'GPT-4o Mini', contextWindow: 128000, supportsVision: true },
@@ -76,7 +76,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     deviceCodeUrl: 'https://chat.qwen.ai/api/v1/oauth2/device/code',
     tokenUrl: 'https://chat.qwen.ai/api/v1/oauth2/token',
     scopes: 'openid profile email model.completion',
-    apiBaseUrl: '',
+    apiBaseUrl: 'https://chat.qwen.ai/api/v1/openai/compatible-mode/v1',
     models: [
       { id: 'qwen-max', label: 'Qwen Max', contextWindow: 128000 },
       { id: 'qwen-plus', label: 'Qwen Plus', contextWindow: 128000 },

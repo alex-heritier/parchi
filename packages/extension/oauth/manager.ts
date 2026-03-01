@@ -207,7 +207,8 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
  * Paginated: has_more + last_id, use limit=1000 to minimize pages
  */
 async function fetchAnthropicModels(token: string, baseUrl: string): Promise<string[]> {
-  const base = baseUrl.replace(/\/+$/, '');
+  let base = baseUrl.replace(/\/+$/, '');
+  if (base.endsWith('/v1')) base = base.slice(0, -3);
   const allIds: string[] = [];
   let afterId: string | undefined;
 
