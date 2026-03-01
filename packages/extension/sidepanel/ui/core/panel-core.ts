@@ -272,11 +272,8 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
   this.elements.deleteConfigBtn?.addEventListener('click', () => this.deleteConfig());
   this.elements.activeConfig?.addEventListener('change', () => this.switchConfig());
 
-  this.elements.settingsTabSetupBtn?.addEventListener('click', () => this.switchSettingsTab('setup'));
-  this.elements.settingsTabOauthBtn?.addEventListener('click', () => this.switchSettingsTab('oauth'));
-  this.elements.settingsTabModelBtn?.addEventListener('click', () => this.switchSettingsTab('model'));
+  this.elements.settingsTabProvidersBtn?.addEventListener('click', () => this.switchSettingsTab('providers'));
   this.elements.settingsTabProfilesBtn?.addEventListener('click', () => this.switchSettingsTab('profiles'));
-  this.elements.settingsTabUsageBtn?.addEventListener('click', () => this.switchSettingsTab('usage'));
   this.elements.settingsTabDesignBtn?.addEventListener('click', () => this.switchSettingsTab('design'));
   this.elements.settingsTabAdvancedBtn?.addEventListener('click', () => this.switchSettingsTab('advanced'));
   document.getElementById('usageRefreshBtn')?.addEventListener('click', () => this.refreshUsageTab?.());
