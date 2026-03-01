@@ -163,6 +163,17 @@ check_unit_tests() {
   return "${PIPESTATUS[0]}"
 }
 
+bump_version() {
+  log_info "Incrementing version..."
+  node scripts/bump-version.mjs 2>&1
+  local new_version
+  new_version=$(node -p "require('./package.json').version" 2>/dev/null)
+  log_info "Version bumped to $new_version"
+  # Stage the version changes
+  git add package.json packages/extension/manifest.json packages/extension/manifest.firefox.json 2>/dev/null || true
+  return 0
+}
+
 # Main
 echo "═══════════════════════════════════════════════════════════"
 echo "  Pre-commit Security & Correctness Audit"
@@ -195,6 +206,9 @@ if [ "$FAIL" -gt 0 ]; then
   log_info "To bypass: git commit --no-verify"
   exit 1
 fi
+
+# All checks passed - bump version
+run_check "Version Bump" "bump_version" "true"
 
 log_pass "All checks passed! Proceeding with commit."
 exit 0

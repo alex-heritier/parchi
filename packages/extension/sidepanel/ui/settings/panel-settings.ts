@@ -186,51 +186,44 @@ sidePanelProto.toggleProfileEditorEndpoint = function toggleProfileEditorEndpoin
 };
 
 sidePanelProto.switchSettingsTab = function switchSettingsTab(
-  tabName: 'setup' | 'oauth' | 'model' | 'profiles' | 'usage' | 'design' | 'advanced' = 'setup',
+  tabName: 'providers' | 'profiles' | 'design' | 'advanced' = 'providers',
 ) {
-  // Persist current form state when leaving setup tab
-  if (this.currentSettingsTab === 'setup' && tabName !== 'setup') {
-    this.configs[this.currentConfig] = this.collectCurrentFormProfile();
-    void this.persistAllSettings({ silent: true });
-  }
-  this.currentSettingsTab = tabName;
+  // Handle legacy tab names gracefully
+  const tabMap: Record<string, string> = {
+    setup: 'providers',
+    oauth: 'providers',
+    model: 'profiles',
+    usage: 'advanced',
+  };
+  const resolvedTab = (tabMap[tabName] || tabName) as 'providers' | 'profiles' | 'design' | 'advanced';
+  this.currentSettingsTab = resolvedTab;
 
-  const tabs = ['setup', 'oauth', 'model', 'profiles', 'usage', 'design', 'advanced'] as const;
+  const tabs = ['providers', 'profiles', 'design', 'advanced'] as const;
   const tabElements: Record<string, HTMLElement | null> = {
-    setup: this.elements.settingsTabSetup,
-    oauth: this.elements.settingsTabOauth,
-    model: this.elements.settingsTabModel,
-    profiles: this.elements.settingsTabProfiles,
-    usage: this.elements.settingsTabUsage || document.getElementById('settingsTabUsage'),
+    providers: this.elements.settingsTabProviders || document.getElementById('settingsTabProviders'),
+    profiles: this.elements.settingsTabProfiles || document.getElementById('settingsTabProfiles'),
     design: this.elements.settingsTabDesign || document.getElementById('settingsTabDesign'),
     advanced: this.elements.settingsTabAdvanced || document.getElementById('settingsTabAdvanced'),
   };
   const btnElements: Record<string, HTMLElement | null> = {
-    setup: this.elements.settingsTabSetupBtn,
-    oauth: this.elements.settingsTabOauthBtn,
-    model: this.elements.settingsTabModelBtn,
-    profiles: this.elements.settingsTabProfilesBtn,
-    usage: this.elements.settingsTabUsageBtn || document.getElementById('settingsTabUsageBtn'),
+    providers: this.elements.settingsTabProvidersBtn || document.getElementById('settingsTabProvidersBtn'),
+    profiles: this.elements.settingsTabProfilesBtn || document.getElementById('settingsTabProfilesBtn'),
     design: this.elements.settingsTabDesignBtn || document.getElementById('settingsTabDesignBtn'),
     advanced: this.elements.settingsTabAdvancedBtn || document.getElementById('settingsTabAdvancedBtn'),
   };
 
   for (const tab of tabs) {
-    const isActive = tab === tabName;
+    const isActive = tab === resolvedTab;
     tabElements[tab]?.classList.toggle('hidden', !isActive);
     btnElements[tab]?.classList.toggle('active', isActive);
-    // Activate the pane inside the tab container
     const pane = tabElements[tab]?.querySelector('.settings-tab-pane') as HTMLElement | null;
     pane?.classList.toggle('active', isActive);
   }
 
-  // Auto-fetch usage data when switching to usage tab
-  if (tabName === 'usage') {
-    this.refreshUsageTab?.();
-  }
-
-  if (tabName === 'oauth') {
+  if (resolvedTab === 'providers') {
     this.renderOAuthProviderGrid?.();
+    this.renderApiProviderGrid?.();
+    void this.refreshAccountPanel?.({ silent: true });
   }
 };
 
@@ -394,29 +387,10 @@ sidePanelProto.updateRelayStatusFromSettings = function updateRelayStatusFromSet
 };
 
 sidePanelProto.saveSettings = async function saveSettings() {
-  if (
-    (this.elements.provider?.value === 'custom' ||
-      this.elements.provider?.value === 'kimi' ||
-      this.elements.provider?.value === 'openrouter') &&
-    !this.validateCustomEndpoint()
-  ) {
-    this.updateStatus('Invalid custom endpoint URL', 'error');
-    return;
-  }
-  if (!this.validateCustomHeaders()) {
-    this.updateStatus('Invalid headers JSON', 'error');
-    return;
-  }
-  const profile = this.collectCurrentFormProfile();
-  this.configs[this.currentConfig] = profile;
   this.savePromptSections?.();
   await this.persistAllSettings();
   this.populateModelSelect?.();
   this.updateModelDisplay?.();
-
-  // Refresh models after saving settings
-  this.fetchAvailableModels();
-
   this.updateStatus('Settings saved successfully', 'success');
   this.openChatView?.();
 };

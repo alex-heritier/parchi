@@ -1,50 +1,50 @@
-<!-- ===== SETUP TAB ===== -->
-<div class="settings-tab-pane" data-pane="setup">
-    <div class="form-group">
-        <label for="activeConfig">Active Profile</label>
-        <select id="activeConfig">
-            <option value="default">Default</option>
-        </select>
-    </div>
-    <div class="form-group">
-        <label for="provider">Provider</label>
-        <select id="provider">
-            <option value="">Add provider...</option>
-            <option value="parchi">Parchi (Managed)</option>
-            <option value="anthropic">Anthropic (Claude)</option>
-            <option value="openai">OpenAI</option>
-            <option value="kimi">Kimi (Coding)</option>
-            <option value="openrouter">OpenRouter</option>
-            <option value="custom">Custom</option>
-        </select>
-    </div>
-    <div class="form-group">
-        <label for="apiKey">API Key</label>
-        <input type="password" id="apiKey" placeholder="Enter your API key..." />
-        <small>Stored locally. Never sent to our servers.</small>
-    </div>
-    <div class="form-group">
-        <label for="model">Model</label>
-        <input type="text" id="model" list="modelSuggestions" placeholder="Type model ID or choose suggestion..." />
-        <datalist id="modelSuggestions"></datalist>
-        <small id="modelHint">Recommended: claude-sonnet-4-20250514</small>
-    </div>
-    <div class="form-group" id="customEndpointGroup">
-        <label for="customEndpoint">API URL <span class="optional-badge">optional</span></label>
-        <input type="text" id="customEndpoint" placeholder="https://openrouter.ai/api/v1" />
-    </div>
-    <div class="form-group" id="customHeadersGroup">
-        <label for="customHeaders">Extra Headers <span class="optional-badge">JSON</span></label>
-        <textarea id="customHeaders" rows="2" placeholder='{"HTTP-Referer":"https://your.app"}'></textarea>
-    </div>
-    <button id="saveSettingsBtn" class="btn btn-primary" style="width: 100%; margin-top: 4px;">
-        Save Settings
-    </button>
-</div>
+<!-- ===== PROVIDERS TAB ===== -->
+<div class="settings-tab-pane" data-pane="providers">
+    <details class="settings-section" open>
+        <summary>API Key Providers</summary>
+        <div class="settings-body">
+            <div class="account-inline-note">Add your own API keys. Keys are stored locally and never sent to our servers.</div>
+            <div id="apiProviderGrid" class="provider-card-grid"></div>
+            <div id="apiProviderEditor" class="provider-inline-editor hidden">
+                <div class="form-group">
+                    <label for="providerEditorKey">API Key</label>
+                    <input type="password" id="providerEditorKey" placeholder="Enter your API key..." />
+                </div>
+                <div class="form-group" id="providerEditorEndpointGroup">
+                    <label for="providerEditorEndpoint">API URL <span class="optional-badge">optional</span></label>
+                    <input type="text" id="providerEditorEndpoint" placeholder="https://..." />
+                </div>
+                <div class="form-row">
+                    <button id="providerEditorSaveBtn" class="btn btn-primary" style="flex:1">Save</button>
+                    <button id="providerEditorCancelBtn" class="btn btn-secondary" style="flex:1">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </details>
 
-<!-- ===== OAUTH TAB ===== -->
-<div class="settings-tab-pane" data-pane="oauth">
-    <details class="settings-section account-settings-section" open>
+    <details class="settings-section" open>
+        <summary>Subscription Providers</summary>
+        <div class="settings-body">
+            <div class="account-inline-note">Connect your existing AI subscriptions. No API keys needed.</div>
+            <div id="oauthProviderGrid" class="oauth-provider-grid"></div>
+            <div id="oauthDeviceCodePrompt" class="oauth-device-prompt hidden">
+                <div class="oauth-device-prompt-inner">
+                    <div class="oauth-device-prompt-title">Enter code on <span id="oauthDeviceCodeProviderName"></span></div>
+                    <div id="oauthDeviceCodeValue" class="oauth-device-code-value"></div>
+                    <div class="oauth-device-prompt-hint">
+                        Go to <a id="oauthDeviceCodeLink" href="#" target="_blank" rel="noopener"></a> and enter the code above.
+                    </div>
+                    <div class="oauth-device-prompt-actions">
+                        <button id="oauthDeviceCodeCopyBtn" class="btn btn-secondary">Copy Code</button>
+                        <button id="oauthDeviceCodeOpenBtn" class="btn btn-primary">Open Link</button>
+                        <button id="oauthDeviceCodeCancelBtn" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </details>
+
+    <details class="settings-section">
         <summary>Account & Billing</summary>
         <div class="settings-body account-settings-body">
             <div id="accountAuthUnavailable" class="account-inline-note hidden">
@@ -52,7 +52,7 @@
             </div>
 
             <div id="accountAuthSignedOut" class="account-auth-block">
-                <div class="account-inline-note">No setup yet. Either sign in + buy credits, or switch to Setup and add your own API key.</div>
+                <div class="account-inline-note">Sign in to use managed credits, or add your own API keys above.</div>
                 <div class="form-group">
                     <label for="accountEmailInput">Email</label>
                     <input type="email" id="accountEmailInput" placeholder="you@example.com" />
@@ -88,7 +88,7 @@
                     </div>
                     <div class="account-stat">
                         <span class="account-stat-label">Usage</span>
-                        <span id="accountUsageValue" class="account-stat-value">0 req · 0 tokens</span>
+                        <span id="accountUsageValue" class="account-stat-value">0 req</span>
                     </div>
                     <div class="account-stat">
                         <span class="account-stat-label">Spend (month)</span>
@@ -166,79 +166,6 @@
             </div>
         </div>
     </details>
-
-    <details class="settings-section" open>
-        <summary>Subscription Providers</summary>
-        <div class="settings-body">
-            <div class="account-inline-note">Connect your existing AI subscriptions. No API keys needed.</div>
-            <div id="oauthProviderGrid" class="oauth-provider-grid"></div>
-            <div id="oauthDeviceCodePrompt" class="oauth-device-prompt hidden">
-                <div class="oauth-device-prompt-inner">
-                    <div class="oauth-device-prompt-title">Enter code on <span id="oauthDeviceCodeProviderName"></span></div>
-                    <div id="oauthDeviceCodeValue" class="oauth-device-code-value"></div>
-                    <div class="oauth-device-prompt-hint">
-                        Go to <a id="oauthDeviceCodeLink" href="#" target="_blank" rel="noopener"></a> and enter the code above.
-                    </div>
-                    <div class="oauth-device-prompt-actions">
-                        <button id="oauthDeviceCodeCopyBtn" class="btn btn-secondary">Copy Code</button>
-                        <button id="oauthDeviceCodeOpenBtn" class="btn btn-primary">Open Link</button>
-                        <button id="oauthDeviceCodeCancelBtn" class="btn btn-secondary">Cancel</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </details>
-</div>
-
-<!-- ===== MODEL TAB (behavior only, no appearance) ===== -->
-<div class="settings-tab-pane" data-pane="model">
-    <div class="form-group">
-        <label for="temperature">Temperature <span class="form-value" id="temperatureValue">0.7</span></label>
-        <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7" />
-        <small>Lower = focused, Higher = creative</small>
-    </div>
-    <div class="form-group">
-        <label for="maxTokens">Max Output Tokens</label>
-        <input type="number" id="maxTokens" value="4096" min="256" max="32000" />
-    </div>
-    <div class="form-group">
-        <label for="contextLimit">Context Limit</label>
-        <input type="number" id="contextLimit" value="200000" min="4000" max="2000000" />
-    </div>
-    <div class="settings-divider"></div>
-    <div class="form-group">
-        <label for="streamResponses">Stream Responses</label>
-        <select id="streamResponses">
-            <option value="true">Enabled</option>
-            <option value="false">Disabled</option>
-        </select>
-    </div>
-    <div class="form-group">
-        <label for="showThinking">Show Reasoning</label>
-        <select id="showThinking">
-            <option value="true">Show</option>
-            <option value="false">Hide</option>
-        </select>
-    </div>
-    <div class="form-group">
-        <label for="saveHistory">Save History</label>
-        <select id="saveHistory">
-            <option value="true">Enabled</option>
-            <option value="false">Disabled</option>
-        </select>
-    </div>
-    <div class="form-group">
-        <label for="autoSaveSession">Auto-Save Sessions</label>
-        <select id="autoSaveSession">
-            <option value="false">Disabled</option>
-            <option value="true">Enabled (Downloads)</option>
-        </select>
-    </div>
-    <div class="form-group" id="autoSaveFolderGroup" style="display:none">
-        <label>Save Location</label>
-        <button id="autoSaveFolderBtn" class="settings-btn-sm" type="button">Choose folder…</button>
-        <span id="autoSaveFolderLabel" class="form-hint"></span>
-    </div>
 </div>
 
 <!-- ===== DESIGN TAB (appearance) ===== -->
@@ -273,7 +200,7 @@
     </div>
 </div>
 
-<!-- ===== ADVANCED TAB (relay, prompts, browser, import/export) ===== -->
+<!-- ===== ADVANCED TAB ===== -->
 <div class="settings-tab-pane" data-pane="advanced">
     <div class="settings-section-label">System Prompt</div>
     <div class="form-group">
