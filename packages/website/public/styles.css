@@ -1,6 +1,12 @@
 /* Parchi Website — Void Design System */
 
-*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
 :root {
   --background: #09090b;
@@ -20,7 +26,9 @@
   --font-mono: "JetBrains Mono", "SF Mono", monospace;
 }
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+}
 
 body {
   font-family: var(--font-sans);
@@ -70,7 +78,9 @@ body {
   font-weight: 700;
   font-size: 18px;
 }
-.logo-icon { font-size: 22px; }
+.logo-icon {
+  font-size: 22px;
+}
 .nav-links {
   display: flex;
   align-items: center;
@@ -83,7 +93,9 @@ body {
   font-weight: 500;
   transition: color 150ms;
 }
-.nav-link:hover { color: var(--foreground); }
+.nav-link:hover {
+  color: var(--foreground);
+}
 
 /* ---- BUTTONS ---- */
 .btn {
@@ -100,8 +112,14 @@ body {
   cursor: pointer;
   transition: all 150ms;
 }
-.btn-sm { padding: 6px 14px; font-size: 13px; }
-.btn-lg { padding: 14px 28px; font-size: 16px; }
+.btn-sm {
+  padding: 6px 14px;
+  font-size: 13px;
+}
+.btn-lg {
+  padding: 14px 28px;
+  font-size: 16px;
+}
 .btn-primary {
   background: var(--accent);
   border-color: var(--accent);
@@ -194,9 +212,15 @@ body {
   height: 10px;
   border-radius: 50%;
 }
-.dot-red { background: #f87171; }
-.dot-yellow { background: #fbbf24; }
-.dot-green { background: #4ade80; }
+.dot-red {
+  background: #f87171;
+}
+.dot-yellow {
+  background: #fbbf24;
+}
+.dot-green {
+  background: #4ade80;
+}
 .terminal-title {
   margin-left: auto;
   font-size: 12px;
@@ -209,18 +233,28 @@ body {
   font-size: 13px;
   line-height: 1.8;
 }
-.line { white-space: pre-wrap; }
-.line.dim { color: var(--muted-dim); }
+.line {
+  white-space: pre-wrap;
+}
+.line.dim {
+  color: var(--muted-dim);
+}
 .prompt {
   color: var(--accent-light);
   font-weight: 500;
 }
-.prompt::after { content: " → "; color: var(--muted-dim); }
+.prompt::after {
+  content: " → ";
+  color: var(--muted-dim);
+}
 .agent {
   color: var(--success);
   font-weight: 500;
 }
-.agent::after { content: " → "; color: var(--muted-dim); }
+.agent::after {
+  content: " → ";
+  color: var(--muted-dim);
+}
 
 /* ---- FEATURES ---- */
 .features {
@@ -393,13 +427,26 @@ body {
   text-decoration: none;
   font-size: 13px;
 }
-.footer-links a:hover { color: var(--foreground); }
+.footer-links a:hover {
+  color: var(--foreground);
+}
 
 /* ---- RESPONSIVE ---- */
 @media (max-width: 640px) {
-  .nav-links .nav-link { display: none; }
-  .hero { padding: 120px 16px 60px; }
-  .hero-actions { flex-direction: column; align-items: center; }
-  .feature-grid { grid-template-columns: 1fr; }
-  .pricing-grid { grid-template-columns: 1fr; }
+  .nav-links .nav-link {
+    display: none;
+  }
+  .hero {
+    padding: 120px 16px 60px;
+  }
+  .hero-actions {
+    flex-direction: column;
+    align-items: center;
+  }
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+  .pricing-grid {
+    grid-template-columns: 1fr;
+  }
 }

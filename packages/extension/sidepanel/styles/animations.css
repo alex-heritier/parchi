@@ -347,7 +347,6 @@
   transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s var(--ease-out-expo);
 }
 
-
 .composer.running {
   /* glow removed — mascot is enough */
 }

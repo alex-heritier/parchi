@@ -1,0 +1,26 @@
+{
+  "all": true,
+  "src": ["packages/*/src/**/*.ts", "packages/extension/**/*.ts"],
+  "exclude": [
+    "**/dist/**",
+    "**/dist-*/**",
+    "**/node_modules/**",
+    "**/tests/**",
+    "**/convex/_generated/**",
+    "**/*.d.ts",
+    "scripts/**",
+    "types/**"
+  ],
+  "reporter": ["text", "text-summary", "json", "lcov"],
+  "check-coverage": true,
+  "lines": 50,
+  "functions": 50,
+  "branches": 40,
+  "statements": 50,
+  "watermarks": {
+    "lines": [50, 80],
+    "functions": [50, 80],
+    "branches": [40, 70],
+    "statements": [50, 80]
+  }
+}

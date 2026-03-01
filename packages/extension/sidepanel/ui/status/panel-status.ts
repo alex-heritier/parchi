@@ -1,4 +1,9 @@
+import { getAllProviderStates } from '../../../oauth/store.js';
+import { fetchProviderModels } from '../../../oauth/manager.js';
+import type { OAuthProviderKey } from '../../../oauth/types.js';
 import { SidePanelUI } from '../core/panel-ui.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
+
 
 const MODEL_CATALOG_TTL_MS = 3 * 60 * 1000;
 const MODEL_FETCH_TIMEOUT_MS = 9000;
@@ -13,7 +18,10 @@ type ModelCatalogTarget = {
   headers: Record<string, string>;
 };
 
-const normalizeProvider = (provider: unknown) => String(provider || '').trim().toLowerCase();
+const normalizeProvider = (provider: unknown) =>
+  String(provider || '')
+    .trim()
+    .toLowerCase();
 
 const normalizeHeaders = (value: unknown): Record<string, string> => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
@@ -47,7 +55,9 @@ const normalizeEndpointBase = (provider: string, customEndpoint: string) => {
 };
 
 const buildModelEndpointCandidates = (base: string): string[] => {
-  const normalized = String(base || '').trim().replace(/\/+$/, '');
+  const normalized = String(base || '')
+    .trim()
+    .replace(/\/+$/, '');
   if (!normalized) return [];
   if (/\/v1$/i.test(normalized) || /\/api\/v1$/i.test(normalized)) {
     return [`${normalized}/models`];
@@ -137,7 +147,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   }
 };
 
-(SidePanelUI.prototype as any).updateStatus = function updateStatus(text: string, type = 'default') {
+sidePanelProto.updateStatus = function updateStatus(text: string, type = 'default') {
   if (this.elements.statusText) {
     this.elements.statusText.textContent = text;
   }
@@ -151,7 +161,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   this.updateActivityState();
 };
 
-(SidePanelUI.prototype as any).startRunTimer = function startRunTimer() {
+sidePanelProto.startRunTimer = function startRunTimer() {
   if (this.runTimerId) {
     window.clearInterval(this.runTimerId);
   }
@@ -163,7 +173,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   this.runTimerId = window.setInterval(tick, 1000);
 };
 
-(SidePanelUI.prototype as any).stopRunTimer = function stopRunTimer() {
+sidePanelProto.stopRunTimer = function stopRunTimer() {
   if (this.runTimerId) {
     window.clearInterval(this.runTimerId);
     this.runTimerId = null;
@@ -172,20 +182,20 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   this.updateActivityState?.();
 };
 
-(SidePanelUI.prototype as any).updateModelDisplay = function updateModelDisplay() {
+sidePanelProto.updateModelDisplay = function updateModelDisplay() {
   // Now the model select shows profiles, so we update it to the current config
   if (this.elements.modelSelect) {
     this.elements.modelSelect.value = this.currentConfig;
   }
 };
 
-(SidePanelUI.prototype as any).fetchAvailableModels = async function fetchAvailableModels() {
+sidePanelProto.fetchAvailableModels = async function fetchAvailableModels() {
   this.populateModelSelect();
   this.updateModelDisplay();
   await this.refreshModelCatalog();
 };
 
-(SidePanelUI.prototype as any).collectConfiguredModelFallbacks = function collectConfiguredModelFallbacks() {
+sidePanelProto.collectConfiguredModelFallbacks = function collectConfiguredModelFallbacks() {
   const fallbacks: Array<{ provider: string; model: string }> = [];
   const configs = this.configs && typeof this.configs === 'object' ? this.configs : {};
   for (const profile of Object.values(configs)) {
@@ -198,7 +208,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   return fallbacks;
 };
 
-(SidePanelUI.prototype as any).collectModelCatalogTargets = async function collectModelCatalogTargets() {
+sidePanelProto.collectModelCatalogTargets = async function collectModelCatalogTargets() {
   const targets: ModelCatalogTarget[] = [];
   const seen = new Set<string>();
   const configs = this.configs && typeof this.configs === 'object' ? this.configs : {};
@@ -249,7 +259,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   return targets;
 };
 
-(SidePanelUI.prototype as any).fetchModelIdsForTarget = async function fetchModelIdsForTarget(
+sidePanelProto.fetchModelIdsForTarget = async function fetchModelIdsForTarget(
   target: ModelCatalogTarget,
 ) {
   const urls = buildModelEndpointCandidates(target.endpointBase);
@@ -273,7 +283,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   return [];
 };
 
-(SidePanelUI.prototype as any).applyModelSuggestions = function applyModelSuggestions() {
+sidePanelProto.applyModelSuggestions = function applyModelSuggestions() {
   const entries = Array.isArray(this.modelCatalogEntries) ? this.modelCatalogEntries : [];
   const deduped = new Map<string, string>();
   for (const entry of entries) {
@@ -320,7 +330,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   }
 };
 
-(SidePanelUI.prototype as any).refreshModelCatalog = async function refreshModelCatalog({ force = false } = {}) {
+sidePanelProto.refreshModelCatalog = async function refreshModelCatalog({ force = false } = {}) {
   const now = Date.now();
   const hasFreshCatalog =
     !force &&
@@ -340,6 +350,25 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
 
   this.modelCatalogRefreshPromise = (async () => {
     const discovered: Array<{ provider: string; model: string }> = this.collectConfiguredModelFallbacks();
+
+    // Fetch models from connected OAuth providers via their APIs
+    try {
+      const oauthStates = await getAllProviderStates();
+      const oauthFetches = Object.entries(oauthStates)
+        .filter(([, state]) => state?.connected && state?.tokens?.accessToken)
+        .map(async ([key]) => {
+          const providerKey = `${key}-oauth`;
+          const models = await fetchProviderModels(key as OAuthProviderKey);
+          return { providerKey, models };
+        });
+      const oauthResults = await Promise.all(oauthFetches);
+      for (const { providerKey, models } of oauthResults) {
+        for (const modelId of models) {
+          discovered.push({ provider: providerKey, model: modelId });
+        }
+      }
+    } catch {}
+
     const targets = await this.collectModelCatalogTargets();
     const results = await Promise.all(
       targets.map(async (target) => {
@@ -381,7 +410,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   }
 };
 
-(SidePanelUI.prototype as any).populateModelSelect = function populateModelSelect() {
+sidePanelProto.populateModelSelect = function populateModelSelect() {
   // Try to get the select element - it might not be in this.elements if loaded dynamically
   let select = this.elements.modelSelect;
   if (!select) {
@@ -416,7 +445,10 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
 
     // Format: icon provider/model (e.g., "🅒 anthropic/claude-sonnet")
     const providerIcon = this.getProviderIcon(config.provider);
-    const providerLabel = config.provider || 'unconfigured';
+    const isOAuthProvider = String(config.provider || '').endsWith('-oauth');
+    const providerLabel = isOAuthProvider
+      ? config.provider.replace(/-oauth$/, '')
+      : config.provider || 'unconfigured';
     const modelShort = this.shortenModelName(config.model || 'no-model');
     option.textContent = `${providerIcon} ${providerLabel}/${modelShort}`;
 
@@ -429,85 +461,111 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   this.updateModelSelectorGlow();
 };
 
-(SidePanelUI.prototype as any).refreshModelCatalogForProfileEditor = async function refreshModelCatalogForProfileEditor() {
-  const providerEl = this.elements.profileEditorProvider;
-  const apiKeyEl = this.elements.profileEditorApiKey;
-  const endpointEl = this.elements.profileEditorEndpoint;
-  const modelSelect = this.elements.profileEditorModel as HTMLSelectElement | null;
-  if (!providerEl) return;
+sidePanelProto.refreshModelCatalogForProfileEditor =
+  async function refreshModelCatalogForProfileEditor() {
+    const providerEl = this.elements.profileEditorProvider;
+    const apiKeyEl = this.elements.profileEditorApiKey;
+    const endpointEl = this.elements.profileEditorEndpoint;
+    const modelSelect = this.elements.profileEditorModel as HTMLSelectElement | null;
+    if (!providerEl) return;
 
-  const provider = String(providerEl.value || '').trim().toLowerCase();
-  const currentModel = String(modelSelect?.value || '').trim();
+    const provider = String(providerEl.value || '')
+      .trim()
+      .toLowerCase();
+    const currentModel = String(modelSelect?.value || '').trim();
 
-  if (!provider) {
-    this._profileEditorModels = [];
-    if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
-    return;
-  }
-
-  const apiKey = String(apiKeyEl?.value || '').trim();
-  const customEndpoint = String(endpointEl?.value || '').trim();
-
-  const endpointBase = normalizeEndpointBase(provider, customEndpoint);
-  if (!endpointBase) {
-    this._profileEditorModels = [];
-    if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
-    return;
-  }
-
-  const allowsUnauthedList = provider === 'openrouter' || provider === 'parchi';
-  if (!apiKey && !allowsUnauthedList) {
-    this._profileEditorModels = [];
-    if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
-    return;
-  }
-
-  // Show loading state
-  if (modelSelect) {
-    const loadingOpt = document.createElement('option');
-    loadingOpt.value = currentModel;
-    loadingOpt.textContent = 'Fetching models...';
-    modelSelect.innerHTML = '';
-    modelSelect.appendChild(loadingOpt);
-  }
-
-  const headers: Record<string, string> = { Accept: 'application/json' };
-  if (provider === 'anthropic' || provider === 'kimi') {
-    if (apiKey) {
-      headers['x-api-key'] = apiKey;
-      headers['anthropic-version'] = '2023-06-01';
+    if (!provider) {
+      this._profileEditorModels = [];
+      if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
+      return;
     }
-  } else if (apiKey) {
-    headers.Authorization = `Bearer ${apiKey}`;
-  }
-  if (provider === 'openrouter' || provider === 'parchi') {
-    headers['HTTP-Referer'] = 'https://parchi.ai';
-    headers['X-Title'] = 'Parchi';
-  }
 
-  const target = { key: `editor|${provider}`, provider, endpointBase, headers };
-  try {
-    const modelIds = await this.fetchModelIdsForTarget(target);
-    this._profileEditorModels = modelIds.sort((a: string, b: string) => a.localeCompare(b));
-  } catch {
-    this._profileEditorModels = [];
-  }
-  if (modelSelect) {
-    populateModelSelectElement(modelSelect, this._profileEditorModels, currentModel);
-  }
-};
+    // OAuth providers - fetch models from their APIs
+    if (provider.endsWith('-oauth')) {
+      const baseKey = provider.replace(/-oauth$/, '') as OAuthProviderKey;
+      if (modelSelect) {
+        const loadingOpt = document.createElement('option');
+        loadingOpt.value = currentModel;
+        loadingOpt.textContent = 'Fetching models...';
+        modelSelect.innerHTML = '';
+        modelSelect.appendChild(loadingOpt);
+      }
+      try {
+        const modelIds = await fetchProviderModels(baseKey);
+        this._profileEditorModels = modelIds.sort((a: string, b: string) => a.localeCompare(b));
+      } catch {
+        this._profileEditorModels = [];
+      }
+      if (modelSelect) {
+        populateModelSelectElement(modelSelect, this._profileEditorModels, currentModel, 'Select model...');
+      }
+      return;
+    }
 
+    const apiKey = String(apiKeyEl?.value || '').trim();
+    const customEndpoint = String(endpointEl?.value || '').trim();
 
-(SidePanelUI.prototype as any).updateModelSelectorGlow = function updateModelSelectorGlow() {
+    const endpointBase = normalizeEndpointBase(provider, customEndpoint);
+    if (!endpointBase) {
+      this._profileEditorModels = [];
+      if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
+      return;
+    }
+
+    const allowsUnauthedList = provider === 'openrouter' || provider === 'parchi';
+    if (!apiKey && !allowsUnauthedList) {
+      this._profileEditorModels = [];
+      if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
+      return;
+    }
+
+    // Show loading state
+    if (modelSelect) {
+      const loadingOpt = document.createElement('option');
+      loadingOpt.value = currentModel;
+      loadingOpt.textContent = 'Fetching models...';
+      modelSelect.innerHTML = '';
+      modelSelect.appendChild(loadingOpt);
+    }
+
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (provider === 'anthropic' || provider === 'kimi') {
+      if (apiKey) {
+        headers['x-api-key'] = apiKey;
+        headers['anthropic-version'] = '2023-06-01';
+      }
+    } else if (apiKey) {
+      headers.Authorization = `Bearer ${apiKey}`;
+    }
+    if (provider === 'openrouter' || provider === 'parchi') {
+      headers['HTTP-Referer'] = 'https://parchi.ai';
+      headers['X-Title'] = 'Parchi';
+    }
+
+    const target = { key: `editor|${provider}`, provider, endpointBase, headers };
+    try {
+      const modelIds = await this.fetchModelIdsForTarget(target);
+      this._profileEditorModels = modelIds.sort((a: string, b: string) => a.localeCompare(b));
+    } catch {
+      this._profileEditorModels = [];
+    }
+    if (modelSelect) {
+      populateModelSelectElement(modelSelect, this._profileEditorModels, currentModel);
+    }
+  };
+
+sidePanelProto.updateModelSelectorGlow = function updateModelSelectorGlow() {
   const wrap = this.elements.modelSelectorWrap || document.getElementById('modelSelectorWrap');
   if (!wrap) return;
   const activeConfig = this.configs?.[this.currentConfig];
-  const provider = String(activeConfig?.provider || '').trim().toLowerCase();
+  const provider = String(activeConfig?.provider || '')
+    .trim()
+    .toLowerCase();
   const isParchi = provider === 'parchi' || provider === 'openrouter';
   wrap.classList.toggle('parchi-glow', isParchi);
 };
 
-(SidePanelUI.prototype as any).shortenModelName = function shortenModelName(model: string): string {
+sidePanelProto.shortenModelName = function shortenModelName(model: string): string {
   if (!model) return 'unknown';
   // Remove common prefixes
   const clean = model
@@ -519,7 +577,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   return clean.slice(0, 19) + '…';
 };
 
-(SidePanelUI.prototype as any).handleModelSelectChange = async function handleModelSelectChange() {
+sidePanelProto.handleModelSelectChange = async function handleModelSelectChange() {
   const select = this.elements.modelSelect;
   if (!select) return;
 
@@ -543,7 +601,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   }
 };
 
-(SidePanelUI.prototype as any).toggleBalancePopover = async function toggleBalancePopover() {
+sidePanelProto.toggleBalancePopover = async function toggleBalancePopover() {
   const popover = document.getElementById('balancePopover');
   if (!popover) return;
 
@@ -584,7 +642,9 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
 
     // Get active profile info for provider context
     const activeConfig = this.configs?.[this.currentConfig];
-    const provider = String(activeConfig?.provider || '').trim().toLowerCase();
+    const provider = String(activeConfig?.provider || '')
+      .trim()
+      .toLowerCase();
     if (spendEl) {
       if (provider === 'parchi' || provider === 'openrouter') {
         spendEl.textContent = 'See Account tab';
@@ -597,7 +657,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   }
 };
 
-(SidePanelUI.prototype as any).getProviderIcon = function getProviderIcon(provider: string): string {
+sidePanelProto.getProviderIcon = function getProviderIcon(provider: string): string {
   const icons: Record<string, string> = {
     anthropic: '🅒',
     openai: '🅞',
@@ -605,6 +665,10 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
     openrouter: '🅡',
     parchi: '🅟',
     custom: '⚙️',
+    'claude-oauth': '🅒',
+    'codex-oauth': '🅞',
+    'copilot-oauth': '🅖',
+    'qwen-oauth': '🅠',
   };
   return icons[provider] || '⚙️';
 };

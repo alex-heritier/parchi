@@ -1,77 +1,11 @@
 import crypto from 'node:crypto';
-import http from 'node:http';
-import type { IncomingMessage } from 'node:http';
-import { URL } from 'node:url';
+import http, { type IncomingMessage } from 'node:http';
 import { type WebSocket, WebSocketServer } from 'ws';
-import {
-  type JsonRpcId,
-  type JsonRpcRequest,
-  type JsonRpcResponse,
-  isJsonRpcNotification,
-  isJsonRpcRequest,
-  isJsonRpcResponse,
-} from '../../shared/src/json-rpc.js';
-import { readAuth, writePid, removePid } from './auth.js';
-
-type AgentHello = {
-  agentId: string;
-  name?: string;
-  version?: string;
-  browser?: string;
-  userAgent?: string;
-  capabilities?: {
-    tools?: boolean;
-    agentRun?: boolean;
-  };
-};
-
-type AgentConnection = {
-  agentId: string;
-  ws: WebSocket;
-  hello: AgentHello;
-  connectedAt: number;
-  lastSeenAt: number;
-  pending: Map<
-    JsonRpcId,
-    {
-      resolve: (value: unknown) => void;
-      reject: (err: Error) => void;
-      timeoutId: ReturnType<typeof setTimeout>;
-    }
-  >;
-};
-
-type RunRecord = {
-  runId: string;
-  agentId: string;
-  createdAt: number;
-  updatedAt: number;
-  events: unknown[];
-  done: null | {
-    status: 'completed' | 'failed' | 'stopped';
-    final?: unknown;
-    error?: unknown;
-  };
-  waiters: Array<(value: RunRecord) => void>;
-};
-
-const json = (res: http.ServerResponse, status: number, payload: unknown) => {
-  const body = JSON.stringify(payload);
-  res.statusCode = status;
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Content-Length', Buffer.byteLength(body));
-  res.end(body);
-};
-
-const readBody = async (req: IncomingMessage) => {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
-  const raw = Buffer.concat(chunks).toString('utf8');
-  if (!raw.trim()) return null;
-  return JSON.parse(raw);
-};
-
-const now = () => Date.now();
+import { type JsonRpcRequest, isJsonRpcNotification, isJsonRpcResponse } from '../../shared/src/json-rpc.js';
+import { readAuth, removePid, writePid } from './auth.js';
+import { handleDaemonHttpRequest } from './daemon-http.js';
+import { handleDaemonRpc } from './daemon-rpc.js';
+import { type AgentConnection, type AgentHello, type RunRecord, asRecord, now } from './daemon-shared.js';
 
 export class ParchiDaemon {
   private token: string;
@@ -210,7 +144,7 @@ export class ParchiDaemon {
         }
 
         if (parsed.method === 'run.event') {
-          const params = (parsed.params || {}) as any;
+          const params = asRecord(parsed.params) || {};
           const runId = typeof params.runId === 'string' ? params.runId : '';
           if (!runId) return;
           const agent = agentId ? this.agents.get(agentId) : null;
@@ -221,7 +155,7 @@ export class ParchiDaemon {
         }
 
         if (parsed.method === 'run.done') {
-          const params = (parsed.params || {}) as any;
+          const params = asRecord(parsed.params) || {};
           const runId = typeof params.runId === 'string' ? params.runId : '';
           if (!runId) return;
           const agent = agentId ? this.agents.get(agentId) : null;
@@ -278,126 +212,30 @@ export class ParchiDaemon {
   }
 
   private async handleRpc(method: string, params: unknown) {
-    if (method === 'relay.ping') {
-      return {
-        ok: true,
-        now: new Date().toISOString(),
-        agents: this.agents.size,
-        defaultAgentId: this.defaultAgentId,
-      };
-    }
-
-    if (method === 'agents.list') {
-      return Array.from(this.agents.values()).map((a) => ({
-        agentId: a.agentId,
-        name: a.hello.name || '',
-        version: a.hello.version || '',
-        browser: a.hello.browser || '',
-        userAgent: a.hello.userAgent || '',
-        connectedAt: a.connectedAt,
-        lastSeenAt: a.lastSeenAt,
-        capabilities: a.hello.capabilities || {},
-      }));
-    }
-
-    if (method === 'agents.default.get') {
-      return { agentId: this.defaultAgentId };
-    }
-
-    if (method === 'agents.default.set') {
-      const agentId = (params as any)?.agentId;
-      if (typeof agentId !== 'string' || !agentId) throw new Error('agentId must be a non-empty string');
-      if (!this.agents.has(agentId)) throw new Error(`Agent not connected: ${agentId}`);
-      this.defaultAgentId = agentId;
-      return { agentId };
-    }
-
-    if (method === 'run.wait') {
-      const runId = (params as any)?.runId;
-      const timeoutMs = Number((params as any)?.timeoutMs || 600_000);
-      if (typeof runId !== 'string' || !runId) throw new Error('runId must be provided');
-      const rec = this.runs.get(runId);
-      if (!rec) throw new Error(`Unknown runId: ${runId}`);
-      if (rec.done) return { runId: rec.runId, done: rec.done };
-      return await new Promise((resolve, reject) => {
-        const timeoutId = setTimeout(() => reject(new Error('Timed out waiting for run')), timeoutMs);
-        rec.waiters.push((value) => {
-          clearTimeout(timeoutId);
-          resolve({ runId: value.runId, done: value.done });
-        });
-      });
-    }
-
-    if (method === 'run.events') {
-      const runId = (params as any)?.runId;
-      if (typeof runId !== 'string' || !runId) throw new Error('runId must be provided');
-      const rec = this.runs.get(runId);
-      if (!rec) throw new Error(`Unknown runId: ${runId}`);
-      return { runId, done: rec.done, events: rec.events };
-    }
-
-    // Forward any other methods to an extension agent.
-    const agentId = (params as any)?.agentId ?? null;
-    const forwardedParams = (() => {
-      if (!params || typeof params !== 'object' || Array.isArray(params)) return params;
-      const { agentId: _ignored, ...rest } = params as any;
-      return rest;
-    })();
-    const agent = this.getDefaultAgentOrThrow(agentId);
-    return await this.callAgentRpc(agent, method, forwardedParams);
+    return await handleDaemonRpc(
+      {
+        agents: this.agents,
+        runs: this.runs,
+        getDefaultAgentId: () => this.defaultAgentId,
+        setDefaultAgentId: (agentId) => {
+          this.defaultAgentId = agentId;
+        },
+        getDefaultAgentOrThrow: (agentId) => this.getDefaultAgentOrThrow(agentId),
+        callAgentRpc: (agent, methodName, rpcParams) => this.callAgentRpc(agent, methodName, rpcParams),
+      },
+      method,
+      params,
+    );
   }
 
   private async handleHttp(req: IncomingMessage, res: http.ServerResponse) {
-    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-
-    // Unauthenticated health / pair endpoint
-    if (url.pathname === '/healthz' || url.pathname === '/v1/pair') {
-      json(res, 200, { ok: true, paired: this.agents.size > 0 });
-      return;
-    }
-
-    if (url.pathname === '/v1/rpc' && req.method === 'POST') {
-      if (!this.isAuthorized(req)) {
-        json(res, 401, { error: 'unauthorized' });
-        return;
-      }
-
-      let body: unknown;
-      try {
-        body = await readBody(req);
-      } catch (err) {
-        json(res, 400, { error: 'invalid_json', message: err instanceof Error ? err.message : String(err ?? '') });
-        return;
-      }
-
-      const id = (body as any)?.id;
-      const method = (body as any)?.method;
-      if (!isJsonRpcRequest(body)) {
-        const resp: JsonRpcResponse = {
-          jsonrpc: '2.0',
-          id: typeof id === 'string' || typeof id === 'number' ? id : 'invalid',
-          error: { code: -32600, message: 'Invalid Request' },
-        };
-        json(res, 400, resp);
-        return;
-      }
-
-      try {
-        const result = await this.handleRpc(method, (body as any).params);
-        const resp: JsonRpcResponse = { jsonrpc: '2.0', id: body.id, result };
-        json(res, 200, resp);
-      } catch (err) {
-        const resp: JsonRpcResponse = {
-          jsonrpc: '2.0',
-          id: body.id,
-          error: { code: -32000, message: err instanceof Error ? err.message : String(err ?? 'error') },
-        };
-        json(res, 200, resp);
-      }
-      return;
-    }
-
-    json(res, 404, { error: 'not_found' });
+    await handleDaemonHttpRequest({
+      req,
+      res,
+      agentCount: this.agents.size,
+      isAuthorized: (request) => this.isAuthorized(request),
+      handleRpc: (method, params) => this.handleRpc(method, params),
+    });
   }
 
   async start() {

@@ -1,14 +1,17 @@
 import { getAuthUserId } from '@convex-dev/auth/server';
-import { actionGeneric, anyApi, httpActionGeneric } from 'convex/server';
+import { type ActionCtx, actionGeneric, anyApi, httpActionGeneric } from 'convex/server';
 import Stripe from 'stripe';
+import type { Id } from './_generated/dataModel.js';
 import {
+  type OpenRouterLimitReset,
   assignKeyToGuardrail,
   createManagedOpenRouterKey,
   ensureAllowedModelsGuardrail,
-  type OpenRouterLimitReset,
   readOpenRouterProvisioningConfig,
   setManagedOpenRouterKeyDisabled,
 } from './openrouterManagement.js';
+
+type UserId = Id<'users'>;
 
 const baseSiteUrl = () => String(process.env.SITE_URL || 'https://example.com').replace(/\/+$/, '');
 const OPENROUTER_API_BASE = 'https://openrouter.ai/api/v1';
@@ -132,13 +135,7 @@ const parseAllowedModels = (value: unknown, fallback: string[]) => {
   if (value === null) return [];
 
   if (Array.isArray(value)) {
-    return Array.from(
-      new Set(
-        value
-          .map((item) => String(item || '').trim())
-          .filter(Boolean),
-      ),
-    );
+    return Array.from(new Set(value.map((item) => String(item || '').trim()).filter(Boolean)));
   }
 
   if (typeof value === 'string') {
@@ -153,7 +150,9 @@ const parseAllowedModels = (value: unknown, fallback: string[]) => {
 };
 
 const parseLimitReset = (value: unknown, fallback: OpenRouterLimitReset): OpenRouterLimitReset => {
-  const normalized = String(value ?? '').trim().toLowerCase();
+  const normalized = String(value ?? '')
+    .trim()
+    .toLowerCase();
   if (!normalized) return fallback;
   if (normalized === 'daily' || normalized === 'weekly' || normalized === 'monthly') return normalized;
   if (normalized === 'null' || normalized === 'none') return null;
@@ -169,35 +168,57 @@ const parsePositiveNumber = (value: unknown, fallback: number, label: string) =>
   return parsed;
 };
 
+const asRecord = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+};
+
+const toUserId = (value: unknown): UserId | null => {
+  const next = asString(value);
+  return next ? (next as UserId) : null;
+};
+
+const subscriptionCurrentPeriodEndMs = (subscription: Stripe.Subscription): number | undefined => {
+  const raw = asRecord(subscription)?.current_period_end;
+  const seconds = Number(raw || 0);
+  if (!Number.isFinite(seconds) || seconds <= 0) return undefined;
+  return Math.floor(seconds * 1000);
+};
+
 const resolveOpenRouterProvisioningRuntimeConfig = (): OpenRouterProvisioningRuntimeConfig => {
   const fallbackConfig = readOpenRouterProvisioningConfig();
   const defaultPlanId = asString(process.env.OPENROUTER_DEFAULT_PLAN_ID) || 'default';
-  const fallbackAllowedModels = parseAllowedModels(
-    process.env.OPENROUTER_ALLOWED_MODELS,
-    [fallbackConfig.defaultModel],
-  );
+  const fallbackAllowedModels = parseAllowedModels(process.env.OPENROUTER_ALLOWED_MODELS, [
+    fallbackConfig.defaultModel,
+  ]);
   const fallbackStripePriceId = resolveProvisioningPriceId();
 
-  const parsePlan = (raw: any, index: number): OpenRouterProvisioningPlan => {
-    const id = asString(raw?.id) || `plan-${index + 1}`;
-    const stripePriceId = asString(raw?.stripePriceId) || asString(raw?.stripe_price_id) || fallbackStripePriceId;
+  const parsePlan = (raw: unknown, index: number): OpenRouterProvisioningPlan => {
+    const row = asRecord(raw) || {};
+    const id = asString(row.id) || `plan-${index + 1}`;
+    const stripePriceId = asString(row.stripePriceId) || asString(row.stripe_price_id) || fallbackStripePriceId;
     if (!stripePriceId) {
       throw new Error(`Plan '${id}' is missing stripePriceId`);
     }
 
-    const allowedModels = parseAllowedModels(raw?.allowedModels ?? raw?.allowed_models, fallbackAllowedModels);
-    const defaultModelCandidate = asString(raw?.defaultModel ?? raw?.default_model) || fallbackConfig.defaultModel;
-    const defaultModel = allowedModels.length > 0
-      ? allowedModels.includes(defaultModelCandidate)
-        ? defaultModelCandidate
-        : allowedModels[0]
-      : defaultModelCandidate;
+    const allowedModels = parseAllowedModels(row.allowedModels ?? row.allowed_models, fallbackAllowedModels);
+    const defaultModelCandidate = asString(row.defaultModel ?? row.default_model) || fallbackConfig.defaultModel;
+    const defaultModel =
+      allowedModels.length > 0
+        ? allowedModels.includes(defaultModelCandidate)
+          ? defaultModelCandidate
+          : allowedModels[0]
+        : defaultModelCandidate;
 
     return {
       id,
       stripePriceId,
-      keyLimitUsd: parsePositiveNumber(raw?.keyLimitUsd ?? raw?.key_limit_usd, fallbackConfig.limitUsd, `plan '${id}' keyLimitUsd`),
-      limitReset: parseLimitReset(raw?.limitReset ?? raw?.limit_reset, fallbackConfig.limitReset),
+      keyLimitUsd: parsePositiveNumber(
+        row.keyLimitUsd ?? row.key_limit_usd,
+        fallbackConfig.limitUsd,
+        `plan '${id}' keyLimitUsd`,
+      ),
+      limitReset: parseLimitReset(row.limitReset ?? row.limit_reset, fallbackConfig.limitReset),
       allowedModels,
       defaultModel,
     };
@@ -288,14 +309,13 @@ const resolveCheckoutSelection = (body: Record<string, unknown>) => {
 const readSubscriptionPrimaryPriceId = (subscription: Stripe.Subscription) =>
   asString(subscription.items?.data?.[0]?.price?.id);
 
-const resolveProvisioningSelection = (
-  subscription: Stripe.Subscription,
-  session: Stripe.Checkout.Session | null,
-) => {
+const resolveProvisioningSelection = (subscription: Stripe.Subscription, session: Stripe.Checkout.Session | null) => {
   const runtime = resolveOpenRouterProvisioningRuntimeConfig();
 
   const metadataPlanId =
-    asString(subscription.metadata?.parchi_plan_id) || asString(session?.metadata?.parchi_plan_id) || runtime.defaultPlanId;
+    asString(subscription.metadata?.parchi_plan_id) ||
+    asString(session?.metadata?.parchi_plan_id) ||
+    runtime.defaultPlanId;
   const metadataModel =
     asString(subscription.metadata?.parchi_model) ||
     asString(subscription.metadata?.openrouter_model) ||
@@ -566,8 +586,7 @@ export const provisionOpenRouterKey = httpActionGeneric(async (_ctx, request) =>
       allowed_models: result.plan.allowedModels,
       key_limit_usd: result.plan.keyLimitUsd,
       limit_reset: result.plan.limitReset,
-      note:
-        'Save this key now. The server does not store it and cannot show it again. If lost, regenerate with a dedicated replace flow.',
+      note: 'Save this key now. The server does not store it and cannot show it again. If lost, regenerate with a dedicated replace flow.',
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Provisioning failed';
@@ -723,12 +742,8 @@ const isPaidCheckoutSession = (session: Stripe.Checkout.Session) => {
   return paymentStatus === 'paid' || status === 'complete';
 };
 
-const applyCreditCheckoutSession = async (
-  ctx: any,
-  session: Stripe.Checkout.Session,
-  stripeEventId?: string,
-) => {
-  const metadataUserId = String(session.metadata?.userId || '');
+const applyCreditCheckoutSession = async (ctx: ActionCtx, session: Stripe.Checkout.Session, stripeEventId?: string) => {
+  const metadataUserId = toUserId(session.metadata?.userId);
   const creditAmountCents = Number(session.metadata?.creditAmountCents || 0);
   if (!metadataUserId || creditAmountCents <= 0 || !session.id) {
     return { applied: false, reason: 'missing-credit-metadata' as const };
@@ -738,7 +753,7 @@ const applyCreditCheckoutSession = async (
   }
 
   const result = await ctx.runMutation(anyApi.subscriptions.applyCreditCheckoutSession, {
-    userId: metadataUserId as any,
+    userId: metadataUserId,
     stripeCheckoutSessionId: session.id,
     amountCents: creditAmountCents,
     stripeEventId,
@@ -754,8 +769,10 @@ export const createCreditCheckoutSession = actionGeneric(async (ctx, args: { pac
   if (!userId) throw new Error('Unauthorized');
 
   const packageCents = Number(args.packageCents);
-  if (!CREDIT_PACKAGES_CENTS.includes(packageCents as any)) {
-    throw new Error(`Invalid credit package. Choose from: ${CREDIT_PACKAGES_CENTS.map((c) => `$${c / 100}`).join(', ')}`);
+  if (!CREDIT_PACKAGES_CENTS.includes(packageCents as (typeof CREDIT_PACKAGES_CENTS)[number])) {
+    throw new Error(
+      `Invalid credit package. Choose from: ${CREDIT_PACKAGES_CENTS.map((c) => `$${c / 100}`).join(', ')}`,
+    );
   }
 
   const stripe = getStripeClient();
@@ -928,16 +945,19 @@ export const stripeWebhook = httpActionGeneric(async (ctx, request) => {
         if (subscriptionId) {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
           status = mapStripeStatus(subscription.status);
-          periodEnd = Number((subscription as any).current_period_end || 0) * 1000 || undefined;
+          periodEnd = subscriptionCurrentPeriodEndMs(subscription);
         }
-        await ctx.runMutation(anyApi.subscriptions.upsertForUser, {
-          userId: metadataUserId as any,
-          plan: 'pro',
-          status,
-          stripeCustomerId: customerId || undefined,
-          stripeSubscriptionId: subscriptionId || undefined,
-          currentPeriodEnd: periodEnd,
-        });
+        const checkoutUserId = toUserId(metadataUserId);
+        if (checkoutUserId) {
+          await ctx.runMutation(anyApi.subscriptions.upsertForUser, {
+            userId: checkoutUserId,
+            plan: 'pro',
+            status,
+            stripeCustomerId: customerId || undefined,
+            stripeSubscriptionId: subscriptionId || undefined,
+            currentPeriodEnd: periodEnd,
+          });
+        }
       }
     }
 
@@ -960,19 +980,19 @@ export const stripeWebhook = httpActionGeneric(async (ctx, request) => {
             stripeCustomerId: customerId,
           })
         : null;
-      const userId =
-        existingBySubscription?.userId || existingByCustomer?.userId || (subscription.metadata?.userId as any);
+      const webhookUserId =
+        existingBySubscription?.userId || existingByCustomer?.userId || toUserId(subscription.metadata?.userId);
 
-      if (userId) {
+      if (webhookUserId) {
         const mappedStatus = mapStripeStatus(subscription.status);
         const mappedPlan = mappedStatus === 'active' ? 'pro' : 'free';
         await ctx.runMutation(anyApi.subscriptions.upsertForUser, {
-          userId,
+          userId: webhookUserId,
           plan: mappedPlan,
           status: mappedStatus,
           stripeCustomerId: customerId || undefined,
           stripeSubscriptionId: subscription.id || undefined,
-          currentPeriodEnd: Number((subscription as any).current_period_end || 0) * 1000 || undefined,
+          currentPeriodEnd: subscriptionCurrentPeriodEndMs(subscription),
         });
       }
     }

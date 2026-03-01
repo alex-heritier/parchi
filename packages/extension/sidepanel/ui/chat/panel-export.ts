@@ -1,10 +1,12 @@
 import type { Message } from '../../../ai/message-schema.js';
 import { SidePanelUI } from '../core/panel-ui.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
+
 import { getSessionTraces } from './trace-store.js';
 
 /* ── Export menu ──────────────────────────────────────────────────────── */
 
-(SidePanelUI.prototype as any).showExportMenu = function showExportMenu(): void {
+sidePanelProto.showExportMenu = function showExportMenu(): void {
   const existing = document.getElementById('exportMenu');
   if (existing) {
     existing.remove();
@@ -98,7 +100,7 @@ import { getSessionTraces } from './trace-store.js';
 
 /* ── Unified export ───────────────────────────────────────────────────── */
 
-(SidePanelUI.prototype as any).runExport = async function runExport(
+sidePanelProto.runExport = async function runExport(
   scope: 'all' | 'last',
   includeActions: boolean,
 ): Promise<void> {
@@ -115,7 +117,7 @@ import { getSessionTraces } from './trace-store.js';
 
 /* ── Full session export ──────────────────────────────────────────────── */
 
-(SidePanelUI.prototype as any).exportFullSession = async function exportFullSession(
+sidePanelProto.exportFullSession = async function exportFullSession(
   filename: string,
   includeActions: boolean,
 ): Promise<void> {
@@ -182,7 +184,7 @@ import { getSessionTraces } from './trace-store.js';
 
 /* ── Last response export ─────────────────────────────────────────────── */
 
-(SidePanelUI.prototype as any).exportLastResponse = async function exportLastResponse(
+sidePanelProto.exportLastResponse = async function exportLastResponse(
   filename: string,
   includeActions: boolean,
 ): Promise<void> {
@@ -220,7 +222,7 @@ import { getSessionTraces } from './trace-store.js';
 
 /* ── Build full actions markdown ──────────────────────────────────────── */
 
-(SidePanelUI.prototype as any).buildActionsMarkdown = async function buildActionsMarkdown(
+sidePanelProto.buildActionsMarkdown = async function buildActionsMarkdown(
   scope: 'all' | 'last',
 ): Promise<string> {
   let md = '---\n\n## Tool Actions\n\n';
@@ -252,7 +254,7 @@ import { getSessionTraces } from './trace-store.js';
 };
 
 /** Get traces belonging to the last turn only. */
-(SidePanelUI.prototype as any).getLastTurnTraces = function getLastTurnTraces(traces: any[]): any[] {
+sidePanelProto.getLastTurnTraces = function getLastTurnTraces(traces: any[]): any[] {
   // Find the last user_message, then return everything from that point on
   let lastUserIdx = -1;
   for (let i = traces.length - 1; i >= 0; i--) {
@@ -265,7 +267,7 @@ import { getSessionTraces } from './trace-store.js';
 };
 
 /** Get the last turn entry from historyTurnMap. */
-(SidePanelUI.prototype as any).getLastTurnFromMap = function getLastTurnFromMap(): any | null {
+sidePanelProto.getLastTurnFromMap = function getLastTurnFromMap(): any | null {
   if (!this.historyTurnMap?.size) return null;
   let last: any = null;
   this.historyTurnMap.forEach((turn: any) => {
@@ -275,7 +277,7 @@ import { getSessionTraces } from './trace-store.js';
 };
 
 /** Format persisted trace events into markdown — FULL data, no truncation. */
-(SidePanelUI.prototype as any).formatTraceEvents = function formatTraceEvents(events: any[]): string {
+sidePanelProto.formatTraceEvents = function formatTraceEvents(events: any[]): string {
   let md = '';
   for (const ev of events) {
     const time = new Date(ev.ts).toLocaleTimeString();
@@ -334,7 +336,7 @@ import { getSessionTraces } from './trace-store.js';
 };
 
 /** Format a single in-memory turn into markdown — full data, no truncation. */
-(SidePanelUI.prototype as any).formatTurnEvents = function formatTurnEvents(turn: any): string {
+sidePanelProto.formatTurnEvents = function formatTurnEvents(turn: any): string {
   let md = '';
 
   if (turn.userMessage) {
@@ -381,7 +383,7 @@ import { getSessionTraces } from './trace-store.js';
 
 /* ── Helpers (unchanged) ──────────────────────────────────────────────── */
 
-(SidePanelUI.prototype as any).getSelectedReportImagesForExport = function getSelectedReportImagesForExport() {
+sidePanelProto.getSelectedReportImagesForExport = function getSelectedReportImagesForExport() {
   if (!this.reportImages || this.reportImages.size === 0) return [];
   const order =
     Array.isArray(this.reportImageOrder) && this.reportImageOrder.length > 0
@@ -394,7 +396,7 @@ import { getSessionTraces } from './trace-store.js';
     .filter((image: any) => image && typeof image.dataUrl === 'string' && selected.has(image.id));
 };
 
-(SidePanelUI.prototype as any).appendSelectedReportImagesMarkdown = function appendSelectedReportImagesMarkdown(
+sidePanelProto.appendSelectedReportImagesMarkdown = function appendSelectedReportImagesMarkdown(
   markdown: string,
 ) {
   const images = this.getSelectedReportImagesForExport();
@@ -415,7 +417,7 @@ import { getSessionTraces } from './trace-store.js';
   return next;
 };
 
-(SidePanelUI.prototype as any).extractTextContent = function extractTextContent(content: unknown): string {
+sidePanelProto.extractTextContent = function extractTextContent(content: unknown): string {
   if (!content) return '';
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) {
@@ -442,7 +444,7 @@ import { getSessionTraces } from './trace-store.js';
   return String(content);
 };
 
-(SidePanelUI.prototype as any).downloadFile = function downloadFile(
+sidePanelProto.downloadFile = function downloadFile(
   content: string,
   filename: string,
   mimeType: string,
@@ -464,20 +466,22 @@ import { getSessionTraces } from './trace-store.js';
   }, 100);
 };
 
-(SidePanelUI.prototype as any).downloadMarkdown = function downloadMarkdown(content: string, filename: string): void {
+sidePanelProto.downloadMarkdown = function downloadMarkdown(content: string, filename: string): void {
   this.downloadFile(content, filename, 'text/markdown');
   this.updateStatus(`Exported to ${filename}`, 'success');
 };
 
 /* ── Auto-save session as JSONL ─────────────────────────────────────── */
 
-(SidePanelUI.prototype as any).autoSaveSessionJsonl = async function autoSaveSessionJsonl(): Promise<void> {
+sidePanelProto.autoSaveSessionJsonl = async function autoSaveSessionJsonl(): Promise<void> {
   // Guard: check setting and session content
   let autoSaveEnabled = false;
   try {
     const stored = await chrome.storage.local.get('autoSaveSession');
     autoSaveEnabled = stored.autoSaveSession === true || stored.autoSaveSession === 'true';
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   if (!autoSaveEnabled) return;
   if (!this.displayHistory || this.displayHistory.length === 0) return;
 
@@ -499,7 +503,9 @@ import { getSessionTraces } from './trace-store.js';
   let traces: any[] = [];
   try {
     traces = await getSessionTraces(this.sessionId);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   if (traces.length > 0) {
     for (const ev of traces) {
@@ -521,14 +527,16 @@ import { getSessionTraces } from './trace-store.js';
   // Append selected report images
   const selectedImages = this.getSelectedReportImagesForExport?.() || [];
   for (const img of selectedImages) {
-    lines.push(JSON.stringify({
-      kind: 'report_image',
-      id: img.id,
-      capturedAt: img.capturedAt,
-      url: img.url || '',
-      title: img.title || '',
-      dataUrl: img.dataUrl || '',
-    }));
+    lines.push(
+      JSON.stringify({
+        kind: 'report_image',
+        id: img.id,
+        capturedAt: img.capturedAt,
+        url: img.url || '',
+        title: img.title || '',
+        dataUrl: img.dataUrl || '',
+      }),
+    );
   }
 
   const content = lines.join('\n') + '\n';

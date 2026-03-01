@@ -99,7 +99,8 @@ const extractLatency = (events: any[], donePayload: any, startedAt: number, fini
   )?.timestamp;
   const firstChunkTs = events.find(
     (evt) =>
-      (evt?.type === 'assistant_stream_delta' || evt?.type === 'assistant_stream_start') && typeof evt?.timestamp === 'number',
+      (evt?.type === 'assistant_stream_delta' || evt?.type === 'assistant_stream_start') &&
+      typeof evt?.timestamp === 'number',
   )?.timestamp;
   const terminalTs =
     (typeof terminal?.timestamp === 'number' ? terminal.timestamp : null) ||
@@ -167,9 +168,17 @@ const main = async () => {
   const label = flags.label || process.env.RELAY_BENCH_LABEL || 'parchi-relay';
   const prompts = (() => {
     const fromFlag = flags.prompts ? String(flags.prompts) : '';
-    if (fromFlag.trim()) return fromFlag.split('|').map((p) => p.trim()).filter(Boolean);
+    if (fromFlag.trim())
+      return fromFlag
+        .split('|')
+        .map((p) => p.trim())
+        .filter(Boolean);
     const fromEnv = process.env.RELAY_BENCH_PROMPTS || '';
-    if (fromEnv.trim()) return fromEnv.split('|').map((p) => p.trim()).filter(Boolean);
+    if (fromEnv.trim())
+      return fromEnv
+        .split('|')
+        .map((p) => p.trim())
+        .filter(Boolean);
     return defaultPrompts;
   })();
   if (!token) {

@@ -28,8 +28,8 @@ type ProviderTarget = {
 const COST_CENTS_PER_TOKEN = Number(process.env.CREDIT_COST_CENTS_PER_TOKEN || 0.003);
 const MIN_REQUEST_COST_CENTS = 1;
 const CHARS_PER_TOKEN_ESTIMATE = 4;
-const OPENROUTER_SAFE_FALLBACK_MODEL = String(process.env.OPENROUTER_FALLBACK_MODEL || 'openrouter/auto').trim() ||
-  'openrouter/auto';
+const OPENROUTER_SAFE_FALLBACK_MODEL =
+  String(process.env.OPENROUTER_FALLBACK_MODEL || 'openrouter/auto').trim() || 'openrouter/auto';
 
 const createRequestId = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -50,8 +50,13 @@ const costFromTokens = (tokens: number) => {
   return Math.max(MIN_REQUEST_COST_CENTS, Math.ceil(tokenCount * COST_CENTS_PER_TOKEN));
 };
 
-const estimatePromptTokens = (payload: Record<string, any>) => {
-  const source = payload?.messages ?? payload?.input ?? payload?.prompt ?? payload;
+const asRecord = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+};
+
+const estimatePromptTokens = (payload: Record<string, unknown>) => {
+  const source = payload.messages ?? payload.input ?? payload.prompt ?? payload;
   try {
     const serialized = typeof source === 'string' ? source : JSON.stringify(source);
     return Math.ceil(String(serialized || '').length / CHARS_PER_TOKEN_ESTIMATE);
@@ -60,34 +65,35 @@ const estimatePromptTokens = (payload: Record<string, any>) => {
   }
 };
 
-const usageObjectToTokenCount = (usage: any): number | null => {
-  if (!usage || typeof usage !== 'object') return null;
+const usageObjectToTokenCount = (usage: unknown): number | null => {
+  const row = asRecord(usage);
+  if (!row) return null;
 
-  const totalTokens = toSafeInt(usage?.total_tokens ?? usage?.totalTokens);
+  const totalTokens = toSafeInt(row.total_tokens ?? row.totalTokens);
   if (totalTokens > 0) return totalTokens;
 
-  const promptTokens = toSafeInt(
-    usage?.prompt_tokens ?? usage?.promptTokens ?? usage?.input_tokens ?? usage?.inputTokens ?? 0,
-  );
+  const promptTokens = toSafeInt(row.prompt_tokens ?? row.promptTokens ?? row.input_tokens ?? row.inputTokens ?? 0);
   const completionTokens = toSafeInt(
-    usage?.completion_tokens ?? usage?.completionTokens ?? usage?.output_tokens ?? usage?.outputTokens ?? 0,
+    row.completion_tokens ?? row.completionTokens ?? row.output_tokens ?? row.outputTokens ?? 0,
   );
-  const cacheTokens = toSafeInt(usage?.cache_creation_input_tokens ?? usage?.cache_read_input_tokens ?? 0);
+  const cacheTokens = toSafeInt(row.cache_creation_input_tokens ?? row.cache_read_input_tokens ?? 0);
   const sum = promptTokens + completionTokens + cacheTokens;
   return sum > 0 ? sum : null;
 };
 
-const extractUsageTokens = (payload: any): number | null => {
+const extractUsageTokens = (payload: unknown): number | null => {
   if (!payload || typeof payload !== 'object') return null;
-  const queue: any[] = [payload];
-  const seen = new Set<any>();
+  const queue: unknown[] = [payload];
+  const seen = new Set<object>();
 
   while (queue.length > 0) {
     const current = queue.shift();
-    if (!current || typeof current !== 'object' || seen.has(current)) continue;
+    if (!current || typeof current !== 'object') continue;
+    if (seen.has(current)) continue;
     seen.add(current);
 
-    const directUsage = usageObjectToTokenCount((current as any).usage);
+    const currentRecord = asRecord(current);
+    const directUsage = usageObjectToTokenCount(currentRecord?.usage);
     if (directUsage !== null) return directUsage;
 
     const selfUsage = usageObjectToTokenCount(current);
@@ -98,7 +104,7 @@ const extractUsageTokens = (payload: any): number | null => {
       continue;
     }
 
-    for (const value of Object.values(current)) {
+    for (const value of Object.values(currentRecord || {})) {
       if (value && typeof value === 'object') queue.push(value);
     }
   }
@@ -184,7 +190,7 @@ const providerPrefixMap: Record<string, string> = {
 const resolveForwardPath = (request: Request, provider: string, defaultPath: string) => {
   const requestPath = new URL(request.url).pathname;
   const prefix = providerPrefixMap[provider] || '/ai-proxy/openai';
-  let suffix = requestPath.startsWith(prefix) ? requestPath.slice(prefix.length) : '';
+  const suffix = requestPath.startsWith(prefix) ? requestPath.slice(prefix.length) : '';
   const forwardPath = suffix || defaultPath;
   if (provider === 'openrouter' && !forwardPath.startsWith('/v1/')) {
     return `/v1${forwardPath.startsWith('/') ? '' : '/'}${forwardPath}`;
@@ -217,9 +223,14 @@ export const aiProxy = httpActionGeneric(async (ctx, request) => {
     return jsonResponse(402, { error: 'Insufficient credits. Purchase credits to continue.' });
   }
 
-  let payload: Record<string, any>;
+  let payload: Record<string, unknown>;
   try {
-    payload = (await request.json()) as Record<string, any>;
+    const parsedPayload = await request.json();
+    const payloadRecord = asRecord(parsedPayload);
+    if (!payloadRecord) {
+      return jsonResponse(400, { error: 'Invalid JSON payload' });
+    }
+    payload = payloadRecord;
   } catch {
     return jsonResponse(400, { error: 'Invalid JSON payload' });
   }
@@ -346,7 +357,7 @@ export const aiProxy = httpActionGeneric(async (ctx, request) => {
   }
 
   const { provider: _provider, ...body } = payload;
-  const makeUpstreamRequest = async (requestBody: Record<string, any>) =>
+  const makeUpstreamRequest = async (requestBody: Record<string, unknown>) =>
     fetch(upstreamUrl, {
       method: 'POST',
       headers: upstreamHeaders,

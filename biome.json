@@ -49,6 +49,7 @@
   "files": {
     "ignore": [
       "dist/**",
+      "dist-cli/**",
       "dist-relay/**",
       "dist-firefox/**",
       "node_modules/**",

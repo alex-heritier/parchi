@@ -1,7 +1,9 @@
 import { DEFAULT_AGENT_SYSTEM_PROMPT } from '../../../../shared/src/prompts.js';
 import { PARCHI_STORAGE_KEYS } from '../../../../shared/src/settings.js';
 import { SidePanelUI } from '../core/panel-ui.js';
-import { THEMES, DEFAULT_THEME_ID, applyTheme } from './themes.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
+
+import { DEFAULT_THEME_ID, THEMES, applyTheme } from './themes.js';
 
 const parseHeadersJson = (raw: string): Record<string, string> => {
   const trimmed = raw.trim();
@@ -28,7 +30,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   semibold: '600',
 };
 
-(SidePanelUI.prototype as any).applyUiZoom = function applyUiZoom(value: number, { persist = true } = {}) {
+sidePanelProto.applyUiZoom = function applyUiZoom(value: number, { persist = true } = {}) {
   const next = Number.isFinite(value) ? value : 1;
   const clamped = Math.min(1.25, Math.max(0.85, next));
   this.uiZoom = clamped;
@@ -40,7 +42,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   }
 };
 
-(SidePanelUI.prototype as any).applyTypography = function applyTypography(
+sidePanelProto.applyTypography = function applyTypography(
   preset: string,
   style: string,
   { persist = true } = {},
@@ -58,17 +60,17 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   }
 };
 
-(SidePanelUI.prototype as any).adjustUiZoom = function adjustUiZoom(delta: number) {
+sidePanelProto.adjustUiZoom = function adjustUiZoom(delta: number) {
   const next = (this.uiZoom || 1) + delta;
   this.applyUiZoom(next);
 };
 
-(SidePanelUI.prototype as any).cancelSettings = async function cancelSettings() {
+sidePanelProto.cancelSettings = async function cancelSettings() {
   await this.loadSettings();
   this.openChatView?.();
 };
 
-(SidePanelUI.prototype as any).toggleCustomEndpoint = function toggleCustomEndpoint() {
+sidePanelProto.toggleCustomEndpoint = function toggleCustomEndpoint() {
   const provider = this.elements.provider?.value;
   const isCustom = provider === 'custom' || provider === 'kimi' || provider === 'openrouter';
 
@@ -90,10 +92,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
       this.elements.customEndpoint.placeholder = 'https://api.kimi.com/coding';
     } else if (provider === 'openrouter') {
       this.elements.customEndpoint.placeholder = 'https://openrouter.ai/api/v1';
-      if (
-        !this.elements.customEndpoint.value ||
-        this.elements.customEndpoint.value === 'https://api.kimi.com/coding'
-      ) {
+      if (!this.elements.customEndpoint.value || this.elements.customEndpoint.value === 'https://api.kimi.com/coding') {
         this.elements.customEndpoint.value = 'https://openrouter.ai/api/v1';
       }
     } else if (isCustom) {
@@ -131,7 +130,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   }
 };
 
-(SidePanelUI.prototype as any).validateCustomEndpoint = function validateCustomEndpoint() {
+sidePanelProto.validateCustomEndpoint = function validateCustomEndpoint() {
   if (!this.elements.customEndpoint) return true;
   const url = this.elements.customEndpoint.value.trim();
   if (!url) return true;
@@ -145,7 +144,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   }
 };
 
-(SidePanelUI.prototype as any).validateCustomHeaders = function validateCustomHeaders() {
+sidePanelProto.validateCustomHeaders = function validateCustomHeaders() {
   if (!this.elements.customHeaders) return true;
   const raw = this.elements.customHeaders.value || '';
   if (!raw.trim()) {
@@ -162,7 +161,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   }
 };
 
-(SidePanelUI.prototype as any).validateProfileEditorHeaders = function validateProfileEditorHeaders() {
+sidePanelProto.validateProfileEditorHeaders = function validateProfileEditorHeaders() {
   if (!this.elements.profileEditorHeaders) return true;
   const raw = this.elements.profileEditorHeaders.value || '';
   if (!raw.trim()) {
@@ -179,14 +178,14 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   }
 };
 
-(SidePanelUI.prototype as any).toggleProfileEditorEndpoint = function toggleProfileEditorEndpoint() {
+sidePanelProto.toggleProfileEditorEndpoint = function toggleProfileEditorEndpoint() {
   if (!this.elements.profileEditorEndpointGroup) return;
   const provider = this.elements.profileEditorProvider?.value;
   this.elements.profileEditorEndpointGroup.style.display =
     provider === 'custom' || provider === 'kimi' || provider === 'openrouter' ? 'block' : 'none';
 };
 
-(SidePanelUI.prototype as any).switchSettingsTab = function switchSettingsTab(
+sidePanelProto.switchSettingsTab = function switchSettingsTab(
   tabName: 'setup' | 'oauth' | 'model' | 'profiles' | 'usage' | 'design' | 'advanced' = 'setup',
 ) {
   // Persist current form state when leaving setup tab
@@ -229,9 +228,13 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   if (tabName === 'usage') {
     this.refreshUsageTab?.();
   }
+
+  if (tabName === 'oauth') {
+    this.renderOAuthProviderGrid?.();
+  }
 };
 
-(SidePanelUI.prototype as any).createProfileFromInput = function createProfileFromInput() {
+sidePanelProto.createProfileFromInput = function createProfileFromInput() {
   const name = (this.elements.newProfileNameInput?.value || '').trim();
   if (!name) {
     this.updateStatus('Enter a profile name first', 'warning');
@@ -246,7 +249,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   this.editProfile(name, true);
 };
 
-(SidePanelUI.prototype as any).loadSettings = async function loadSettings() {
+sidePanelProto.loadSettings = async function loadSettings() {
   let settings: Record<string, any> = {};
   try {
     settings = await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[]);
@@ -282,14 +285,18 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
     ...storedConfigs,
   };
   const storedActiveConfig = typeof settings.activeConfig === 'string' ? settings.activeConfig : '';
-  const storedActiveProvider = String(settings.provider || '').trim().toLowerCase();
+  const storedActiveProvider = String(settings.provider || '')
+    .trim()
+    .toLowerCase();
   const storedActiveModel = String(settings.model || '').trim();
   const legacyActiveConfig = (() => {
     if (!storedActiveModel) return '';
     const profileNames = Object.keys(this.configs);
     const exactProviderModelMatch = profileNames.find((name) => {
       const config = this.configs[name] || {};
-      const provider = String(config.provider || '').trim().toLowerCase();
+      const provider = String(config.provider || '')
+        .trim()
+        .toLowerCase();
       const model = String(config.model || '').trim();
       return provider === storedActiveProvider && model === storedActiveModel;
     });
@@ -329,7 +336,8 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   if (this.elements.saveHistory)
     this.elements.saveHistory.value = settings.saveHistory !== undefined ? String(settings.saveHistory) : 'true';
   if (this.elements.autoSaveSession)
-    this.elements.autoSaveSession.value = settings.autoSaveSession !== undefined ? String(settings.autoSaveSession) : 'false';
+    this.elements.autoSaveSession.value =
+      settings.autoSaveSession !== undefined ? String(settings.autoSaveSession) : 'false';
   const autoSaveFolderGroup = document.getElementById('autoSaveFolderGroup');
   if (autoSaveFolderGroup) {
     autoSaveFolderGroup.style.display = this.elements.autoSaveSession?.value === 'true' ? '' : 'none';
@@ -371,7 +379,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   await this.refreshAccountPanel?.({ silent: true });
 };
 
-(SidePanelUI.prototype as any).updateRelayStatusFromSettings = function updateRelayStatusFromSettings(
+sidePanelProto.updateRelayStatusFromSettings = function updateRelayStatusFromSettings(
   settings: Record<string, any> = {},
 ) {
   const connected = settings.relayConnected === true;
@@ -385,9 +393,11 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   }
 };
 
-(SidePanelUI.prototype as any).saveSettings = async function saveSettings() {
+sidePanelProto.saveSettings = async function saveSettings() {
   if (
-    (this.elements.provider?.value === 'custom' || this.elements.provider?.value === 'kimi' || this.elements.provider?.value === 'openrouter') &&
+    (this.elements.provider?.value === 'custom' ||
+      this.elements.provider?.value === 'kimi' ||
+      this.elements.provider?.value === 'openrouter') &&
     !this.validateCustomEndpoint()
   ) {
     this.updateStatus('Invalid custom endpoint URL', 'error');
@@ -411,7 +421,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   this.openChatView?.();
 };
 
-(SidePanelUI.prototype as any).exportSettings = async function exportSettings() {
+sidePanelProto.exportSettings = async function exportSettings() {
   try {
     const settings = await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[]);
     const payload = {
@@ -434,7 +444,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   }
 };
 
-(SidePanelUI.prototype as any).importSettings = async function importSettings(event: Event) {
+sidePanelProto.importSettings = async function importSettings(event: Event) {
   const input = event?.target as HTMLInputElement | null;
   const file = input?.files?.[0];
   if (!file) return;
@@ -461,7 +471,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   }
 };
 
-(SidePanelUI.prototype as any).collectCurrentFormProfile = function collectCurrentFormProfile() {
+sidePanelProto.collectCurrentFormProfile = function collectCurrentFormProfile() {
   const current = this.configs[this.currentConfig] || {};
   let extraHeaders = current.extraHeaders || {};
   if (this.elements.customHeaders) {
@@ -499,7 +509,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   };
 };
 
-(SidePanelUI.prototype as any).collectToolPermissions = function collectToolPermissions() {
+sidePanelProto.collectToolPermissions = function collectToolPermissions() {
   const fallback = this.toolPermissions || {
     read: true,
     interact: true,
@@ -522,7 +532,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   };
 };
 
-(SidePanelUI.prototype as any).persistAllSettings = async function persistAllSettings({ silent = false } = {}) {
+sidePanelProto.persistAllSettings = async function persistAllSettings({ silent = false } = {}) {
   try {
     const activeProfile = this.configs[this.currentConfig] || {};
     const rawRelayUrl = (this.elements.relayUrl?.value || '').trim();
@@ -578,11 +588,11 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   }
 };
 
-(SidePanelUI.prototype as any).getDefaultSystemPrompt = function getDefaultSystemPrompt() {
+sidePanelProto.getDefaultSystemPrompt = function getDefaultSystemPrompt() {
   return DEFAULT_AGENT_SYSTEM_PROMPT;
 };
 
-(SidePanelUI.prototype as any).renderThemeGrid = function renderThemeGrid() {
+sidePanelProto.renderThemeGrid = function renderThemeGrid() {
   const grid = this.elements.themeGrid;
   if (!grid) return;
   grid.innerHTML = '';
@@ -603,14 +613,14 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   }
 };
 
-(SidePanelUI.prototype as any).setTheme = function setTheme(id: string) {
+sidePanelProto.setTheme = function setTheme(id: string) {
   this.currentTheme = id;
   applyTheme(id);
   this.renderThemeGrid();
   chrome.storage.local.set({ theme: id }).catch(() => {});
 };
 
-(SidePanelUI.prototype as any).updateScreenshotToggleState = function updateScreenshotToggleState() {
+sidePanelProto.updateScreenshotToggleState = function updateScreenshotToggleState() {
   if (!this.elements.enableScreenshots) return;
   const wantsScreens = this.elements.enableScreenshots.value === 'true';
   const visionProfile = this.elements.visionProfile?.value;
@@ -631,7 +641,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
    Orchestrator / Vision prompt sections in Prompt tab
    ============================================================================ */
 
-(SidePanelUI.prototype as any).updatePromptSections = function updatePromptSections() {
+sidePanelProto.updatePromptSections = function updatePromptSections() {
   // Re-query elements in case they weren't available at constructor time (loaded via template)
   const orchSection = this.elements.orchestratorPromptSection || document.getElementById('orchestratorPromptSection');
   const orchTextarea =
@@ -671,7 +681,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
   }
 };
 
-(SidePanelUI.prototype as any).savePromptSections = function savePromptSections() {
+sidePanelProto.savePromptSections = function savePromptSections() {
   // Save orchestrator prompt back to its profile
   const orchEnabled = this.elements.orchestratorToggle?.value === 'true';
   if (orchEnabled && this.elements.orchestratorPromptTextarea) {

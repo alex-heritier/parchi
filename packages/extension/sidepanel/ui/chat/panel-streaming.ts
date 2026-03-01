@@ -2,6 +2,8 @@ import type { RunPlan } from '../../../../shared/src/plan.js';
 import { dedupeThinking, extractThinking } from '../../../ai/message-utils.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
+
 const formatElapsed = (elapsedMs: number) => {
   const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
   const minutes = Math.floor(totalSeconds / 60);
@@ -11,12 +13,27 @@ const formatElapsed = (elapsedMs: number) => {
   return `${minuteLabel}:${secondLabel}`;
 };
 
-/* Top 20 trending internet verbs */
 const MASCOT_VERBS = [
-  'Vibing', 'Slaying', 'Cooking', 'Grinding', 'Manifesting',
-  'Ghosting', 'Flexing', 'Streaming', 'Hustling', 'Glazing',
-  'Mogging', 'Coping', 'Rizzing', 'Finessing', 'Fumbling',
-  'Binging', 'Canceling', 'Yoinking', 'Simping', 'Dooming',
+  'Vibing',
+  'Slaying',
+  'Cooking',
+  'Grinding',
+  'Manifesting',
+  'Ghosting',
+  'Flexing',
+  'Streaming',
+  'Hustling',
+  'Glazing',
+  'Mogging',
+  'Coping',
+  'Rizzing',
+  'Finessing',
+  'Fumbling',
+  'Binging',
+  'Canceling',
+  'Yoinking',
+  'Simping',
+  'Dooming',
 ];
 let _verbIndex = Math.floor(Math.random() * MASCOT_VERBS.length);
 const nextVerb = () => {
@@ -24,7 +41,7 @@ const nextVerb = () => {
   return MASCOT_VERBS[_verbIndex];
 };
 
-(SidePanelUI.prototype as any).handleAssistantStream = function handleAssistantStream(event: any) {
+sidePanelProto.handleAssistantStream = function handleAssistantStream(event: { status?: string; content?: string }) {
   if (event.status === 'start') {
     this.isStreaming = true;
     this.clearErrorBanner();
@@ -41,7 +58,7 @@ const nextVerb = () => {
   this.updateActivityState();
 };
 
-(SidePanelUI.prototype as any).startThinkingTimer = function startThinkingTimer() {
+sidePanelProto.startThinkingTimer = function startThinkingTimer() {
   if (this.thinkingTimerId) {
     window.clearInterval(this.thinkingTimerId);
   }
@@ -62,7 +79,7 @@ const nextVerb = () => {
   this.thinkingTimerId = window.setInterval(updateTimer, 1000);
 };
 
-(SidePanelUI.prototype as any).stopThinkingTimer = function stopThinkingTimer() {
+sidePanelProto.stopThinkingTimer = function stopThinkingTimer() {
   if (this.thinkingTimerId) {
     window.clearInterval(this.thinkingTimerId);
     this.thinkingTimerId = null;
@@ -74,7 +91,7 @@ const nextVerb = () => {
   if (bubbleVerb) bubbleVerb.textContent = '';
 };
 
-(SidePanelUI.prototype as any).startStreamingMessage = function startStreamingMessage() {
+sidePanelProto.startStreamingMessage = function startStreamingMessage() {
   if (this.streamingState) return;
 
   const container = document.createElement('div');
@@ -106,7 +123,6 @@ const nextVerb = () => {
     planMetaEl: null,
   };
 
-  // Show thinking state on mascot
   const mascot = document.getElementById('mascotCorner');
   if (mascot) mascot.classList.add('thinking');
 
@@ -114,7 +130,7 @@ const nextVerb = () => {
   this.scrollToBottom();
 };
 
-(SidePanelUI.prototype as any).updateStreamingMessage = function updateStreamingMessage(content: string) {
+sidePanelProto.updateStreamingMessage = function updateStreamingMessage(content: string) {
   if (!this.streamingState) {
     this.startStreamingMessage();
   }
@@ -143,7 +159,7 @@ const nextVerb = () => {
   this.scrollToBottom();
 };
 
-(SidePanelUI.prototype as any).completeStreamingMessage = function completeStreamingMessage() {
+sidePanelProto.completeStreamingMessage = function completeStreamingMessage() {
   if (!this.streamingState?.container) return;
   const indicator = this.streamingState.container.querySelector('.typing-indicator');
   if (indicator) indicator.remove();
@@ -153,10 +169,6 @@ const nextVerb = () => {
   const mascot = document.getElementById('mascotCorner');
   if (mascot) mascot.classList.remove('thinking');
 
-  // Don't call updateThinkingPanel here — streamingState is still set, so it
-  // would create a duplicate .inline-thinking-block alongside the existing
-  // .stream-event-reasoning.  Just track the value; displayAssistantMessage
-  // handles the final render after streamingState is cleared.
   if (this.streamingReasoning) {
     this.latestThinking = this.streamingReasoning;
   } else {
@@ -164,10 +176,7 @@ const nextVerb = () => {
   }
 };
 
-(SidePanelUI.prototype as any).updateStreamReasoning = function updateStreamReasoning(
-  delta: string | null,
-  replace = false,
-) {
+sidePanelProto.updateStreamReasoning = function updateStreamReasoning(delta: string | null, replace = false) {
   if (!this.streamingState?.eventsEl) return;
   if (delta === null || delta === undefined) return;
   if (!delta.trim() && !this.streamingState.reasoningBuffer) return;
@@ -198,7 +207,6 @@ const nextVerb = () => {
     this.streamingState.reasoningEventEl = reasoningContentEl;
     this.streamingState.reasoningBuffer = '';
 
-    // Update mascot to show active thinking
     const mascot = document.getElementById('mascotCorner');
     if (mascot) mascot.classList.add('thinking');
   }
@@ -209,17 +217,16 @@ const nextVerb = () => {
   if (reasoningContentEl) {
     reasoningContentEl.textContent = cleaned;
   }
-  // (debug log removed)
   this.scrollToBottom();
 };
 
-(SidePanelUI.prototype as any).applyPlanUpdate = function applyPlanUpdate(plan: RunPlan) {
+sidePanelProto.applyPlanUpdate = function applyPlanUpdate(plan: RunPlan) {
   if (!plan) return;
   this.currentPlan = plan;
   this.renderPlanDrawer(plan);
 };
 
-(SidePanelUI.prototype as any).applyManualPlanUpdate = function applyManualPlanUpdate(
+sidePanelProto.applyManualPlanUpdate = function applyManualPlanUpdate(
   steps: Array<{ title: string; status?: string; notes?: string }> = [],
 ) {
   if (!steps || steps.length === 0) return;
@@ -247,7 +254,7 @@ const nextVerb = () => {
   }
 };
 
-(SidePanelUI.prototype as any).ensurePlanBlock = function ensurePlanBlock() {
+sidePanelProto.ensurePlanBlock = function ensurePlanBlock() {
   if (!this.streamingState?.eventsEl) return null;
   if (this.streamingState.planEl) return this.streamingState.planEl;
 
@@ -274,7 +281,7 @@ const nextVerb = () => {
   return container;
 };
 
-(SidePanelUI.prototype as any).finishStreamingMessage = function finishStreamingMessage() {
+sidePanelProto.finishStreamingMessage = function finishStreamingMessage() {
   if (!this.streamingState) return null;
   const streamingThinking = this.streamingReasoning;
   const container = this.streamingState.container;

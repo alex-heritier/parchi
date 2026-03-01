@@ -1,12 +1,19 @@
-import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { readAuth, isDaemonRunning, DEFAULT_PORT } from './auth.js';
+import crypto from 'node:crypto';
+import { DEFAULT_PORT, isDaemonRunning, readAuth } from './auth.js';
 
 type RpcRequest = {
   jsonrpc: '2.0';
   id: string | number;
   method: string;
   params?: unknown;
+};
+
+type RpcResponse = {
+  result?: unknown;
+  error?: {
+    message?: string;
+  } | null;
 };
 
 function waitForDaemon(port: number, timeoutMs = 5_000): Promise<void> {
@@ -68,14 +75,14 @@ export async function fetchRpc({
     },
     body: JSON.stringify(body),
   });
-  const json = await res.json();
+  const json = (await res.json()) as RpcResponse | null;
   if (!json || typeof json !== 'object') {
     console.error('Invalid RPC response');
     process.exit(1);
   }
-  if ('error' in json && (json as any).error) {
-    const msg = (json as any).error?.message || 'RPC error';
+  if (json.error) {
+    const msg = json.error.message || 'RPC error';
     throw new Error(msg);
   }
-  return (json as any).result;
+  return json.result;
 }

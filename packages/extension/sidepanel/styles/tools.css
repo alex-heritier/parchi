@@ -4,9 +4,9 @@
 
 /* Plan Drawer — Editorial Waypoint Style */
 .plan-drawer {
-  background: var(--card);
-  border: 1px solid var(--ink-2);
-  border-bottom: none;
+  background: var(--card-inset);
+  border: none;
+  border-bottom: 1px solid var(--ink-2);
   border-radius: 12px 12px 0 0;
   overflow: hidden;
   animation: drawerGrow 0.25s var(--ease-out-expo);
@@ -39,7 +39,7 @@
 .plan-drawer:not(.hidden) ~ .composer-wrapper .composer {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
-  border-top-color: var(--ink-1);
+  border-top-color: transparent;
 }
 
 /* Plan drawer header */
@@ -559,15 +559,10 @@
   background: var(--card);
   border: none;
   overflow: visible;
-  transition:
-    max-width 350ms cubic-bezier(0.175, 0.885, 0.32, 1.275),
-    opacity 220ms ease,
-    box-shadow 220ms ease;
+  transition: max-width 350ms cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 220ms ease, box-shadow 220ms ease;
   cursor: pointer;
   opacity: 0.65;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .session-tabs-orb.hidden {
@@ -576,9 +571,7 @@
 
 .session-tabs-orb:hover {
   opacity: 1;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 6px 24px rgba(0, 0, 0, 0.32);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 6px 24px rgba(0, 0, 0, 0.32);
 }
 
 .session-tabs-orb:not(.expanded):hover {
@@ -598,10 +591,8 @@
   opacity: 1;
   border-radius: 17px;
   cursor: default;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 4px 16px rgba(0, 0, 0, 0.35),
-    0 0 20px rgb(var(--accent-rgb) / 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 20px
+    rgb(var(--accent-rgb) / 0.06);
 }
 
 /* Toggle button — shows favicon or fallback icon */
@@ -699,7 +690,8 @@
 }
 
 @keyframes tabInteracting {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 8px rgba(var(--accent-rgb) / 0.15);
     border-color: rgba(var(--accent-rgb) / 0.5);
   }
@@ -757,7 +749,8 @@
 }
 
 @keyframes activityPulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
@@ -769,23 +762,25 @@
 
 /* Tool detail expansion */
 .tool-detail {
-    grid-column: 1 / -1;
-    margin-top: 4px;
-    padding: 6px 8px;
-    background: var(--bg-secondary, rgba(0,0,0,0.1));
-    border-radius: 4px;
-    font-family: var(--font-mono, monospace);
-    font-size: 11px;
-    line-height: 1.4;
-    white-space: pre-wrap;
-    word-break: break-all;
-    max-height: 200px;
-    overflow-y: auto;
-    color: var(--text-secondary, #888);
-    opacity: 0;
-    animation: fadeIn 0.15s ease forwards;
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: var(--bg-secondary, rgba(0, 0, 0, 0.1));
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+  color: var(--text-secondary, #888);
+  opacity: 0;
+  animation: fadeIn 0.15s ease forwards;
 }
 
 @keyframes fadeIn {
-    to { opacity: 1; }
+  to {
+    opacity: 1;
+  }
 }

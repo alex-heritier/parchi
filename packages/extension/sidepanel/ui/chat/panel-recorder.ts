@@ -1,6 +1,8 @@
 import type { RecordedContext, RecordingEvent, RecordingScreenshot } from '../../../../shared/src/recording.js';
-import { buildSkillFromEvents } from './recording-to-skill.js';
 import { SidePanelUI } from '../core/panel-ui.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
+
+import { buildSkillFromEvents } from './recording-to-skill.js';
 
 const formatTime = (ms: number): string => {
   const totalSec = Math.floor(ms / 1000);
@@ -13,7 +15,7 @@ const formatTime = (ms: number): string => {
 // Recording start / stop / timer (unchanged)
 // ──────────────────────────────────────────────────────────────────────
 
-(SidePanelUI.prototype as any).startRecording = async function startRecording() {
+sidePanelProto.startRecording = async function startRecording() {
   if (this.recordingState.status !== 'idle') return;
   this.recordingState.status = 'recording';
   this.recordingState.elapsedMs = 0;
@@ -49,7 +51,7 @@ const formatTime = (ms: number): string => {
   }, 1000);
 };
 
-(SidePanelUI.prototype as any).stopRecording = async function stopRecording() {
+sidePanelProto.stopRecording = async function stopRecording() {
   if (this.recordingState.status !== 'recording') return;
   this.recordingState.status = 'selecting';
 
@@ -70,7 +72,7 @@ const formatTime = (ms: number): string => {
   }
 };
 
-(SidePanelUI.prototype as any).cleanupRecordingUI = function cleanupRecordingUI() {
+sidePanelProto.cleanupRecordingUI = function cleanupRecordingUI() {
   if (this.recordingState.timerId) {
     clearInterval(this.recordingState.timerId);
   }
@@ -80,7 +82,7 @@ const formatTime = (ms: number): string => {
   this.hideRecordingTimer();
 };
 
-(SidePanelUI.prototype as any).showRecordingTimer = function showRecordingTimer() {
+sidePanelProto.showRecordingTimer = function showRecordingTimer() {
   const el = this.elements.recordingTimer;
   if (el) {
     el.classList.remove('hidden');
@@ -88,12 +90,12 @@ const formatTime = (ms: number): string => {
   }
 };
 
-(SidePanelUI.prototype as any).hideRecordingTimer = function hideRecordingTimer() {
+sidePanelProto.hideRecordingTimer = function hideRecordingTimer() {
   const el = this.elements.recordingTimer;
   if (el) el.classList.add('hidden');
 };
 
-(SidePanelUI.prototype as any).renderRecordingTimer = function renderRecordingTimer(elapsedMs: number) {
+sidePanelProto.renderRecordingTimer = function renderRecordingTimer(elapsedMs: number) {
   const timeEl = this.elements.recordingTimer?.querySelector('.recording-time');
   if (timeEl) {
     timeEl.textContent = `${formatTime(elapsedMs)} / 1:00`;
@@ -104,7 +106,7 @@ const formatTime = (ms: number): string => {
 // Tabbed Review Modal
 // ──────────────────────────────────────────────────────────────────────
 
-(SidePanelUI.prototype as any).showRecordingReview = function showRecordingReview(
+sidePanelProto.showRecordingReview = function showRecordingReview(
   screenshots: RecordingScreenshot[],
   events: RecordingEvent[],
 ) {
@@ -181,7 +183,10 @@ const formatTime = (ms: number): string => {
         for (const s of screenshots) {
           if (selected.has(s.id)) {
             const c = grid.querySelector(`[data-id="${s.id}"] .image-picker-badge`) as HTMLElement | null;
-            if (c) { c.textContent = String(n); c.classList.remove('hidden'); }
+            if (c) {
+              c.textContent = String(n);
+              c.classList.remove('hidden');
+            }
             n++;
           }
         }
@@ -212,7 +217,10 @@ const formatTime = (ms: number): string => {
 
   const doAttachOnly = () => {
     modal.classList.add('hidden');
-    if (!this.reviewState) { close(); return; }
+    if (!this.reviewState) {
+      close();
+      return;
+    }
     const ids = Array.from(this.reviewState.selectedScreenshotIds) as string[];
     if (ids.length === 0) {
       // Still send with empty selection — background creates context from events
@@ -265,7 +273,7 @@ const formatTime = (ms: number): string => {
 // Tab switching
 // ──────────────────────────────────────────────────────────────────────
 
-(SidePanelUI.prototype as any).switchReviewTab = function switchReviewTab(tab: 'actions' | 'screenshots') {
+sidePanelProto.switchReviewTab = function switchReviewTab(tab: 'actions' | 'screenshots') {
   if (this.reviewState) this.reviewState.activeTab = tab;
 
   const actionsPanel = this.elements.reviewActionsPanel;
@@ -286,7 +294,7 @@ const formatTime = (ms: number): string => {
   }
 };
 
-(SidePanelUI.prototype as any).updateScreenshotTabLabel = function updateScreenshotTabLabel(count: number) {
+sidePanelProto.updateScreenshotTabLabel = function updateScreenshotTabLabel(count: number) {
   const tab = this.elements.reviewTabScreenshots;
   if (tab) tab.textContent = count > 0 ? `Screenshots (${count})` : 'Screenshots';
 };
@@ -295,7 +303,7 @@ const formatTime = (ms: number): string => {
 // Save recording as ComposedSkill
 // ──────────────────────────────────────────────────────────────────────
 
-(SidePanelUI.prototype as any).saveRecordingAsSkill = async function saveRecordingAsSkill() {
+sidePanelProto.saveRecordingAsSkill = async function saveRecordingAsSkill() {
   if (!this.reviewState) return;
 
   const { events, excludedEventIndices, selectedScreenshotIds } = this.reviewState;
@@ -322,9 +330,10 @@ const formatTime = (ms: number): string => {
     const workflow = {
       id: crypto.randomUUID(),
       name: skill.name,
-      prompt: skill.description + '\n\nSteps:\n' + skill.steps.map(
-        (s: any, i: number) => `${i + 1}. ${s.tool}(${JSON.stringify(s.args)})`,
-      ).join('\n'),
+      prompt:
+        skill.description +
+        '\n\nSteps:\n' +
+        skill.steps.map((s: any, i: number) => `${i + 1}. ${s.tool}(${JSON.stringify(s.args)})`).join('\n'),
       createdAt: Date.now(),
     };
     this.workflows.push(workflow);
@@ -347,27 +356,27 @@ const formatTime = (ms: number): string => {
 // Context badge + recording message handler
 // ──────────────────────────────────────────────────────────────────────
 
-(SidePanelUI.prototype as any).attachRecordedContext = function attachRecordedContext(context: RecordedContext) {
+sidePanelProto.attachRecordedContext = function attachRecordedContext(context: RecordedContext) {
   this.pendingRecordedContext = context;
   this.showRecordedContextBadge();
 };
 
-(SidePanelUI.prototype as any).removeRecordedContext = function removeRecordedContext() {
+sidePanelProto.removeRecordedContext = function removeRecordedContext() {
   this.pendingRecordedContext = null;
   this.hideRecordedContextBadge();
 };
 
-(SidePanelUI.prototype as any).showRecordedContextBadge = function showRecordedContextBadge() {
+sidePanelProto.showRecordedContextBadge = function showRecordedContextBadge() {
   const badge = this.elements.recordedContextBadge;
   if (badge) badge.classList.add('hidden');
 };
 
-(SidePanelUI.prototype as any).hideRecordedContextBadge = function hideRecordedContextBadge() {
+sidePanelProto.hideRecordedContextBadge = function hideRecordedContextBadge() {
   const badge = this.elements.recordedContextBadge;
   if (badge) badge.classList.add('hidden');
 };
 
-(SidePanelUI.prototype as any).handleRecordingMessage = function handleRecordingMessage(message: any) {
+sidePanelProto.handleRecordingMessage = function handleRecordingMessage(message: any) {
   switch (message.type) {
     case 'recording_tick': {
       if (this.recordingState.status === 'recording') {

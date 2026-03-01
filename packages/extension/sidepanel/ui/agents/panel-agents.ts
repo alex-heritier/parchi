@@ -1,9 +1,11 @@
 import { SidePanelUI } from '../core/panel-ui.js';
 
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
+
 /**
  * Add a new subagent to the tracking map and render its UI.
  */
-(SidePanelUI.prototype as any).addSubagent = function addSubagent(id: string, name: string, tasks: any) {
+sidePanelProto.addSubagent = function addSubagent(id: string, name: string, tasks: unknown) {
   this.subagents.set(id, {
     name: name || `Sub-${this.subagents.size + 1}`,
     tasks: Array.isArray(tasks) ? tasks : [tasks || 'Task'],
@@ -20,11 +22,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
 /**
  * Update the status of a subagent and render completion.
  */
-(SidePanelUI.prototype as any).updateSubagentStatus = function updateSubagentStatus(
-  id: string,
-  status: string,
-  summary?: string,
-) {
+sidePanelProto.updateSubagentStatus = function updateSubagentStatus(id: string, status: string, summary?: string) {
   const agent = this.subagents.get(id);
   if (agent) {
     agent.status = status;
@@ -40,7 +38,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
 /**
  * Render the agent navigation bar at the top of chat.
  */
-(SidePanelUI.prototype as any).renderAgentNav = function renderAgentNav() {
+sidePanelProto.renderAgentNav = function renderAgentNav() {
   if (!this.elements.agentNav) return;
 
   if (this.subagents.size === 0) {
@@ -57,7 +55,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
       </div>
     `;
 
-  this.subagents.forEach((agent: any, id: string) => {
+  this.subagents.forEach((agent, id: string) => {
     const statusClass = agent.status === 'running' ? 'running' : agent.status === 'completed' ? 'completed' : 'error';
     const statusIcon = agent.status === 'running' ? '⏳' : agent.status === 'completed' ? '✓' : '✗';
     html += `
@@ -81,7 +79,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
 /**
  * Switch the active agent view.
  */
-(SidePanelUI.prototype as any).switchAgent = function switchAgent(agentId: string) {
+sidePanelProto.switchAgent = function switchAgent(agentId: string) {
   this.activeAgent = agentId;
   this.renderAgentNav();
 
@@ -97,7 +95,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
 /**
  * Hide the agent navigation bar.
  */
-(SidePanelUI.prototype as any).hideAgentNav = function hideAgentNav() {
+sidePanelProto.hideAgentNav = function hideAgentNav() {
   if (this.elements.agentNav) {
     this.elements.agentNav.classList.add('hidden');
   }
@@ -107,7 +105,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
  * Render subagent activity inline in the chat.
  * Creates a visual block showing subagent start/progress/completion.
  */
-(SidePanelUI.prototype as any).renderSubagentActivity = function renderSubagentActivity(
+sidePanelProto.renderSubagentActivity = function renderSubagentActivity(
   subagentId: string,
   event: 'start' | 'progress' | 'complete' | 'error',
   data?: { name?: string; tasks?: string[]; summary?: string; error?: string },
@@ -178,7 +176,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
 /**
  * Highlight messages from a specific subagent in the chat.
  */
-(SidePanelUI.prototype as any).highlightSubagentMessages = function highlightSubagentMessages(subagentId: string) {
+sidePanelProto.highlightSubagentMessages = function highlightSubagentMessages(subagentId: string) {
   // Remove existing highlights
   this.elements.chatMessages?.querySelectorAll('.subagent-highlight').forEach((el) => {
     el.classList.remove('subagent-highlight');
@@ -199,11 +197,11 @@ import { SidePanelUI } from '../core/panel-ui.js';
 /**
  * Get a summary of all subagent activity for display.
  */
-(SidePanelUI.prototype as any).getSubagentSummary = function getSubagentSummary(): string {
+sidePanelProto.getSubagentSummary = function getSubagentSummary(): string {
   if (!this.subagents || this.subagents.size === 0) return '';
 
   const parts: string[] = [];
-  this.subagents.forEach((agent: any) => {
+  this.subagents.forEach((agent) => {
     const status = agent.status === 'running' ? 'running' : agent.status;
     parts.push(`${agent.name} (${status})`);
   });

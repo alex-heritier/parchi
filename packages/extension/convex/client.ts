@@ -21,6 +21,17 @@ type AuthSignInResult = {
   callbackUrl?: string;
 };
 
+type AccountUserSnapshot = { _id?: string; email?: string } | null | undefined;
+type AccountSubscriptionSnapshot =
+  | {
+      plan?: string;
+      status?: string;
+      currentPeriodEnd?: number | null;
+      creditBalanceCents?: number;
+    }
+  | null
+  | undefined;
+
 const STORAGE_KEYS = {
   accessToken: 'convexAccessToken',
   refreshToken: 'convexRefreshToken',
@@ -173,7 +184,7 @@ const refreshAccessTokenIfNeeded = async (options: { force?: boolean } = {}) => 
   }
 };
 
-const syncAccountSnapshotToStorage = async (user: any, subscription: any) => {
+const syncAccountSnapshotToStorage = async (user: AccountUserSnapshot, subscription: AccountSubscriptionSnapshot) => {
   await chrome.storage.local.set({
     [STORAGE_KEYS.userId]: user?._id || '',
     [STORAGE_KEYS.userEmail]: user?.email || '',
@@ -372,10 +383,10 @@ export async function manageSubscription() {
   return client.action(anyApi.payments.manageSubscription, {});
 }
 
-export const hasActiveSubscription = (subscription: any) =>
+export const hasActiveSubscription = (subscription: AccountSubscriptionSnapshot) =>
   Boolean(subscription && subscription.plan === 'pro' && subscription.status === 'active');
 
-export const hasCreditBalance = (subscription: any) =>
+export const hasCreditBalance = (subscription: AccountSubscriptionSnapshot) =>
   Number(subscription?.creditBalanceCents ?? 0) > 0;
 
 export async function getCreditBalance() {

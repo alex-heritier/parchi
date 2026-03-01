@@ -119,8 +119,7 @@ declare global {
   const flushMutations = () => {
     if (mutationBatch.added === 0 && mutationBatch.removed === 0 && mutationBatch.attributes === 0) return;
     const ev = buildBase('dom_mutation');
-    const droppedSuffix =
-      droppedMutationEvents > 0 ? ` (+${droppedMutationEvents} dropped due to cap)` : '';
+    const droppedSuffix = droppedMutationEvents > 0 ? ` (+${droppedMutationEvents} dropped due to cap)` : '';
     ev.summary = `+${mutationBatch.added} nodes, -${mutationBatch.removed} nodes, ${mutationBatch.attributes} attr changes in ${mutationBatch.target}${droppedSuffix}`;
     ev.addedCount = mutationBatch.added;
     ev.removedCount = mutationBatch.removed;
@@ -199,15 +198,16 @@ declare global {
   window.addEventListener('popstate', onPopState);
 
   // --- Listen for stop command ---
-  const onMessage = (message: any) => {
-    if (message?.type === 'recording_content_stop') {
+  const onMessage = (message: unknown) => {
+    const row = message && typeof message === 'object' ? (message as Record<string, unknown>) : null;
+    if (row?.type === 'recording_content_stop') {
       cleanup('stop_message');
     }
   };
   chrome.runtime.onMessage.addListener(onMessage);
 
   // --- Cleanup ---
-  const cleanup = (reason: string = 'manual') => {
+  const cleanup = (reason = 'manual') => {
     if (isCleaningUp) return;
     isCleaningUp = true;
     document.removeEventListener('click', onClickCapture, { capture: true } as EventListenerOptions);

@@ -1,5 +1,7 @@
 import type { RecordingEvent } from '../../../../shared/src/recording.js';
 import { SidePanelUI } from '../core/panel-ui.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
+
 
 const formatOffset = (ms: number): string => {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
@@ -8,8 +10,7 @@ const formatOffset = (ms: number): string => {
   return `+${min}:${String(sec).padStart(2, '0')}`;
 };
 
-const truncate = (text: string, max: number): string =>
-  text.length > max ? text.slice(0, max) + '\u2026' : text;
+const truncate = (text: string, max: number): string => (text.length > max ? text.slice(0, max) + '\u2026' : text);
 
 const escapeHtml = (text: string): string => {
   const div = document.createElement('div');
@@ -18,21 +19,27 @@ const escapeHtml = (text: string): string => {
 };
 
 const hostnameFromUrl = (url: string): string => {
-  try { return new URL(url).hostname; } catch { return ''; }
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
 };
 
 const pathFromUrl = (url: string): string => {
   try {
     const u = new URL(url);
     return u.hostname + u.pathname;
-  } catch { return url; }
+  } catch {
+    return url;
+  }
 };
 
 // ──────────────────────────────────────────────────────────────────────
 // Icon SVGs per event type
 // ──────────────────────────────────────────────────────────────────────
 
-(SidePanelUI.prototype as any).getActionIcon = function getActionIcon(type: string): string {
+sidePanelProto.getActionIcon = function getActionIcon(type: string): string {
   switch (type) {
     case 'click':
       return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>';
@@ -53,22 +60,19 @@ const pathFromUrl = (url: string): string => {
 // Label extraction
 // ──────────────────────────────────────────────────────────────────────
 
-(SidePanelUI.prototype as any).getActionLabel = function getActionLabel(
-  event: RecordingEvent,
-): { primary: string; detail: string } {
+sidePanelProto.getActionLabel = function getActionLabel(event: RecordingEvent): {
+  primary: string;
+  detail: string;
+} {
   switch (event.type) {
     case 'click': {
-      const primary = event.textContent?.trim()
-        ? truncate(event.textContent.trim(), 40)
-        : event.selector || 'click';
+      const primary = event.textContent?.trim() ? truncate(event.textContent.trim(), 40) : event.selector || 'click';
       const pos = event.position ? `at (${event.position.x}, ${event.position.y})` : '';
       const detail = [event.tagName || '', pos].filter(Boolean).join(' ');
       return { primary, detail };
     }
     case 'input': {
-      const primary = event.placeholder
-        ? truncate(event.placeholder, 40)
-        : event.selector || 'input';
+      const primary = event.placeholder ? truncate(event.placeholder, 40) : event.selector || 'input';
       return { primary, detail: event.inputType || 'text' };
     }
     case 'scroll': {
@@ -95,7 +99,7 @@ const pathFromUrl = (url: string): string => {
 // Single action node
 // ──────────────────────────────────────────────────────────────────────
 
-(SidePanelUI.prototype as any).createActionNode = function createActionNode(
+sidePanelProto.createActionNode = function createActionNode(
   event: RecordingEvent,
   offsetMs: number,
   index: number,
@@ -140,7 +144,7 @@ const pathFromUrl = (url: string): string => {
 // Full timeline
 // ──────────────────────────────────────────────────────────────────────
 
-(SidePanelUI.prototype as any).renderActionTimeline = function renderActionTimeline(
+sidePanelProto.renderActionTimeline = function renderActionTimeline(
   events: RecordingEvent[],
   startTimestamp: number,
 ): HTMLElement {

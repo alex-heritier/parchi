@@ -199,7 +199,9 @@ class PerfMonitor {
     if (this._intervalId) {
       clearInterval(this._intervalId);
       this._intervalId = null;
-      console.log(`[perf] Stopped — ${this._snapshots.length} snapshots collected over ${formatDuration(Date.now() - this._startedAt)}`);
+      console.log(
+        `[perf] Stopped — ${this._snapshots.length} snapshots collected over ${formatDuration(Date.now() - this._startedAt)}`,
+      );
     }
   }
 
@@ -217,9 +219,7 @@ class PerfMonitor {
     if (first && first !== current) {
       deltas = {
         memoryDeltaMB:
-          current.memory && first.memory
-            ? +(current.memory.jsHeapUsedMB - first.memory.jsHeapUsedMB).toFixed(2)
-            : null,
+          current.memory && first.memory ? +(current.memory.jsHeapUsedMB - first.memory.jsHeapUsedMB).toFixed(2) : null,
         domNodesDelta: current.dom.totalNodes - first.dom.totalNodes,
         chatNodesDelta: current.dom.chatMessageNodes - first.dom.chatMessageNodes,
       };

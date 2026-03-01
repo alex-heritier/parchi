@@ -1,0 +1,88 @@
+import type { OAuthProviderConfig } from './types.js';
+
+export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
+  claude: {
+    key: 'claude',
+    name: 'Claude',
+    flowType: 'authorization_code_pkce',
+    clientId: '9d1c250a-e61b-44d9-88ed-5944d1962f5e',
+    authorizeUrl: 'https://claude.ai/oauth/authorize',
+    tokenUrl: 'https://api.anthropic.com/v1/oauth/token',
+    redirectUri: 'http://localhost:54545/callback',
+    scopes: 'org:create_api_key user:profile user:inference',
+    extraAuthorizeParams: { code: 'true' },
+    apiBaseUrl: 'https://api.anthropic.com',
+    models: [
+      { id: 'claude-sonnet-4-6-20260220', label: 'Claude Sonnet 4.6', contextWindow: 200000, supportsVision: true },
+      { id: 'claude-opus-4-6-20260204', label: 'Claude Opus 4.6', contextWindow: 200000, supportsVision: true },
+      { id: 'claude-opus-4-1-20250805', label: 'Claude Opus 4.1', contextWindow: 200000, supportsVision: true },
+      { id: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4', contextWindow: 200000, supportsVision: true },
+      { id: 'claude-opus-4-20250514', label: 'Claude Opus 4', contextWindow: 200000, supportsVision: true },
+      { id: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', contextWindow: 200000, supportsVision: true },
+    ],
+  },
+  codex: {
+    key: 'codex',
+    name: 'Codex',
+    flowType: 'authorization_code_pkce',
+    clientId: 'app_EMoamEEZ73f0CkXaXp7hrann',
+    authorizeUrl: 'https://auth.openai.com/oauth/authorize',
+    tokenUrl: 'https://auth.openai.com/oauth/token',
+    redirectUri: 'http://localhost:1455/auth/callback',
+    scopes: 'openid email profile offline_access',
+    extraAuthorizeParams: {
+      prompt: 'login',
+      id_token_add_organizations: 'true',
+      codex_cli_simplified_flow: 'true',
+    },
+    apiBaseUrl: 'https://api.openai.com',
+    models: [
+      { id: 'gpt-4o', label: 'GPT-4o', contextWindow: 128000, supportsVision: true },
+      { id: 'gpt-4o-mini', label: 'GPT-4o Mini', contextWindow: 128000, supportsVision: true },
+      { id: 'o3', label: 'o3', contextWindow: 200000 },
+      { id: 'o3-mini', label: 'o3-mini', contextWindow: 200000 },
+      { id: 'o4-mini', label: 'o4-mini', contextWindow: 200000 },
+    ],
+  },
+  copilot: {
+    key: 'copilot',
+    name: 'GitHub Copilot',
+    flowType: 'device_code',
+    clientId: 'Iv1.b507a08c87ecfe98',
+    deviceCodeUrl: 'https://github.com/login/device/code',
+    tokenUrl: 'https://github.com/login/oauth/access_token',
+    scopes: 'read:user user:email',
+    apiBaseUrl: 'https://api.githubcopilot.com',
+    apiHeaders: {
+      'User-Agent': 'GithubCopilot/1.0',
+      'Editor-Version': 'vscode/1.100.0',
+      'Editor-Plugin-Version': 'copilot/1.300.0',
+      'Openai-Intent': 'conversation-panel',
+      'Copilot-Integration-Id': 'vscode-chat',
+    },
+    models: [
+      { id: 'claude-sonnet-4', label: 'Claude Sonnet 4 (Copilot)', contextWindow: 200000 },
+      { id: 'claude-opus-4', label: 'Claude Opus 4 (Copilot)', contextWindow: 200000 },
+      { id: 'gpt-4o', label: 'GPT-4o (Copilot)', contextWindow: 128000 },
+      { id: 'o3-mini', label: 'o3-mini (Copilot)', contextWindow: 200000 },
+      { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Copilot)', contextWindow: 1000000 },
+    ],
+  },
+  qwen: {
+    key: 'qwen',
+    name: 'Qwen',
+    flowType: 'device_code_pkce',
+    clientId: 'f0304373b74a44d2b584a3fb70ca9e56',
+    deviceCodeUrl: 'https://chat.qwen.ai/api/v1/oauth2/device/code',
+    tokenUrl: 'https://chat.qwen.ai/api/v1/oauth2/token',
+    scopes: 'openid profile email model.completion',
+    apiBaseUrl: '',
+    models: [
+      { id: 'qwen-max', label: 'Qwen Max', contextWindow: 128000 },
+      { id: 'qwen-plus', label: 'Qwen Plus', contextWindow: 128000 },
+      { id: 'qwen-turbo', label: 'Qwen Turbo', contextWindow: 128000 },
+    ],
+  },
+};
+
+export const OAUTH_PROVIDER_KEYS = Object.keys(OAUTH_PROVIDERS) as Array<keyof typeof OAUTH_PROVIDERS>;

@@ -102,7 +102,14 @@ class BgPerfMonitor {
 
   report(): BgPerfReport {
     const current = this.snapshot();
-    if (!current) return { sessionDuration: '0s', snapshotCount: 0, current: {} as any, peak: { sessions: 0, activeRuns: 0 }, warnings: ['No service bound'] };
+    if (!current)
+      return {
+        sessionDuration: '0s',
+        snapshotCount: 0,
+        current: {} as any,
+        peak: { sessions: 0, activeRuns: 0 },
+        warnings: ['No service bound'],
+      };
 
     const peak = {
       sessions: Math.max(...this._snapshots.map((s) => s.sessionCount)),

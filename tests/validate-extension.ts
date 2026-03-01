@@ -33,7 +33,7 @@ class ExtensionValidator {
   passed: number;
   failed: number;
   manifest: Manifest | null;
-  packageJSON: Record<string, any>;
+  packageJSON: Record<string, unknown>;
 
   constructor() {
     this.errors = [];

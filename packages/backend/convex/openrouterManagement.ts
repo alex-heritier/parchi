@@ -30,13 +30,17 @@ type OpenRouterCreateGuardrailResponse = {
 };
 
 const readBooleanEnv = (key: string, fallback: boolean) => {
-  const raw = String(process.env[key] || '').trim().toLowerCase();
+  const raw = String(process.env[key] || '')
+    .trim()
+    .toLowerCase();
   if (!raw) return fallback;
   return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
 };
 
 const readLimitResetEnv = (key: string, fallback: OpenRouterLimitReset) => {
-  const raw = String(process.env[key] || '').trim().toLowerCase();
+  const raw = String(process.env[key] || '')
+    .trim()
+    .toLowerCase();
   if (!raw) return fallback;
   if (raw === 'null' || raw === 'none') return null;
   if (raw === 'daily' || raw === 'weekly' || raw === 'monthly') return raw;
@@ -78,8 +82,8 @@ const openRouterFetch = async <T>(path: string, init: RequestInitWithJson = {}):
 };
 
 export const readOpenRouterProvisioningConfig = () => {
-  const defaultModel = String(process.env.OPENROUTER_DEFAULT_MODEL || DEFAULT_OPENROUTER_MODEL).trim() ||
-    DEFAULT_OPENROUTER_MODEL;
+  const defaultModel =
+    String(process.env.OPENROUTER_DEFAULT_MODEL || DEFAULT_OPENROUTER_MODEL).trim() || DEFAULT_OPENROUTER_MODEL;
   const limitUsd = Number(process.env.OPENROUTER_KEY_LIMIT_USD || 20);
   if (!Number.isFinite(limitUsd) || limitUsd <= 0) {
     throw new Error('Invalid OPENROUTER_KEY_LIMIT_USD (must be a positive number)');
@@ -178,13 +182,7 @@ export const assignKeyToGuardrail = async (guardrailId: string, keyHash: string)
 };
 
 const normalizeAllowedModels = (models: string[]) =>
-  Array.from(
-    new Set(
-      (Array.isArray(models) ? models : [])
-        .map((model) => String(model || '').trim())
-        .filter(Boolean),
-    ),
-  );
+  Array.from(new Set((Array.isArray(models) ? models : []).map((model) => String(model || '').trim()).filter(Boolean)));
 
 const buildAllowedModelsGuardrailName = (planId: string, allowedModels: string[]) => {
   const normalizedPlanId = String(planId || '').trim() || 'default';
@@ -234,9 +232,7 @@ export const ensureAllowedModelsGuardrail = async (args: {
   }
 
   const guardrailName = buildAllowedModelsGuardrailName(args.planId, normalizedModels);
-  const existing = (await listGuardrails()).find(
-    (guardrail) => String(guardrail?.name || '').trim() === guardrailName,
-  );
+  const existing = (await listGuardrails()).find((guardrail) => String(guardrail?.name || '').trim() === guardrailName);
   if (existing?.id) {
     return existing.id;
   }

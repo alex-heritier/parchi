@@ -141,7 +141,6 @@ export const getSidePanelElements = (): SidePanelElements => ({
   accountRefreshBtn: byId<HTMLButtonElement>('accountRefreshBtn'),
   accountSignOutBtn: byId<HTMLButtonElement>('accountSignOutBtn'),
 
-
   // Relay
   relayEnabled: byId<HTMLSelectElement>('relayEnabled'),
   relayUrl: byId<HTMLInputElement>('relayUrl'),

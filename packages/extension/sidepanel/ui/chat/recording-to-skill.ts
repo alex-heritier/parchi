@@ -77,7 +77,9 @@ export function deriveSkillMetadata(events: RecordingEvent[]): {
     try {
       const hostname = new URL(url).hostname;
       hostCounts.set(hostname, (hostCounts.get(hostname) || 0) + 1);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   let dominantHost = '';
@@ -90,12 +92,17 @@ export function deriveSkillMetadata(events: RecordingEvent[]): {
   }
 
   // Derive name from first click's textContent or hostname
-  const firstClick = events.find(e => e.type === 'click' && e.textContent?.trim());
+  const firstClick = events.find((e) => e.type === 'click' && e.textContent?.trim());
   const name = firstClick?.textContent
-    ? firstClick.textContent.trim().slice(0, 30).toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')
+    ? firstClick.textContent
+        .trim()
+        .slice(0, 30)
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
     : dominantHost.replace(/\./g, '-') || 'recorded-skill';
 
-  const actionCount = events.filter(e => e.type !== 'dom_mutation').length;
+  const actionCount = events.filter((e) => e.type !== 'dom_mutation').length;
   const description = `Recorded ${actionCount} action${actionCount !== 1 ? 's' : ''} on ${dominantHost || 'unknown site'}`;
   const sitePattern = dominantHost ? `${dominantHost}*` : '';
 
@@ -105,10 +112,7 @@ export function deriveSkillMetadata(events: RecordingEvent[]): {
 /**
  * Build a complete ComposedSkill from events + metadata.
  */
-export function buildSkillFromEvents(
-  events: RecordingEvent[],
-  sessionId?: string,
-): ComposedSkill {
+export function buildSkillFromEvents(events: RecordingEvent[], sessionId?: string): ComposedSkill {
   const steps = eventsToSkillSteps(events);
   const meta = deriveSkillMetadata(events);
 

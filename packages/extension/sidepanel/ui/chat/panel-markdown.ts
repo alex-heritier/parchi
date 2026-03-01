@@ -1,15 +1,17 @@
 import { SidePanelUI } from '../core/panel-ui.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
+
 import { COPY_ICON, highlightCodeBlock } from './markdown-highlighter.js';
 import { renderMarkdownTable as renderMarkdownTableHtml } from './markdown-table.js';
 
-(SidePanelUI.prototype as any).highlightCodeBlock = function highlightCodeBlockProto(
+sidePanelProto.highlightCodeBlock = function highlightCodeBlockProto(
   raw: string,
   lang: string,
 ): string {
   return highlightCodeBlock(raw, lang, (value) => this.escapeHtmlBasic(value));
 };
 
-(SidePanelUI.prototype as any).renderMarkdown = function renderMarkdown(text: string) {
+sidePanelProto.renderMarkdown = function renderMarkdown(text: string) {
   if (!text) return '';
 
   const escape = (value = '') => this.escapeHtmlBasic(value);
@@ -208,6 +210,6 @@ import { renderMarkdownTable as renderMarkdownTableHtml } from './markdown-table
   return html;
 };
 
-(SidePanelUI.prototype as any).renderMarkdownTable = function renderMarkdownTableProto(tableText: string): string {
+sidePanelProto.renderMarkdownTable = function renderMarkdownTableProto(tableText: string): string {
   return renderMarkdownTableHtml(tableText, (value) => this.escapeHtmlBasic(value));
 };

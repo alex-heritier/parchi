@@ -18,8 +18,13 @@
 }
 
 @keyframes recordPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 
 /* Recording timer bar */
@@ -29,7 +34,7 @@
   gap: 6px;
   padding: 4px 10px;
   font-size: 11px;
-  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-family: "SF Mono", "Fira Code", monospace;
   color: hsl(0, 70%, 65%);
   background: hsla(0, 70%, 55%, 0.08);
   border-radius: 8px;
@@ -163,7 +168,7 @@
   bottom: 2px;
   right: 2px;
   font-size: 9px;
-  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-family: "SF Mono", "Fira Code", monospace;
   color: #fff;
   background: rgba(0, 0, 0, 0.6);
   padding: 1px 4px;
@@ -267,7 +272,7 @@
 /* URL group separator */
 .action-timeline-separator {
   font-size: 10px;
-  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-family: "SF Mono", "Fira Code", monospace;
   color: var(--text-muted);
   padding: 6px 0 4px 26px;
   opacity: 0.7;
@@ -325,7 +330,7 @@
 .action-node-time {
   flex-shrink: 0;
   font-size: 10px;
-  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-family: "SF Mono", "Fira Code", monospace;
   color: var(--text-muted);
   margin-top: 1px;
 }

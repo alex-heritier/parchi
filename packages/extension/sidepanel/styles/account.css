@@ -498,3 +498,200 @@
   display: flex;
   gap: 6px;
 }
+
+/* ============================================================================
+   OAuth Provider Cards
+   ============================================================================ */
+
+.oauth-provider-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.oauth-provider-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--ink-2);
+  border-radius: 10px;
+  transition: border-color var(--duration-fast) ease;
+}
+
+.oauth-provider-card.connected {
+  border-color: rgb(var(--accent-rgb) / 0.25);
+}
+
+.oauth-provider-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.oauth-provider-card-name {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--foreground);
+}
+
+.oauth-provider-card-status {
+  font-size: 11px;
+  color: var(--muted-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.oauth-provider-card.connected .oauth-provider-card-status {
+  color: var(--accent);
+}
+
+.oauth-provider-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.oauth-provider-card .btn {
+  padding: 5px 12px;
+  font-size: 11px;
+}
+
+.oauth-provider-card .btn-disconnect {
+  background: transparent;
+  border-color: var(--ink-2);
+  color: var(--muted);
+}
+
+.oauth-provider-card .btn-disconnect:hover {
+  border-color: rgba(248, 113, 113, 0.4);
+  color: var(--error);
+}
+
+/* Device code prompt */
+
+.oauth-device-prompt {
+  margin-top: 4px;
+}
+
+.oauth-device-prompt-inner {
+  padding: 14px;
+  background: var(--card);
+  border: 1px solid var(--ink-2);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  text-align: center;
+}
+
+.oauth-device-prompt-title {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--foreground);
+}
+
+.oauth-device-code-value {
+  font-size: 24px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.12em;
+  color: var(--accent-light);
+  padding: 8px 16px;
+  background: rgb(var(--accent-rgb) / 0.06);
+  border: 1px solid rgb(var(--accent-rgb) / 0.15);
+  border-radius: 10px;
+  user-select: all;
+}
+
+.oauth-device-prompt-hint {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.oauth-device-prompt-hint a {
+  color: var(--accent-light);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.oauth-device-prompt-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.oauth-device-prompt-actions .btn {
+  padding: 5px 12px;
+  font-size: 11px;
+}
+
+/* OAuth provider card enhancements */
+
+.oauth-provider-card-email {
+  font-size: 11px;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.oauth-provider-card-status.oauth-error {
+  color: var(--error, #ef5350);
+}
+
+.oauth-provider-model-row {
+  margin-top: 4px;
+}
+
+.oauth-model-select {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 11px;
+  border: 1px solid var(--ink-2, var(--border-color));
+  border-radius: 6px;
+  background: var(--bg-primary, var(--background));
+  color: var(--text-primary, var(--foreground));
+  cursor: pointer;
+}
+
+.oauth-model-select:focus {
+  outline: none;
+  border-color: rgb(var(--accent-rgb) / 0.5);
+}
+
+/* OAuth badge */
+
+.oauth-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgb(var(--accent-rgb) / 0.12);
+  color: var(--accent, var(--accent-light));
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+/* OAuth profile card styling */
+
+.agent-card.oauth-profile {
+  border-color: rgb(var(--accent-rgb) / 0.15);
+}
+
+/* Read-only input for OAuth profiles */
+
+.oauth-readonly {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

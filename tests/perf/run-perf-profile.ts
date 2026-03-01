@@ -201,8 +201,7 @@ async function run() {
     const extensionId = await getExtensionId(context);
     log(`Extension ID: ${extensionId}`, 'dim');
 
-    const worker =
-      context.serviceWorkers()[0] || (await context.waitForEvent('serviceworker', { timeout: 30_000 }));
+    const worker = context.serviceWorkers()[0] || (await context.waitForEvent('serviceworker', { timeout: 30_000 }));
 
     // ── Pre-configure OpenRouter via storage ────────────────────────
     log('Configuring OpenRouter profile...', 'info');
@@ -292,11 +291,13 @@ async function run() {
           },
           { timeout: RESPONSE_TIMEOUT, polling: 500 },
         );
-        log(`  Response received ✓`, 'success');
+        log('  Response received ✓', 'success');
       } catch {
         log(`  Response timed out after ${RESPONSE_TIMEOUT / 1000}s`, 'warning');
         // If still running, try to stop it
-        const stillRunning = await panel.$eval('#composer', (el) => el.classList.contains('running')).catch(() => false);
+        const stillRunning = await panel
+          .$eval('#composer', (el) => el.classList.contains('running'))
+          .catch(() => false);
         if (stillRunning) {
           log('  Clicking stop to recover...', 'dim');
           await panel.click('#sendBtn').catch(() => {});
@@ -379,7 +380,7 @@ async function run() {
       }
     }
 
-    log(`\n── CSS Animations ──`, 'info');
+    log('\n── CSS Animations ──', 'info');
     log(`  Running: ${final.cssAnimations}`, final.cssAnimations > 5 ? 'warning' : 'dim');
 
     // ── Timeline table ──────────────────────────────────────────────

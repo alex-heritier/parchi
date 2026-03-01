@@ -42,6 +42,11 @@ logs/
 .env.local
 .env.publish
 
+# Service account keys
+*service-account*.json
+*serviceaccount*.json
+parchi-*-*.json
+
 # Temporary files
 tmp/
 temp/
@@ -61,3 +66,4 @@ tests/perf/perf-results-*.json
 
 .claude
 .osgrep
+.factory/settings.local.json

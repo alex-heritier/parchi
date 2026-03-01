@@ -1,5 +1,7 @@
 import { SidePanelUI } from '../core/panel-ui.js';
-import { getUsageData, clearUsageData } from './usage-store.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
+
+import { clearUsageData, getUsageData } from './usage-store.js';
 import type { UsageTotalEntry } from './usage-store.js';
 
 const formatTokens = (count: number) => {
@@ -16,7 +18,7 @@ const setUsageStatus = (text: string) => {
   if (el) el.textContent = text;
 };
 
-(SidePanelUI.prototype as any).refreshUsageTab = async function refreshUsageTab() {
+sidePanelProto.refreshUsageTab = async function refreshUsageTab() {
   setUsageStatus('Loading...');
 
   try {
@@ -70,9 +72,7 @@ const setUsageStatus = (text: string) => {
   }
 };
 
-(SidePanelUI.prototype as any).renderUsageTable = function renderUsageTable(
-  totals: Record<string, UsageTotalEntry>,
-) {
+sidePanelProto.renderUsageTable = function renderUsageTable(totals: Record<string, UsageTotalEntry>) {
   const container = document.getElementById('usageTableContainer');
   if (!container) return;
 
@@ -83,9 +83,7 @@ const setUsageStatus = (text: string) => {
   }
 
   // Sort by total tokens descending
-  const sorted = entries.sort(
-    ([, a], [, b]) => (b.inputTokens + b.outputTokens) - (a.inputTokens + a.outputTokens),
-  );
+  const sorted = entries.sort(([, a], [, b]) => b.inputTokens + b.outputTokens - (a.inputTokens + a.outputTokens));
 
   // Find max total for bar widths
   const maxTotal = sorted.reduce((max, [, e]) => Math.max(max, e.inputTokens + e.outputTokens), 1);
@@ -128,7 +126,7 @@ const setUsageStatus = (text: string) => {
   container.appendChild(table);
 };
 
-(SidePanelUI.prototype as any).renderSessionUsage = function renderSessionUsage() {
+sidePanelProto.renderSessionUsage = function renderSessionUsage() {
   const container = document.getElementById('usageSessionContainer');
   if (!container) return;
 
@@ -155,7 +153,7 @@ const setUsageStatus = (text: string) => {
   `;
 };
 
-(SidePanelUI.prototype as any).clearUsageData = async function clearUsageDataMethod() {
+sidePanelProto.clearUsageData = async function clearUsageDataMethod() {
   try {
     await clearUsageData();
     this.refreshUsageTab?.();

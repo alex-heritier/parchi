@@ -1,7 +1,9 @@
 import { getActiveTab } from '../../../utils/active-tab.js';
 import { SidePanelUI } from '../core/panel-ui.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-(SidePanelUI.prototype as any).ingestFilesIntoComposer = async function ingestFilesIntoComposer(
+
+sidePanelProto.ingestFilesIntoComposer = async function ingestFilesIntoComposer(
   files: File[],
   source: 'picker' | 'paste' = 'picker',
 ) {
@@ -59,12 +61,15 @@ import { SidePanelUI } from '../core/panel-ui.js';
 
   this.pendingComposerAttachments = mediaAttachments.slice(-8);
   if (mediaAttachments.length > 0) {
-    this.updateStatus(`${mediaAttachments.length} media attachment${mediaAttachments.length === 1 ? '' : 's'} ready`, 'active');
+    this.updateStatus(
+      `${mediaAttachments.length} media attachment${mediaAttachments.length === 1 ? '' : 's'} ready`,
+      'active',
+    );
   }
   this.elements.userInput.focus();
 };
 
-(SidePanelUI.prototype as any).handleFileSelection = async function handleFileSelection(event: Event) {
+sidePanelProto.handleFileSelection = async function handleFileSelection(event: Event) {
   const input = event.target as HTMLInputElement | null;
   if (!input) return;
   const files = Array.from(input.files || []) as File[];
@@ -74,7 +79,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
   input.value = '';
 };
 
-(SidePanelUI.prototype as any).toggleTabSelector = async function toggleTabSelector() {
+sidePanelProto.toggleTabSelector = async function toggleTabSelector() {
   const isHidden = this.elements.tabSelector.classList.contains('hidden');
   if (isHidden) {
     await this.loadTabs();
@@ -85,11 +90,11 @@ import { SidePanelUI } from '../core/panel-ui.js';
   }
 };
 
-(SidePanelUI.prototype as any).closeTabSelector = function closeTabSelector() {
+sidePanelProto.closeTabSelector = function closeTabSelector() {
   this.elements.tabSelector.classList.add('hidden');
 };
 
-(SidePanelUI.prototype as any).addActiveTabToSelection = async function addActiveTabToSelection() {
+sidePanelProto.addActiveTabToSelection = async function addActiveTabToSelection() {
   const activeTab = await getActiveTab();
   if (!activeTab || typeof activeTab.id !== 'number') return;
   this.selectedTabs.set(activeTab.id, this.buildSelectedTab(activeTab));
@@ -98,7 +103,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
   this.loadTabs();
 };
 
-(SidePanelUI.prototype as any).clearSelectedTabs = function clearSelectedTabs() {
+sidePanelProto.clearSelectedTabs = function clearSelectedTabs() {
   if (this.selectedTabs.size === 0) return;
   this.selectedTabs.clear();
   this.updateSelectedTabsBar();
@@ -106,7 +111,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
   this.loadTabs();
 };
 
-(SidePanelUI.prototype as any).loadTabs = async function loadTabs() {
+sidePanelProto.loadTabs = async function loadTabs() {
   const tabGroupsApi = chrome.tabGroups;
   const [tabs, groups] = await Promise.all([
     chrome.tabs.query({}),
@@ -183,7 +188,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
   renderGroup('Ungrouped', 'var(--text-tertiary)', ungroupedTabs);
 };
 
-(SidePanelUI.prototype as any).toggleGroupSelection = function toggleGroupSelection(
+sidePanelProto.toggleGroupSelection = function toggleGroupSelection(
   groupTabs: chrome.tabs.Tab[],
   shouldSelect: boolean,
 ) {
@@ -200,7 +205,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
   this.loadTabs();
 };
 
-(SidePanelUI.prototype as any).toggleTabSelection = function toggleTabSelection(
+sidePanelProto.toggleTabSelection = function toggleTabSelection(
   tab: chrome.tabs.Tab,
   itemElement: HTMLElement,
 ) {
@@ -217,7 +222,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
   this.loadTabs();
 };
 
-(SidePanelUI.prototype as any).buildSelectedTab = function buildSelectedTab(tab: chrome.tabs.Tab) {
+sidePanelProto.buildSelectedTab = function buildSelectedTab(tab: chrome.tabs.Tab) {
   const groupId = typeof tab.groupId === 'number' ? tab.groupId : -1;
   const group = groupId >= 0 ? this.tabGroupInfo.get(groupId) : undefined;
   const hasGroup = groupId >= 0;
@@ -232,7 +237,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
   };
 };
 
-(SidePanelUI.prototype as any).updateSelectedTabsBar = function updateSelectedTabsBar() {
+sidePanelProto.updateSelectedTabsBar = function updateSelectedTabsBar() {
   // Keep selected tabs context logic, but avoid duplicating this info in the
   // main chat layout. The tab selector button/count remains the primary UI.
   if (this.elements.selectedTabsBar) {
@@ -241,7 +246,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
   }
 };
 
-(SidePanelUI.prototype as any).updateTabSelectorButton = function updateTabSelectorButton() {
+sidePanelProto.updateTabSelectorButton = function updateTabSelectorButton() {
   const count = this.selectedTabs.size;
   if (count > 0) {
     this.elements.tabSelectorBtn.classList.add('has-selection');
@@ -255,7 +260,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
   }
 };
 
-(SidePanelUI.prototype as any).mapGroupColor = function mapGroupColor(colorName: string) {
+sidePanelProto.mapGroupColor = function mapGroupColor(colorName: string) {
   const palette: Record<string, string> = {
     grey: '#9aa0a6',
     blue: '#4c8bf5',
@@ -270,7 +275,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
   return palette[colorName] || 'var(--text-tertiary)';
 };
 
-(SidePanelUI.prototype as any).formatTabLabel = function formatTabLabel(url?: string) {
+sidePanelProto.formatTabLabel = function formatTabLabel(url?: string) {
   if (!url) return '';
   try {
     const parsed = new URL(url);
@@ -280,7 +285,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
   }
 };
 
-(SidePanelUI.prototype as any).getSelectedTabsContext = function getSelectedTabsContext(
+sidePanelProto.getSelectedTabsContext = function getSelectedTabsContext(
   tabs?: Array<any>,
   source: 'selected' | 'active' = 'selected',
 ) {

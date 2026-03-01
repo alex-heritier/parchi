@@ -1,6 +1,6 @@
 {
   "name": "parchi-extension",
-  "version": "0.4.10",
+  "version": "0.4.11",
   "description": "Warm-paper browser automation extension with configurable LLM providers",
   "private": true,
   "type": "module",
@@ -22,6 +22,7 @@
     "validate": "node scripts/build.mjs && node dist/tests/validate-extension.js",
     "test": "node scripts/build.mjs && node dist/tests/run-tests.js",
     "test:unit": "node scripts/build.mjs && node dist/tests/unit/run-unit-tests.js",
+    "test:coverage": "c8 npm run test:unit",
     "test:integration": "echo 'Load tests/integration/test-page.html in browser and run tests'",
     "test:api": "node scripts/build.mjs && node dist/tests/api/run-api-tests.js",
     "test:e2e": "node scripts/build.mjs && node dist/tests/e2e/run-e2e.js",
@@ -39,14 +40,20 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "check:all": "npm run lint && npm run typecheck && npm run build && npm run check:repo-standards",
+    "knip": "knip",
+    "knip:fix": "knip --fix",
     "version:bump": "node scripts/bump-version.mjs",
     "version:sync": "node scripts/bump-version.mjs --sync",
     "release": "node scripts/bump-version.mjs && npm run build && npm run build:firefox:xpi && cd dist && zip -r ../parchi-$(node -p \"require('../package.json').version\")-chrome.zip . -x '*.map' 'tests/*'",
+    "release:all": "node scripts/bump-version.mjs && npm run build && npm run build:firefox:xpi && npm run publish:all",
+    "release:firefox": "node scripts/bump-version.mjs && npm run build:firefox:xpi && npm run publish:firefox",
+    "release:dry": "node scripts/bump-version.mjs && npm run build && npm run build:firefox:xpi && npm run publish:dry",
     "publish:all": "node scripts/publish.mjs",
     "publish:chrome": "node scripts/publish.mjs --chrome",
     "publish:firefox": "node scripts/publish.mjs --firefox",
     "publish:dry": "node scripts/publish.mjs --dry-run",
-    "dev": "echo 'Run npm run build, then load the dist/ folder in Chrome://extensions'"
+    "dev": "echo 'Run npm run build, then load the dist/ folder in Chrome://extensions'",
+    "prepare": "husky"
   },
   "keywords": [
     "chrome-extension",
@@ -73,13 +80,25 @@
     "stripe": "18.5.0",
     "ws": "8.18.3"
   },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "biome check --write"
+    ],
+    "*.{json,md,css}": [
+      "biome format --write"
+    ]
+  },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
     "@types/chrome": "0.0.268",
     "@types/node": "22.10.5",
     "@types/ws": "8.18.1",
     "agent-browser": "^0.11.1",
+    "c8": "^11.0.0",
     "esbuild": "0.27.2",
+    "husky": "^9.1.7",
+    "knip": "^5.85.0",
+    "lint-staged": "^16.3.0",
     "marked": "17.0.1",
     "playwright": "1.57.0",
     "typescript": "5.6.3",

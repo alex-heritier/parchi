@@ -1,4 +1,6 @@
 import { SidePanelUI } from '../core/panel-ui.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
+
 
 const parseHeadersJson = (raw: string): Record<string, string> => {
   const trimmed = raw.trim();
@@ -26,7 +28,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   textarea.style.overflowY = textarea.scrollHeight > 500 ? 'auto' : 'hidden';
 };
 
-(SidePanelUI.prototype as any).createNewConfig = async function createNewConfig(name?: string) {
+sidePanelProto.createNewConfig = async function createNewConfig(name?: string) {
   // Read from whichever input has a value
   const inputA = this.elements.newProfileInput;
   const inputB = this.elements.newProfileNameInput;
@@ -73,7 +75,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   this.updateStatus(`Profile "${trimmedName}" created`, 'success');
 };
 
-(SidePanelUI.prototype as any).deleteConfig = async function deleteConfig() {
+sidePanelProto.deleteConfig = async function deleteConfig() {
   if (this.currentConfig === 'default') {
     this.updateStatus('Cannot delete default profile', 'warning');
     return;
@@ -81,7 +83,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   await this.deleteProfileByName(this.currentConfig);
 };
 
-(SidePanelUI.prototype as any).deleteProfileByName = async function deleteProfileByName(name: string) {
+sidePanelProto.deleteProfileByName = async function deleteProfileByName(name: string) {
   if (!name || name === 'default') {
     this.updateStatus('Cannot delete default profile', 'warning');
     return;
@@ -103,7 +105,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   this.updateStatus(`Profile "${name}" deleted`, 'success');
 };
 
-(SidePanelUI.prototype as any).switchConfig = async function switchConfig() {
+sidePanelProto.switchConfig = async function switchConfig() {
   const newConfig = this.elements.activeConfig.value;
   if (!this.configs[newConfig]) {
     this.updateStatus('Profile not found', 'warning');
@@ -114,7 +116,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   await this.persistAllSettings({ silent: true });
 };
 
-(SidePanelUI.prototype as any).refreshConfigDropdown = function refreshConfigDropdown() {
+sidePanelProto.refreshConfigDropdown = function refreshConfigDropdown() {
   if (this.elements.activeConfig) {
     this.elements.activeConfig.innerHTML = '';
     Object.keys(this.configs).forEach((name) => {
@@ -133,7 +135,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   this.updateContextUsage();
 };
 
-(SidePanelUI.prototype as any).refreshProfileSelectors = function refreshProfileSelectors() {
+sidePanelProto.refreshProfileSelectors = function refreshProfileSelectors() {
   const names = Object.keys(this.configs);
   const selects = [this.elements.orchestratorProfile, this.elements.visionProfile];
   selects.forEach((select) => {
@@ -154,7 +156,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   });
 };
 
-(SidePanelUI.prototype as any).renderProfileGrid = function renderProfileGrid() {
+sidePanelProto.renderProfileGrid = function renderProfileGrid() {
   if (!this.elements.agentGrid) return;
   this.elements.agentGrid.innerHTML = '';
   const currentVision = this.elements.visionProfile?.value;
@@ -171,6 +173,9 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
       card.classList.add('editing');
     }
     card.dataset.profile = name;
+    const config = this.configs[name] || {};
+    const isOAuth = String(config.provider || '').endsWith('-oauth');
+    if (isOAuth) card.classList.add('oauth-profile');
     const rolePills = ['main', 'vision', 'orchestrator', 'aux']
       .map((role) => {
         const isActive = this.isProfileActiveForRole(name, role, currentVision, currentOrchestrator);
@@ -178,16 +183,19 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
         return `<span class="role-pill ${isActive ? 'active' : ''} ${role}-pill" data-role="${role}" data-profile="${name}">${label}</span>`;
       })
       .join('');
-    const config = this.configs[name] || {};
     const deleteBtn =
-      name !== 'default'
+      name !== 'default' && !isOAuth
         ? `<button class="agent-card-delete" data-delete-profile="${this.escapeHtml(name)}" title="Delete profile">&times;</button>`
         : '';
+    const providerLabel = isOAuth
+      ? config.provider.replace(/-oauth$/, '')
+      : config.provider || 'Provider';
+    const oauthTag = isOAuth ? '<span class="oauth-badge">OAuth</span>' : '';
     card.innerHTML = `
         <div class="agent-card-header">
           <div>
-            <h4>${this.escapeHtml(name)}</h4>
-            <span>${this.escapeHtml(config.provider || 'Provider')} · ${this.escapeHtml(config.model || 'Model')}</span>
+            <h4>${this.escapeHtml(name)}${oauthTag}</h4>
+            <span>${this.escapeHtml(providerLabel)} · ${this.escapeHtml(config.model || 'Model')}</span>
           </div>
           ${deleteBtn}
         </div>
@@ -197,7 +205,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   });
 };
 
-(SidePanelUI.prototype as any).getRoleLabel = function getRoleLabel(role: string) {
+sidePanelProto.getRoleLabel = function getRoleLabel(role: string) {
   switch (role) {
     case 'main':
       return 'Main';
@@ -210,7 +218,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   }
 };
 
-(SidePanelUI.prototype as any).isProfileActiveForRole = function isProfileActiveForRole(
+sidePanelProto.isProfileActiveForRole = function isProfileActiveForRole(
   name: string,
   role: string,
   visionName?: string,
@@ -223,7 +231,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   return false;
 };
 
-(SidePanelUI.prototype as any).assignProfileRole = function assignProfileRole(profileName: string, role: string) {
+sidePanelProto.assignProfileRole = function assignProfileRole(profileName: string, role: string) {
   if (!profileName) return;
   if (role === 'main') {
     this.setActiveConfig(profileName);
@@ -238,14 +246,14 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   }
 };
 
-(SidePanelUI.prototype as any).toggleProfileRole = function toggleProfileRole(elementId: string, profileName: string) {
+sidePanelProto.toggleProfileRole = function toggleProfileRole(elementId: string, profileName: string) {
   const element = this.elements[elementId];
   if (!element) return;
   element.value = element.value === profileName ? '' : profileName;
   this.renderProfileGrid();
 };
 
-(SidePanelUI.prototype as any).toggleAuxProfile = function toggleAuxProfile(profileName: string) {
+sidePanelProto.toggleAuxProfile = function toggleAuxProfile(profileName: string) {
   const idx = this.auxAgentProfiles.indexOf(profileName);
   if (idx === -1) {
     this.auxAgentProfiles.push(profileName);
@@ -256,16 +264,49 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   this.renderProfileGrid();
 };
 
-(SidePanelUI.prototype as any).editProfile = function editProfile(name: string, silent = false) {
+sidePanelProto.editProfile = function editProfile(name: string, silent = false) {
   if (!name || !this.configs[name]) return;
   this.profileEditorTarget = name;
   const config = this.configs[name];
+  const isOAuth = String(config.provider || '').endsWith('-oauth');
 
   // Only update profile editor elements if they exist
-  if (this.elements.profileEditorTitle) this.elements.profileEditorTitle.textContent = `Editing: ${name}`;
-  if (this.elements.profileEditorName) this.elements.profileEditorName.value = name;
-  if (this.elements.profileEditorProvider) this.elements.profileEditorProvider.value = config.provider || '';
-  if (this.elements.profileEditorApiKey) this.elements.profileEditorApiKey.value = config.apiKey || '';
+  if (this.elements.profileEditorTitle) {
+    const oauthBadge = isOAuth ? ' <span class="oauth-badge">OAuth</span>' : '';
+    this.elements.profileEditorTitle.innerHTML = `Editing: ${this.escapeHtml(name)}${oauthBadge}`;
+  }
+  if (this.elements.profileEditorName) {
+    this.elements.profileEditorName.value = name;
+    this.elements.profileEditorName.readOnly = isOAuth;
+    this.elements.profileEditorName.classList.toggle('oauth-readonly', isOAuth);
+  }
+  if (this.elements.profileEditorProvider) {
+    // Ensure OAuth provider options exist in the select
+    if (isOAuth) {
+      const providerVal = config.provider || '';
+      const select = this.elements.profileEditorProvider as HTMLSelectElement;
+      if (!Array.from(select.options).some((o: HTMLOptionElement) => o.value === providerVal)) {
+        const opt = document.createElement('option');
+        opt.value = providerVal;
+        const baseKey = providerVal.replace(/-oauth$/, '');
+        opt.textContent = `${baseKey.charAt(0).toUpperCase() + baseKey.slice(1)} (OAuth)`;
+        select.appendChild(opt);
+      }
+      select.value = providerVal;
+      select.disabled = true;
+    } else {
+      this.elements.profileEditorProvider.value = config.provider || '';
+      (this.elements.profileEditorProvider as HTMLSelectElement).disabled = false;
+    }
+  }
+  // Hide API key for OAuth profiles
+  const apiKeyGroup = this.elements.profileEditorApiKey?.closest('.form-group') as HTMLElement | null;
+  if (apiKeyGroup) {
+    apiKeyGroup.style.display = isOAuth ? 'none' : '';
+  }
+  if (this.elements.profileEditorApiKey && !isOAuth) {
+    this.elements.profileEditorApiKey.value = config.apiKey || '';
+  }
   // Profile editor model is now a <select> — ensure option exists before setting value
   if (this.elements.profileEditorModel) {
     const modelVal = config.model || '';
@@ -320,7 +361,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   }
 };
 
-(SidePanelUI.prototype as any).collectProfileEditorData = function collectProfileEditorData() {
+sidePanelProto.collectProfileEditorData = function collectProfileEditorData() {
   return {
     provider: this.elements.profileEditorProvider.value,
     apiKey: this.elements.profileEditorApiKey.value,
@@ -351,7 +392,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   };
 };
 
-(SidePanelUI.prototype as any).saveProfileEdits = async function saveProfileEdits() {
+sidePanelProto.saveProfileEdits = async function saveProfileEdits() {
   const target = this.profileEditorTarget;
   if (!target || !this.configs[target]) {
     this.updateStatus('Select a profile to edit', 'warning');
@@ -415,7 +456,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   }
 };
 
-(SidePanelUI.prototype as any).populateFormFromConfig = function populateFormFromConfig(
+sidePanelProto.populateFormFromConfig = function populateFormFromConfig(
   config: Record<string, any> = {},
 ) {
   // Use optional chaining for all element accesses since settings UI may be simplified
@@ -453,7 +494,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   if (this.elements.saveHistory) this.elements.saveHistory.value = config.saveHistory !== false ? 'true' : 'false';
 };
 
-(SidePanelUI.prototype as any).setActiveConfig = function setActiveConfig(name: string, quiet = false) {
+sidePanelProto.setActiveConfig = function setActiveConfig(name: string, quiet = false) {
   if (!this.configs[name]) return;
   this.currentConfig = name;
   if (this.elements.activeConfig) this.elements.activeConfig.value = name;
@@ -468,14 +509,14 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   }
 };
 
-(SidePanelUI.prototype as any).refreshProfileJsonEditor = function refreshProfileJsonEditor() {
+sidePanelProto.refreshProfileJsonEditor = function refreshProfileJsonEditor() {
   if (!this.elements.profileJsonEditor) return;
   const target = this.profileEditorTarget || this.currentConfig;
   const config = this.configs[target] || {};
   this.elements.profileJsonEditor.value = JSON.stringify(config, null, 2);
 };
 
-(SidePanelUI.prototype as any).copyProfileJsonEditor = async function copyProfileJsonEditor() {
+sidePanelProto.copyProfileJsonEditor = async function copyProfileJsonEditor() {
   if (!this.elements.profileJsonEditor) return;
   const text = this.elements.profileJsonEditor.value || '';
   if (!text.trim()) {
@@ -490,7 +531,7 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   }
 };
 
-(SidePanelUI.prototype as any).applyProfileJsonEditor = async function applyProfileJsonEditor() {
+sidePanelProto.applyProfileJsonEditor = async function applyProfileJsonEditor() {
   if (!this.elements.profileJsonEditor) return;
   const target = this.profileEditorTarget || this.currentConfig;
   if (!target || !this.configs[target]) {

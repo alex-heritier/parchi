@@ -2,8 +2,7 @@ import type { AggregateRow, AuditRow } from './tab-cpu-audit-types.js';
 
 export function toAggregateTable(rows: AggregateRow[]): string {
   if (rows.length === 0) return '_No aggregate rows captured._';
-  const header =
-    '| PID | Kind | CPU avg/max | RSS avg/max MB | Samples | Proc # | Parchi XPI | High CPU | High RSS |';
+  const header = '| PID | Kind | CPU avg/max | RSS avg/max MB | Samples | Proc # | Parchi XPI | High CPU | High RSS |';
   const divider = '| ---: | :--- | ---: | ---: | ---: | ---: | :---: | ---: | ---: |';
   const body = rows
     .map((row) => {

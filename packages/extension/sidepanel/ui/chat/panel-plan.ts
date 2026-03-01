@@ -1,10 +1,12 @@
 import type { RunPlan } from '../../../../shared/src/plan.js';
 import { SidePanelUI } from '../core/panel-ui.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
+
 
 /**
  * Initialize plan drawer event listeners
  */
-(SidePanelUI.prototype as any).setupPlanDrawer = function setupPlanDrawer() {
+sidePanelProto.setupPlanDrawer = function setupPlanDrawer() {
   this.elements.planDrawerToggle?.addEventListener('click', (e: MouseEvent) => {
     // Don't toggle if clicking on action buttons
     if ((e.target as HTMLElement).closest('.plan-drawer-actions')) return;
@@ -20,14 +22,14 @@ import { SidePanelUI } from '../core/panel-ui.js';
 /**
  * Toggle the plan drawer collapsed state
  */
-(SidePanelUI.prototype as any).togglePlanDrawer = function togglePlanDrawer() {
+sidePanelProto.togglePlanDrawer = function togglePlanDrawer() {
   this.elements.planDrawer?.classList.toggle('collapsed');
 };
 
 /**
  * Show the plan drawer
  */
-(SidePanelUI.prototype as any).showPlanDrawer = function showPlanDrawer() {
+sidePanelProto.showPlanDrawer = function showPlanDrawer() {
   this.elements.planDrawer?.classList.remove('hidden');
   this.elements.planDrawer?.classList.remove('collapsed');
 };
@@ -35,14 +37,14 @@ import { SidePanelUI } from '../core/panel-ui.js';
 /**
  * Hide the plan drawer
  */
-(SidePanelUI.prototype as any).hidePlanDrawer = function hidePlanDrawer() {
+sidePanelProto.hidePlanDrawer = function hidePlanDrawer() {
   this.elements.planDrawer?.classList.add('hidden');
 };
 
 /**
  * Clear the current plan
  */
-(SidePanelUI.prototype as any).clearPlan = function clearPlan() {
+sidePanelProto.clearPlan = function clearPlan() {
   this.currentPlan = null;
   this.hidePlanDrawer();
   if (this.elements.planChecklist) {
@@ -53,7 +55,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
 /**
  * Render the plan to the drawer
  */
-(SidePanelUI.prototype as any).renderPlanDrawer = function renderPlanDrawer(plan: RunPlan) {
+sidePanelProto.renderPlanDrawer = function renderPlanDrawer(plan: RunPlan) {
   if (!plan || !plan.steps || plan.steps.length === 0) {
     this.hidePlanDrawer();
     return;
@@ -128,7 +130,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
 /**
  * Toggle a plan step's completion status
  */
-(SidePanelUI.prototype as any).togglePlanStep = function togglePlanStep(index: number) {
+sidePanelProto.togglePlanStep = function togglePlanStep(index: number) {
   if (!this.currentPlan || !this.currentPlan.steps[index]) return;
 
   const step = this.currentPlan.steps[index];

@@ -12,6 +12,7 @@ import './chat/panel-recorder.js';
 import './settings/panel-profiles.js';
 import './core/panel-scroll.js';
 import './settings/panel-settings.js';
+import './settings/panel-oauth-providers.js';
 import './status/panel-status.js';
 import './chat/panel-streaming.js';
 import './tabs/panel-tabs.js';

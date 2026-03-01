@@ -13,7 +13,7 @@ export type ContentPart =
       id?: string;
       name?: string;
       input?: unknown;
-      [key: string]: any;
+      [key: string]: unknown;
     };
 export type MessageContent = string | ContentPart[] | Record<string, unknown>;
 export type ToolCall = {
@@ -157,7 +157,7 @@ export function toProviderMessages(history: Message[] = []): ProviderMessage[] {
   });
   return normalized.map((msg) => {
     if (msg.role === 'tool') {
-      const toolCallId = msg.toolCallId || (msg as any).tool_call_id || '';
+      const toolCallId = msg.toolCallId || msg.tool_call_id || '';
       return {
         role: 'tool',
         tool_call_id: toolCallId,

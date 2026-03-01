@@ -1,22 +1,24 @@
 import { escapeAttribute, escapeHtml, escapeHtmlBasic } from '../../../../shared/src/utils/html.js';
 import { safeJsonStringify as safeJsonStringifyFn } from '../../../../shared/src/utils/json.js';
 import { SidePanelUI } from './panel-ui.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-(SidePanelUI.prototype as any).safeJsonStringify = (value: unknown) => safeJsonStringifyFn(value);
 
-(SidePanelUI.prototype as any).truncateText = function truncateText(text: string, limit = 1200) {
+sidePanelProto.safeJsonStringify = (value: unknown) => safeJsonStringifyFn(value);
+
+sidePanelProto.truncateText = function truncateText(text: string, limit = 1200) {
   if (!text) return '';
   if (text.length <= limit) return text;
   return `${text.slice(0, limit)}...`;
 };
 
-(SidePanelUI.prototype as any).escapeHtmlBasic = (text: string) => escapeHtmlBasic(text);
+sidePanelProto.escapeHtmlBasic = (text: string) => escapeHtmlBasic(text);
 
-(SidePanelUI.prototype as any).escapeHtml = (text: string) => escapeHtml(text);
+sidePanelProto.escapeHtml = (text: string) => escapeHtml(text);
 
-(SidePanelUI.prototype as any).escapeAttribute = (value: string) => escapeAttribute(value);
+sidePanelProto.escapeAttribute = (value: string) => escapeAttribute(value);
 
-(SidePanelUI.prototype as any).createStepContainer = function createStepContainer(stepIndex: number, title: string) {
+sidePanelProto.createStepContainer = function createStepContainer(stepIndex: number, title: string) {
   const el = document.createElement('div');
   el.className = 'step-block current';
   el.dataset.stepIndex = String(stepIndex);
@@ -47,7 +49,7 @@ import { SidePanelUI } from './panel-ui.js';
   };
 };
 
-(SidePanelUI.prototype as any).ensureStepContainer = function ensureStepContainer(
+sidePanelProto.ensureStepContainer = function ensureStepContainer(
   stepIndex: number,
   stepTitle?: string,
 ) {
@@ -73,7 +75,7 @@ import { SidePanelUI } from './panel-ui.js';
   return created;
 };
 
-(SidePanelUI.prototype as any).setActiveStep = function setActiveStep(stepIndex: number) {
+sidePanelProto.setActiveStep = function setActiveStep(stepIndex: number) {
   this.stepTimeline.activeStepIndex = stepIndex;
   const target = this.stepTimeline.steps.get(stepIndex) || null;
   this.stepTimeline.activeStepBody = target?.bodyEl || null;

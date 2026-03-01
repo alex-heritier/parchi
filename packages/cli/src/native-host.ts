@@ -13,7 +13,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { readAuth, isDaemonRunning } from './auth.js';
+import { isDaemonRunning, readAuth } from './auth.js';
 
 function writeNativeMessage(obj: unknown): void {
   const payload = Buffer.from(JSON.stringify(obj), 'utf8');

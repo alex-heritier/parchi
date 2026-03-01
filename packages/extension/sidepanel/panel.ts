@@ -8,11 +8,10 @@ declare const __PERF_DEBUG__: boolean;
 const init = async () => {
   await loadPanelLayout();
   const ui = new SidePanelUI();
-  // Expose for debugging
-  (window as any).sidePanelUI = ui;
+  const debugWindow = window as Window & { sidePanelUI?: SidePanelUI; __PERF_DEBUG__?: boolean };
+  debugWindow.sidePanelUI = ui;
 
-  // Performance monitor — only loaded when PERF_DEBUG=true build or runtime toggle
-  if (__PERF_DEBUG__ || (window as any).__PERF_DEBUG__) {
+  if (__PERF_DEBUG__ || debugWindow.__PERF_DEBUG__) {
     const { perfMonitor } = await import('../utils/perf-monitor.js');
     perfMonitor.start();
   }

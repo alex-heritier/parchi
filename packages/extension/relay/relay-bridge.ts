@@ -92,10 +92,10 @@ export class RelayBridge {
     const attempt = Math.min(10, this.reconnectAttempt + 1);
     this.reconnectAttempt = attempt;
     const delay = Math.min(15_000, 250 * 2 ** (attempt - 1));
-    this.reconnectTimerId = setTimeout(() => {
+    this.reconnectTimerId = window.setTimeout(() => {
       this.reconnectTimerId = null;
       this.connect();
-    }, delay) as any;
+    }, delay);
   }
 
   private connect() {
@@ -143,7 +143,7 @@ export class RelayBridge {
     ws.onmessage = (event) => {
       let parsed: unknown;
       try {
-        parsed = JSON.parse(String((event as any).data ?? ''));
+        parsed = JSON.parse(String(event.data ?? ''));
       } catch {
         return;
       }

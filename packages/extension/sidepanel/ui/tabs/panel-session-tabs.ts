@@ -1,10 +1,12 @@
 import { SidePanelUI } from '../core/panel-ui.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
+
 
 // ============================================================================
 // Session Tabs Orb — Circle button that expands to show active browser tabs
 // ============================================================================
 
-(SidePanelUI.prototype as any).handleSessionTabsUpdate = function handleSessionTabsUpdate(message: any) {
+sidePanelProto.handleSessionTabsUpdate = function handleSessionTabsUpdate(message: any) {
   const tabs = Array.isArray(message.tabs) ? message.tabs : [];
   const activeTabId = typeof message.activeTabId === 'number' ? message.activeTabId : null;
   const maxTabs = typeof message.maxTabs === 'number' ? message.maxTabs : 5;
@@ -21,14 +23,14 @@ import { SidePanelUI } from '../core/panel-ui.js';
   this.renderSessionTabsHud();
 };
 
-(SidePanelUI.prototype as any).setInteractingTab = function setInteractingTab(tabId: number | null) {
+sidePanelProto.setInteractingTab = function setInteractingTab(tabId: number | null) {
   const prev = this.sessionTabsState.interactingTabId;
   if (prev === tabId) return;
   this.sessionTabsState.interactingTabId = tabId;
   this.updateSessionTabInteractionState();
 };
 
-(SidePanelUI.prototype as any).initSessionTabsOrb = function initSessionTabsOrb() {
+sidePanelProto.initSessionTabsOrb = function initSessionTabsOrb() {
   const hud = this.elements.sessionTabsHud;
   const toggle = this.elements.sessionTabsToggle;
   if (!hud || !toggle) return;
@@ -41,7 +43,11 @@ import { SidePanelUI } from '../core/panel-ui.js';
 
   // Also toggle when clicking the orb container (collapsed state only)
   hud.addEventListener('click', (e: Event) => {
-    if (!hud.classList.contains('expanded') && e.target !== toggle && !(toggle as HTMLElement).contains(e.target as Node)) {
+    if (
+      !hud.classList.contains('expanded') &&
+      e.target !== toggle &&
+      !(toggle as HTMLElement).contains(e.target as Node)
+    ) {
       hud.classList.add('expanded');
     }
   });
@@ -54,7 +60,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
   });
 };
 
-(SidePanelUI.prototype as any).renderSessionTabsHud = function renderSessionTabsHud() {
+sidePanelProto.renderSessionTabsHud = function renderSessionTabsHud() {
   const hud = this.elements.sessionTabsHud;
   const list = this.elements.sessionTabsList;
   if (!hud || !list) return;
@@ -149,7 +155,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
   });
 };
 
-(SidePanelUI.prototype as any).updateSessionTabInteractionState = function updateSessionTabInteractionState() {
+sidePanelProto.updateSessionTabInteractionState = function updateSessionTabInteractionState() {
   const list = this.elements.sessionTabsList;
   if (!list) return;
 
@@ -166,7 +172,7 @@ import { SidePanelUI } from '../core/panel-ui.js';
   });
 };
 
-(SidePanelUI.prototype as any).updateOrbFavicon = function updateOrbFavicon(
+sidePanelProto.updateOrbFavicon = function updateOrbFavicon(
   tabs: Array<{ id: number; url?: string; favIconUrl?: string }>,
   activeTabId: number | null,
 ) {

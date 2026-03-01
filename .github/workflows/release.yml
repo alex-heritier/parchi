@@ -1,4 +1,12 @@
 name: Release
+# Required GitHub Secrets (configure in repo Settings > Secrets):
+#   - AMO_JWT_ISSUER: Firefox Add-ons API key
+#   - AMO_JWT_SECRET: Firefox Add-ons API secret
+#   - AMO_CHANNEL: "listed" or "unlisted"
+#   - GITHUB_TOKEN: Personal access token with write access
+#   - CWS_EXTENSION_ID: Chrome Extension ID
+#   - CWS_SERVICE_ACCOUNT_KEY: Chrome service account JSON key (paste JSON contents)
+#   - CWS_PUBLISHER_ID: Chrome Web Store Publisher ID (numeric)
 
 on:
   push:
@@ -27,6 +35,18 @@ jobs:
       - run: npm run build
       - run: npm run build:firefox
       
+      - name: Publish to Firefox Add-ons
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+          AMO_CHANNEL: ${{ secrets.AMO_CHANNEL }}
+        run: |
+          if [ -z "$AMO_JWT_ISSUER" ] || [ -z "$AMO_JWT_SECRET" ]; then
+            echo "AMO credentials are required for Firefox publish"
+            exit 1
+          fi
+          npm run publish:firefox
+      
       - name: Package Chrome Extension
         run: |
           cd dist && zip -r ../parchi-chrome-${{ steps.get_version.outputs.VERSION }}.zip . && cd ..
@@ -43,3 +63,26 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Publish to Chrome Web Store
+        env:
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CWS_SERVICE_ACCOUNT_KEY: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+        run: |
+          if [ -z "$CWS_EXTENSION_ID" ]; then
+            echo "CWS_EXTENSION_ID is required"
+            exit 1
+          fi
+          if [ -n "$CWS_SERVICE_ACCOUNT_KEY" ] && [ -z "$CWS_PUBLISHER_ID" ]; then
+            echo "CWS_PUBLISHER_ID is required when using CWS_SERVICE_ACCOUNT_KEY"
+            exit 1
+          fi
+          if [ -z "$CWS_SERVICE_ACCOUNT_KEY" ] && { [ -z "$CWS_CLIENT_ID" ] || [ -z "$CWS_CLIENT_SECRET" ] || [ -z "$CWS_REFRESH_TOKEN" ]; }; then
+            echo "Set service-account secrets or OAuth secrets for Chrome publish"
+            exit 1
+          fi
+          npm run publish:chrome

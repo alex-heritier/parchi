@@ -166,6 +166,28 @@
             </div>
         </div>
     </details>
+
+    <details class="settings-section" open>
+        <summary>Subscription Providers</summary>
+        <div class="settings-body">
+            <div class="account-inline-note">Connect your existing AI subscriptions. No API keys needed.</div>
+            <div id="oauthProviderGrid" class="oauth-provider-grid"></div>
+            <div id="oauthDeviceCodePrompt" class="oauth-device-prompt hidden">
+                <div class="oauth-device-prompt-inner">
+                    <div class="oauth-device-prompt-title">Enter code on <span id="oauthDeviceCodeProviderName"></span></div>
+                    <div id="oauthDeviceCodeValue" class="oauth-device-code-value"></div>
+                    <div class="oauth-device-prompt-hint">
+                        Go to <a id="oauthDeviceCodeLink" href="#" target="_blank" rel="noopener"></a> and enter the code above.
+                    </div>
+                    <div class="oauth-device-prompt-actions">
+                        <button id="oauthDeviceCodeCopyBtn" class="btn btn-secondary">Copy Code</button>
+                        <button id="oauthDeviceCodeOpenBtn" class="btn btn-primary">Open Link</button>
+                        <button id="oauthDeviceCodeCancelBtn" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </details>
 </div>
 
 <!-- ===== MODEL TAB (behavior only, no appearance) ===== -->

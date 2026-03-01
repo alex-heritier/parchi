@@ -1,0 +1,34 @@
+# Global fallback
+* @0xSero
+
+# Backend services (Convex, auth, billing, API proxy)
+/packages/backend/convex/ @0xSero
+
+# Extension core (background, content scripts, AI logic)
+/packages/extension/background/ @0xSero
+/packages/extension/ai/ @0xSero
+/packages/extension/content-*.ts @0xSero
+
+# Extension UI (sidepanel components and styling)
+/packages/extension/sidepanel/ @0xSero
+
+# Extension tools (browser automation)
+/packages/extension/tools/ @0xSero
+
+# CLI and relay service
+/packages/cli/ @0xSero
+/packages/relay-service/ @0xSero
+
+# Shared types and schemas
+/packages/shared/ @0xSero
+
+# Website/marketing
+/packages/website/ @0xSero
+
+# Build scripts and CI
+/scripts/ @0xSero
+/.github/ @0xSero
+
+# Documentation
+docs/ @0xSero
+*.md @0xSero

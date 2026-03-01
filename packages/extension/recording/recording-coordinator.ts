@@ -226,7 +226,7 @@ export class RecordingCoordinator {
         target: { tabId },
         func: () => {
           try {
-            (window as any).__parchiRecordingCleanup?.();
+            window.__parchiRecordingCleanup?.();
           } catch {}
         },
       });
@@ -286,21 +286,27 @@ export class RecordingCoordinator {
       }
 
       // Merge rapid clicks on same selector
-      if (curr.type === 'click' && prev.type === 'click' && curr.selector === prev.selector && timeDiff < CLICK_DEDUP_MS) {
+      if (
+        curr.type === 'click' &&
+        prev.type === 'click' &&
+        curr.selector === prev.selector &&
+        timeDiff < CLICK_DEDUP_MS
+      ) {
         continue;
       }
 
       // Merge consecutive inputs on same field
-      if (curr.type === 'input' && prev.type === 'input' && curr.selector === prev.selector && timeDiff < INPUT_MERGE_MS) {
+      if (
+        curr.type === 'input' &&
+        prev.type === 'input' &&
+        curr.selector === prev.selector &&
+        timeDiff < INPUT_MERGE_MS
+      ) {
         continue;
       }
 
       // Merge DOM mutations on same target
-      if (
-        curr.type === 'dom_mutation' &&
-        prev.type === 'dom_mutation' &&
-        timeDiff < MUTATION_MERGE_MS
-      ) {
+      if (curr.type === 'dom_mutation' && prev.type === 'dom_mutation' && timeDiff < MUTATION_MERGE_MS) {
         prev.addedCount = (prev.addedCount || 0) + (curr.addedCount || 0);
         prev.removedCount = (prev.removedCount || 0) + (curr.removedCount || 0);
         prev.attributeChanges = (prev.attributeChanges || 0) + (curr.attributeChanges || 0);

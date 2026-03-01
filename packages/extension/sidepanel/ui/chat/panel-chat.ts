@@ -3,8 +3,10 @@ import type { Message } from '../../../ai/message-schema.js';
 import { dedupeThinking, extractThinking } from '../../../ai/message-utils.js';
 import { getActiveTab } from '../../../utils/active-tab.js';
 import { SidePanelUI } from '../core/panel-ui.js';
-import { appendTrace } from './trace-store.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
+
 import type { UsagePayload } from '../types/panel-types.js';
+import { appendTrace } from './trace-store.js';
 
 const MAX_DISPLAY_HISTORY = 400;
 
@@ -81,7 +83,7 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
   }
 };
 
-(SidePanelUI.prototype as any).sendMessage = async function sendMessage() {
+sidePanelProto.sendMessage = async function sendMessage() {
   const userMessage = this.elements.userInput.value.trim();
   if (!userMessage) return;
 
@@ -144,7 +146,9 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
           : [],
       }
     : null;
-  const mediaAttachmentsForMessage = Array.isArray(this.pendingComposerAttachments) ? [...this.pendingComposerAttachments] : [];
+  const mediaAttachmentsForMessage = Array.isArray(this.pendingComposerAttachments)
+    ? [...this.pendingComposerAttachments]
+    : [];
 
   this.displayUserMessage(userMessage, recordedContextForMessage, mediaAttachmentsForMessage);
 
@@ -205,7 +209,7 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
   }
 };
 
-(SidePanelUI.prototype as any).displayUserMessage = function displayUserMessage(
+sidePanelProto.displayUserMessage = function displayUserMessage(
   content: string,
   recordedContext: any = null,
   mediaAttachments: any[] = [],
@@ -230,15 +234,16 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
         const ts = Number(event?.timestamp || 0);
         const deltaSec = baseTs > 0 && ts >= baseTs ? Math.round((ts - baseTs) / 1000) : null;
         const type = String(event?.type || 'event');
-        const line = type === 'click'
-          ? `Click ${event?.selector || event?.tagName || 'element'}`
-          : type === 'input'
-            ? `Input ${event?.selector || event?.placeholder || ''}`.trim()
-            : type === 'navigation'
-              ? `Navigate to ${event?.toUrl || event?.url || ''}`.trim()
-              : type === 'scroll'
-                ? `Scroll ${event?.direction || ''}`.trim()
-                : `${type}`;
+        const line =
+          type === 'click'
+            ? `Click ${event?.selector || event?.tagName || 'element'}`
+            : type === 'input'
+              ? `Input ${event?.selector || event?.placeholder || ''}`.trim()
+              : type === 'navigation'
+                ? `Navigate to ${event?.toUrl || event?.url || ''}`.trim()
+                : type === 'scroll'
+                  ? `Scroll ${event?.direction || ''}`.trim()
+                  : `${type}`;
         const suffix = deltaSec === null ? '' : ` (+${deltaSec}s)`;
         return `<li>${this.escapeHtml(`${index + 1}. ${line}${suffix}`)}</li>`;
       })
@@ -288,7 +293,7 @@ const sendRuntimeMessageWithRetry = async (payload: Record<string, unknown>, ret
   this.updateChatEmptyState();
 };
 
-(SidePanelUI.prototype as any).displaySummaryMessage = function displaySummaryMessage(
+sidePanelProto.displaySummaryMessage = function displaySummaryMessage(
   messageOrEntry: Message | string,
 ) {
   const content = typeof messageOrEntry === 'string' ? messageOrEntry : String(messageOrEntry.content || '');
@@ -317,7 +322,7 @@ const EMPTY_TIPS = [
 let _tipTimer: ReturnType<typeof setInterval> | null = null;
 let _tipIndex = Math.floor(Math.random() * EMPTY_TIPS.length);
 
-(SidePanelUI.prototype as any).updateChatEmptyState = function updateChatEmptyState() {
+sidePanelProto.updateChatEmptyState = function updateChatEmptyState() {
   const emptyState = this.elements.chatEmptyState;
   if (!emptyState) return;
   const hasMessages =
@@ -329,7 +334,10 @@ let _tipIndex = Math.floor(Math.random() * EMPTY_TIPS.length);
   if (!tipEl) return;
 
   if (hasMessages) {
-    if (_tipTimer) { clearInterval(_tipTimer); _tipTimer = null; }
+    if (_tipTimer) {
+      clearInterval(_tipTimer);
+      _tipTimer = null;
+    }
     return;
   }
 
@@ -351,7 +359,7 @@ let _tipIndex = Math.floor(Math.random() * EMPTY_TIPS.length);
   }
 };
 
-(SidePanelUI.prototype as any).displayAssistantMessage = function displayAssistantMessage(
+sidePanelProto.displayAssistantMessage = function displayAssistantMessage(
   content: string,
   thinking: string | null = null,
   usage: UsagePayload | null = null,
@@ -396,9 +404,8 @@ let _tipIndex = Math.floor(Math.random() * EMPTY_TIPS.length);
     this.updateUsageStats(normalizedUsage);
   }
   const messageMeta = this.buildMessageMeta(normalizedUsage, modelLabel);
-  const selectedReportImages = typeof this.getSelectedReportImagesForExport === 'function'
-    ? this.getSelectedReportImagesForExport()
-    : [];
+  const selectedReportImages =
+    typeof this.getSelectedReportImagesForExport === 'function' ? this.getSelectedReportImagesForExport() : [];
   const buildReportImagesHtml = () => {
     if (!Array.isArray(selectedReportImages) || selectedReportImages.length === 0) return '';
     const cards = selectedReportImages
@@ -626,7 +633,7 @@ let _tipIndex = Math.floor(Math.random() * EMPTY_TIPS.length);
 const MAX_CHAT_TURNS = 100;
 const PRUNE_PLACEHOLDER_CLASS = 'chat-pruned-placeholder';
 
-(SidePanelUI.prototype as any).pruneOldChatTurns = function pruneOldChatTurns() {
+sidePanelProto.pruneOldChatTurns = function pruneOldChatTurns() {
   const container = this.elements.chatMessages;
   if (!container) return;
 

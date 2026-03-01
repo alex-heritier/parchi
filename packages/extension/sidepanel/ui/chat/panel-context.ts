@@ -1,6 +1,8 @@
 import { SidePanelUI } from '../core/panel-ui.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-(SidePanelUI.prototype as any).updateContextUsage = function updateContextUsage(actualTokens: number | null = null) {
+
+sidePanelProto.updateContextUsage = function updateContextUsage(actualTokens: number | null = null) {
   let approxTokens;
 
   if (actualTokens !== null && actualTokens > 0) {
@@ -57,13 +59,13 @@ import { SidePanelUI } from '../core/panel-ui.js';
   }
 };
 
-(SidePanelUI.prototype as any).getConfiguredContextLimit = function getConfiguredContextLimit() {
+sidePanelProto.getConfiguredContextLimit = function getConfiguredContextLimit() {
   const active = this.configs[this.currentConfig] || {};
   const configured = active.contextLimit || Number.parseInt(this.elements.contextLimit?.value) || 200000;
   return configured;
 };
 
-(SidePanelUI.prototype as any).estimateBaseContextTokens = function estimateBaseContextTokens() {
+sidePanelProto.estimateBaseContextTokens = function estimateBaseContextTokens() {
   const active = this.configs[this.currentConfig] || {};
   const prompt = active.systemPrompt || this.getDefaultSystemPrompt();
   const promptTokens = Math.ceil((prompt?.length || 0) / 4);

@@ -1,7 +1,9 @@
 import { SidePanelUI } from '../core/panel-ui.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
+
 import type { UsagePayload, UsageStats } from '../types/panel-types.js';
 
-(SidePanelUI.prototype as any).formatCurrency = function formatCurrency(amount: number, currency = 'usd') {
+sidePanelProto.formatCurrency = function formatCurrency(amount: number, currency = 'usd') {
   if (amount === null || amount === undefined) return '';
   const value = Number(amount) / 100;
   try {
@@ -14,14 +16,14 @@ import type { UsagePayload, UsageStats } from '../types/panel-types.js';
   }
 };
 
-(SidePanelUI.prototype as any).formatShortDate = function formatShortDate(value: string) {
+sidePanelProto.formatShortDate = function formatShortDate(value: string) {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleDateString();
 };
 
-(SidePanelUI.prototype as any).formatTokenCount = function formatTokenCount(value: number) {
+sidePanelProto.formatTokenCount = function formatTokenCount(value: number) {
   if (!value || value <= 0) return '0';
   if (value >= 1000) {
     const precision = value >= 10000 ? 0 : 1;
@@ -30,7 +32,7 @@ import type { UsagePayload, UsageStats } from '../types/panel-types.js';
   return `${Math.round(value)}`;
 };
 
-(SidePanelUI.prototype as any).normalizeUsage = function normalizeUsage(usage: UsagePayload | null) {
+sidePanelProto.normalizeUsage = function normalizeUsage(usage: UsagePayload | null) {
   if (!usage) return null;
   const inputTokens = Math.max(0, usage.inputTokens || 0);
   const outputTokens = Math.max(0, usage.outputTokens || 0);
@@ -39,7 +41,7 @@ import type { UsagePayload, UsageStats } from '../types/panel-types.js';
   return { inputTokens, outputTokens, totalTokens } as UsageStats;
 };
 
-(SidePanelUI.prototype as any).buildUsageLabel = function buildUsageLabel(usage: UsageStats | null) {
+sidePanelProto.buildUsageLabel = function buildUsageLabel(usage: UsageStats | null) {
   if (!usage) return '';
   const parts: string[] = [];
   if (usage.inputTokens) {
@@ -54,7 +56,7 @@ import type { UsagePayload, UsageStats } from '../types/panel-types.js';
   return parts.length ? `Tokens ${parts.join(' / ')}` : '';
 };
 
-(SidePanelUI.prototype as any).buildMessageMeta = function buildMessageMeta(
+sidePanelProto.buildMessageMeta = function buildMessageMeta(
   usage: UsageStats | null,
   modelLabel?: string | null,
 ) {
@@ -70,7 +72,7 @@ import type { UsagePayload, UsageStats } from '../types/panel-types.js';
   return segments.join(' · ');
 };
 
-(SidePanelUI.prototype as any).estimateUsageFromContent = function estimateUsageFromContent(content: string) {
+sidePanelProto.estimateUsageFromContent = function estimateUsageFromContent(content: string) {
   if (!content) return null;
   const tokens = Math.ceil(content.length / 4);
   if (!tokens) return null;
@@ -81,12 +83,12 @@ import type { UsagePayload, UsageStats } from '../types/panel-types.js';
   } as UsageStats;
 };
 
-(SidePanelUI.prototype as any).getActiveModelLabel = function getActiveModelLabel() {
+sidePanelProto.getActiveModelLabel = function getActiveModelLabel() {
   const config = this.configs[this.currentConfig] || {};
   return config.model || '';
 };
 
-(SidePanelUI.prototype as any).updateUsageStats = function updateUsageStats(usage: UsageStats | null) {
+sidePanelProto.updateUsageStats = function updateUsageStats(usage: UsageStats | null) {
   if (!usage) return;
   this.lastUsage = usage;
   this.sessionTokenTotals = {

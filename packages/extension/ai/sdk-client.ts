@@ -16,6 +16,9 @@ export type SDKModelSettings = {
   proxyBaseUrl?: string;
   proxyAuthToken?: string;
   proxyProvider?: 'openai' | 'anthropic' | 'kimi' | 'openrouter';
+  oauthAccessToken?: string;
+  oauthApiBaseUrl?: string;
+  oauthApiHeaders?: Record<string, string>;
 };
 
 /**
@@ -149,6 +152,42 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
       },
     });
     return openRouterProvider(normalizeOpenRouterModelId(modelId));
+  }
+
+  // OAuth subscription providers (claude-oauth, codex-oauth, copilot-oauth, qwen-oauth)
+  if (provider.endsWith('-oauth') && settings.oauthAccessToken) {
+    const baseProvider = provider.replace(/-oauth$/, '');
+
+    if (baseProvider === 'claude') {
+      const anthropicOAuth = createAnthropic({
+        apiKey: settings.oauthAccessToken,
+        baseURL: settings.oauthApiBaseUrl || 'https://api.anthropic.com',
+        headers: { ...extraHeaders, ...settings.oauthApiHeaders },
+      });
+      return anthropicOAuth(modelId);
+    }
+
+    if (baseProvider === 'copilot') {
+      const copilotProvider = createOpenAICompatible({
+        name: 'github-copilot',
+        apiKey: settings.oauthAccessToken,
+        baseURL: settings.oauthApiBaseUrl || 'https://api.githubcopilot.com',
+        headers: {
+          ...extraHeaders,
+          ...(settings.oauthApiHeaders || {}),
+        },
+      });
+      return copilotProvider(modelId);
+    }
+
+    // codex-oauth and qwen-oauth use OpenAI-compatible endpoints
+    const oauthProvider = createOpenAICompatible({
+      name: `${baseProvider}-oauth`,
+      apiKey: settings.oauthAccessToken,
+      baseURL: settings.oauthApiBaseUrl || 'https://api.openai.com/v1',
+      headers: { ...extraHeaders, ...settings.oauthApiHeaders },
+    });
+    return oauthProvider(modelId);
   }
 
   if (provider === 'custom') {

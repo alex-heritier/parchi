@@ -9,8 +9,9 @@
   --muted: #a1a1aa;
   --muted-dim: #71717a;
   --border: #27272a;
-  --card: #18181b;
-  --card-hover: #1f1f23;
+  --card: #131315;
+  --card-hover: #1a1a1d;
+  --card-inset: #131316;
 
   /* Accent — indigo with presence */
   --accent: #818cf8;

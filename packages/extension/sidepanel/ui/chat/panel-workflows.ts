@@ -1,4 +1,6 @@
 import { SidePanelUI } from '../core/panel-ui.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
+
 
 type Workflow = { id: string; name: string; prompt: string; createdAt: number };
 
@@ -11,7 +13,7 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
 // CRUD
 // ──────────────────────────────────────────────────────────────────────
 
-(SidePanelUI.prototype as any).loadWorkflows = async function loadWorkflows(): Promise<void> {
+sidePanelProto.loadWorkflows = async function loadWorkflows(): Promise<void> {
   try {
     const data = await chrome.storage.local.get('workflows');
     this.workflows = Array.isArray(data.workflows) ? data.workflows : [];
@@ -20,7 +22,7 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
   }
 };
 
-(SidePanelUI.prototype as any).saveWorkflow = async function saveWorkflow(
+sidePanelProto.saveWorkflow = async function saveWorkflow(
   name: string,
   prompt: string,
   positiveExamples?: Array<{ tool: string; args: any; result: string }>,
@@ -38,7 +40,13 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
   // Also save as a composable skill
   const skills = (await chrome.storage.local.get('skills')).skills || [];
   const currentUrl = window.location.href || '';
-  const hostname = (() => { try { return new URL(currentUrl).hostname; } catch { return ''; } })();
+  const hostname = (() => {
+    try {
+      return new URL(currentUrl).hostname;
+    } catch {
+      return '';
+    }
+  })();
   const posExamples = Array.isArray(positiveExamples) ? positiveExamples : [];
   const negExamples = Array.isArray(negativeExamples) ? negativeExamples : [];
   skills.push({
@@ -58,7 +66,7 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
   await chrome.storage.local.set({ skills });
 };
 
-(SidePanelUI.prototype as any).deleteWorkflow = async function deleteWorkflow(id: string): Promise<void> {
+sidePanelProto.deleteWorkflow = async function deleteWorkflow(id: string): Promise<void> {
   this.workflows = this.workflows.filter((w: Workflow) => w.id !== id);
   await chrome.storage.local.set({ workflows: this.workflows });
 };
@@ -67,7 +75,7 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
 // Menu rendering
 // ──────────────────────────────────────────────────────────────────────
 
-(SidePanelUI.prototype as any).showWorkflowMenu = function showWorkflowMenu(filter: string): void {
+sidePanelProto.showWorkflowMenu = function showWorkflowMenu(filter: string): void {
   let menu = document.getElementById('workflowMenu');
   if (!menu) {
     menu = document.createElement('div');
@@ -95,7 +103,8 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
 
   let listHtml = '';
   if (filtered.length === 0 && this.workflows.length === 0) {
-    listHtml = '<div class="workflow-empty">No workflows yet. Type a prompt, then use <strong>/</strong> to save it.</div>';
+    listHtml =
+      '<div class="workflow-empty">No workflows yet. Type a prompt, then use <strong>/</strong> to save it.</div>';
   } else if (filtered.length === 0) {
     listHtml = '<div class="workflow-empty">No matching workflows</div>';
   } else {
@@ -153,13 +162,15 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
   menu.querySelector('#workflowSaveBtn')?.addEventListener('click', () => this.showWorkflowSaveInput());
 
   // Outside-click dismissal
-  this._workflowOutsideHandler = this._workflowOutsideHandler || ((e: MouseEvent) => {
-    const menuEl = document.getElementById('workflowMenu');
-    const inputEl = this.elements.userInput;
-    if (menuEl && !menuEl.contains(e.target as Node) && e.target !== inputEl) {
-      this.hideWorkflowMenu();
-    }
-  });
+  this._workflowOutsideHandler =
+    this._workflowOutsideHandler ||
+    ((e: MouseEvent) => {
+      const menuEl = document.getElementById('workflowMenu');
+      const inputEl = this.elements.userInput;
+      if (menuEl && !menuEl.contains(e.target as Node) && e.target !== inputEl) {
+        this.hideWorkflowMenu();
+      }
+    });
   document.removeEventListener('mousedown', this._workflowOutsideHandler);
   document.addEventListener('mousedown', this._workflowOutsideHandler);
 };
@@ -168,7 +179,7 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
 // Session context builder — collect the richest possible transcript
 // ──────────────────────────────────────────────────────────────────────
 
-(SidePanelUI.prototype as any).buildSessionContext = function buildSessionContext(): string {
+sidePanelProto.buildSessionContext = function buildSessionContext(): string {
   const sections: string[] = [];
 
   // --- 1. Display history (user + assistant messages) -----------------
@@ -195,9 +206,7 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
       if (turn.userMessage) sections.push(`[User]: ${turn.userMessage}`);
 
       if (turn.plan?.steps?.length) {
-        const planLines = turn.plan.steps.map(
-          (s: any) => `  ${s.status === 'done' ? '[x]' : '[ ]'} ${s.title}`,
-        );
+        const planLines = turn.plan.steps.map((s: any) => `  ${s.status === 'done' ? '[x]' : '[ ]'} ${s.title}`);
         sections.push(`[Plan]:\n${planLines.join('\n')}`);
       }
 
@@ -209,9 +218,7 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
           } else if (ev.type === 'tool_execution_result') {
             const resultStr = ev.result != null ? JSON.stringify(ev.result) : '';
             // Truncate very large results to save context budget
-            const truncated = resultStr.length > 2000
-              ? resultStr.slice(0, 2000) + '...(truncated)'
-              : resultStr;
+            const truncated = resultStr.length > 2000 ? resultStr.slice(0, 2000) + '...(truncated)' : resultStr;
             sections.push(`[Tool result] ${ev.tool}: ${truncated}`);
           }
         }
@@ -230,9 +237,7 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
 
   // --- 3. Current plan ------------------------------------------------
   if (this.currentPlan?.steps?.length) {
-    const planLines = this.currentPlan.steps.map(
-      (s: any) => `  ${s.status === 'done' ? '[x]' : '[ ]'} ${s.title}`,
-    );
+    const planLines = this.currentPlan.steps.map((s: any) => `  ${s.status === 'done' ? '[x]' : '[ ]'} ${s.title}`);
     sections.push(`\n=== CURRENT PLAN ===\n${planLines.join('\n')}`);
   }
 
@@ -260,7 +265,7 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
   // trim, cut from the middle.
   if (full.length > MAX_CONTEXT_CHARS) {
     const headBudget = Math.floor(MAX_CONTEXT_CHARS * 0.35);
-    const tailBudget = Math.floor(MAX_CONTEXT_CHARS * 0.60);
+    const tailBudget = Math.floor(MAX_CONTEXT_CHARS * 0.6);
     const head = full.slice(0, headBudget);
     const tail = full.slice(full.length - tailBudget);
     full = head + '\n\n[...middle of session omitted for brevity...]\n\n' + tail;
@@ -273,7 +278,7 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
 // AI-powered workflow generation
 // ──────────────────────────────────────────────────────────────────────
 
-(SidePanelUI.prototype as any).generateWorkflowFromSession = async function generateWorkflowFromSession(): Promise<{
+sidePanelProto.generateWorkflowFromSession = async function generateWorkflowFromSession(): Promise<{
   name: string;
   prompt: string;
   positiveExamples: Array<{ tool: string; args: any; result: string }>;
@@ -295,11 +300,16 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
         if (ev.result?.success === false || ev.result?.error) {
           const count = (failureCounts.get(key) || 0) + 1;
           failureCounts.set(key, count);
-          if (count <= 1) { // Only first failure of each type
+          if (count <= 1) {
+            // Only first failure of each type
             negativeExamples.push({ tool: ev.tool, args: ev.args || {}, error: String(ev.result?.error || ''), count });
           }
         } else {
-          positiveExamples.push({ tool: ev.tool, args: ev.args || {}, result: JSON.stringify(ev.result || {}).slice(0, 200) });
+          positiveExamples.push({
+            tool: ev.tool,
+            args: ev.args || {},
+            result: JSON.stringify(ev.result || {}).slice(0, 200),
+          });
         }
       }
     });
@@ -331,11 +341,11 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
 // Save form UI
 // ──────────────────────────────────────────────────────────────────────
 
-(SidePanelUI.prototype as any).showWorkflowSaveInput = function showWorkflowSaveInput(): void {
+sidePanelProto.showWorkflowSaveInput = function showWorkflowSaveInput(): void {
   const saveRow = document.getElementById('workflowSaveRow');
   if (!saveRow) return;
 
-  const hasSession = (this.displayHistory?.length > 0) || (this.historyTurnMap?.size > 0);
+  const hasSession = this.displayHistory?.length > 0 || this.historyTurnMap?.size > 0;
 
   saveRow.innerHTML = `
     <div class="workflow-save-form">
@@ -344,12 +354,16 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
       <textarea class="workflow-save-prompt" id="workflowPromptInput" rows="3"
         placeholder="Prompt text to insert\u2026"></textarea>
       <div class="workflow-save-actions">
-        ${hasSession ? `<button class="workflow-generate-btn" id="workflowGenerateBtn" title="Use AI to generate a workflow from this session">
+        ${
+          hasSession
+            ? `<button class="workflow-generate-btn" id="workflowGenerateBtn" title="Use AI to generate a workflow from this session">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
           </svg>
           Generate from session
-        </button>` : ''}
+        </button>`
+            : ''
+        }
         <div class="workflow-save-actions-right">
           <button class="workflow-save-cancel" id="workflowSaveCancel">Cancel</button>
           <button class="workflow-save-confirm" id="workflowSaveConfirm">Save</button>
@@ -395,8 +409,14 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
   const doSave = () => {
     const name = nameInput?.value?.trim();
     const prompt = promptInput?.value?.trim();
-    if (!name) { nameInput?.focus(); return; }
-    if (!prompt) { promptInput?.focus(); return; }
+    if (!name) {
+      nameInput?.focus();
+      return;
+    }
+    if (!prompt) {
+      promptInput?.focus();
+      return;
+    }
     this.saveWorkflow(name, prompt, _generatedPositiveExamples, _generatedNegativeExamples).then(() => {
       this.hideWorkflowMenu();
       const userInput = this.elements.userInput;
@@ -443,15 +463,24 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
 
   // --- Key handlers ---------------------------------------------------
   const handleKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') { e.preventDefault(); this.hideWorkflowMenu(); }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      this.hideWorkflowMenu();
+    }
   };
   nameInput?.addEventListener('keydown', (e: KeyboardEvent) => {
     handleKey(e);
-    if (e.key === 'Enter') { e.preventDefault(); promptInput?.focus(); }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      promptInput?.focus();
+    }
   });
   promptInput?.addEventListener('keydown', (e: KeyboardEvent) => {
     handleKey(e);
-    if (e.key === 'Enter' && e.metaKey) { e.preventDefault(); doSave(); }
+    if (e.key === 'Enter' && e.metaKey) {
+      e.preventDefault();
+      doSave();
+    }
   });
 
   document.getElementById('workflowSaveCancel')?.addEventListener('click', () => this.hideWorkflowMenu());
@@ -464,7 +493,7 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
 // Hide / navigation / helpers
 // ──────────────────────────────────────────────────────────────────────
 
-(SidePanelUI.prototype as any).hideWorkflowMenu = function hideWorkflowMenu(): void {
+sidePanelProto.hideWorkflowMenu = function hideWorkflowMenu(): void {
   const menu = document.getElementById('workflowMenu');
   menu?.remove();
   this.workflowMenuOpen = false;
@@ -474,7 +503,7 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
   }
 };
 
-(SidePanelUI.prototype as any).handleWorkflowInput = function handleWorkflowInput(): void {
+sidePanelProto.handleWorkflowInput = function handleWorkflowInput(): void {
   const userInput = this.elements.userInput;
   if (!userInput) return;
   const value = userInput.value;
@@ -485,7 +514,7 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
   }
 };
 
-(SidePanelUI.prototype as any).selectWorkflow = function selectWorkflow(workflow: Workflow): void {
+sidePanelProto.selectWorkflow = function selectWorkflow(workflow: Workflow): void {
   const userInput = this.elements.userInput;
   if (!userInput) return;
   const computedMaxHeight = Number.parseFloat(getComputedStyle(userInput).maxHeight);
@@ -499,9 +528,7 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
   this.hideWorkflowMenu();
 };
 
-(SidePanelUI.prototype as any).handleWorkflowKeydown = function handleWorkflowKeydown(
-  event: KeyboardEvent,
-): boolean {
+sidePanelProto.handleWorkflowKeydown = function handleWorkflowKeydown(event: KeyboardEvent): boolean {
   if (!this.workflowMenuOpen) return false;
 
   const active = document.activeElement;
@@ -552,7 +579,7 @@ const MAX_CONTEXT_CHARS = MAX_CONTEXT_TOKENS * CHARS_PER_TOKEN;
   return false;
 };
 
-(SidePanelUI.prototype as any).updateWorkflowMenuHighlight = function updateWorkflowMenuHighlight(
+sidePanelProto.updateWorkflowMenuHighlight = function updateWorkflowMenuHighlight(
   items: NodeListOf<Element>,
 ): void {
   items.forEach((item, i) => {

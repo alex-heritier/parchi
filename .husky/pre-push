@@ -1,0 +1,33 @@
+#!/usr/bin/env sh
+set -eu
+
+repo_root="$(cd -- "$(dirname -- "$0")/.." && pwd)"
+
+if [ "${PUBLISH_ON_PUSH_ENABLED:-1}" = "0" ]; then
+  exit 0
+fi
+
+if [ -n "${PUBLISH_ON_PUSH_BRANCH_REGEX:-}" ]; then
+  branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  if ! printf '%s' "$branch" | grep -Eq "$PUBLISH_ON_PUSH_BRANCH_REGEX"; then
+    exit 0
+  fi
+fi
+
+if [ -f "$repo_root/.env.publish" ]; then
+  set -a
+  . "$repo_root/.env.publish"
+  set +a
+fi
+
+if [ -z "${CWS_EXTENSION_ID:-}" ]; then
+  echo "pre-push publish skipped: CWS_EXTENSION_ID is not set"
+  exit 0
+fi
+
+cd "$repo_root"
+if [ "${PUBLISH_ON_PUSH_TARGET:-chrome}" = "all" ]; then
+  npm run publish:all
+else
+  npm run publish:chrome
+fi

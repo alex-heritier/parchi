@@ -12,12 +12,12 @@ import {
   estimateContextTokens,
   shouldCompact,
 } from '../../packages/extension/ai/compaction.js';
+import { classifyApiError } from '../../packages/extension/ai/error-classifier.js';
 import {
   createMessage,
   normalizeConversationHistory,
   toProviderMessages,
 } from '../../packages/extension/ai/message-schema.js';
-import { classifyApiError } from '../../packages/extension/ai/error-classifier.js';
 import type { Message } from '../../packages/extension/ai/message-schema.js';
 import { extractThinking } from '../../packages/extension/ai/message-utils.js';
 import { createExponentialBackoff, isValidFinalResponse } from '../../packages/extension/ai/retry-engine.js';
@@ -354,7 +354,11 @@ function testApiErrorClassification(runner: TestRunner) {
       responseBody: '{"error":"Insufficient credits. Purchase credits to continue."}',
     });
     runner.assertEqual(classified.category, 'auth');
-    runner.assertTrue(String(classified.action || '').toLowerCase().includes('account & billing'));
+    runner.assertTrue(
+      String(classified.action || '')
+        .toLowerCase()
+        .includes('account & billing'),
+    );
   });
 
   runner.test('Managed proxy auth errors avoid BYOK-only guidance', () => {
@@ -364,8 +368,16 @@ function testApiErrorClassification(runner: TestRunner) {
       responseBody: '{"error":"Unauthorized at /ai-proxy/openrouter/v1/chat/completions"}',
     });
     runner.assertEqual(classified.category, 'auth');
-    runner.assertTrue(String(classified.message || '').toLowerCase().includes('managed runtime'));
-    runner.assertFalse(String(classified.action || '').toLowerCase().includes('check your api key in settings'));
+    runner.assertTrue(
+      String(classified.message || '')
+        .toLowerCase()
+        .includes('managed runtime'),
+    );
+    runner.assertFalse(
+      String(classified.action || '')
+        .toLowerCase()
+        .includes('check your api key in settings'),
+    );
   });
 
   runner.test('Paid/parchi auth errors avoid BYOK guidance even without ai-proxy text', () => {
@@ -383,8 +395,16 @@ function testApiErrorClassification(runner: TestRunner) {
       },
     );
     runner.assertEqual(classified.category, 'auth');
-    runner.assertTrue(String(classified.message || '').toLowerCase().includes('managed runtime'));
-    runner.assertFalse(String(classified.action || '').toLowerCase().includes('check your api key in settings'));
+    runner.assertTrue(
+      String(classified.message || '')
+        .toLowerCase()
+        .includes('managed runtime'),
+    );
+    runner.assertFalse(
+      String(classified.action || '')
+        .toLowerCase()
+        .includes('check your api key in settings'),
+    );
   });
 
   runner.test('Managed proxy invalid key points to backend OPENROUTER_API_KEY fix', () => {
@@ -402,7 +422,11 @@ function testApiErrorClassification(runner: TestRunner) {
       },
     );
     runner.assertEqual(classified.category, 'auth');
-    runner.assertTrue(String(classified.message || '').toLowerCase().includes('managed runtime key'));
+    runner.assertTrue(
+      String(classified.message || '')
+        .toLowerCase()
+        .includes('managed runtime key'),
+    );
     runner.assertTrue(String(classified.action || '').includes('OPENROUTER_API_KEY'));
   });
 
@@ -419,7 +443,11 @@ function testApiErrorClassification(runner: TestRunner) {
       },
     );
     runner.assertEqual(classified.category, 'auth');
-    runner.assertTrue(String(classified.message || '').toLowerCase().includes('missing server credentials'));
+    runner.assertTrue(
+      String(classified.message || '')
+        .toLowerCase()
+        .includes('missing server credentials'),
+    );
     runner.assertTrue(String(classified.action || '').includes('OPENROUTER_API_KEY'));
   });
 }
@@ -442,9 +470,9 @@ function testMessageSchema(runner: TestRunner) {
   runner.test('normalizeConversationHistory filters invalid messages', () => {
     const normalized = normalizeConversationHistory([
       { role: 'user', content: 'ok' },
-      { role: 'invalid' as any, content: 'skip' },
-      null as any,
-    ] as any);
+      { role: 'invalid', content: 'skip' },
+      null,
+    ] as unknown as Message[]);
     runner.assertEqual(normalized.length, 1);
     runner.assertEqual(normalized[0].role, 'user');
   });

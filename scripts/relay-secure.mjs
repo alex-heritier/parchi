@@ -187,9 +187,7 @@ const cmdStart = async (flags) => {
   const health = await healthCheck(config.host, config.port);
   if (!health.ok || health.data?.ok !== true) {
     clearPid();
-    throw new Error(
-      `Relay failed health check at http://${config.host}:${config.port}/healthz (see ${logPath})`,
-    );
+    throw new Error(`Relay failed health check at http://${config.host}:${config.port}/healthz (see ${logPath})`);
   }
   console.log(`Relay started (pid ${child.pid})`);
   printEnv(config);

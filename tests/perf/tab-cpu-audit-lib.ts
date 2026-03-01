@@ -21,8 +21,7 @@ const sum = <T>(rows: T[], getValue: (row: T) => number) => rows.reduce((acc, ro
 
 function parseProcessRows(raw: string): ParsedProcess[] {
   const rows: ParsedProcess[] = [];
-  const pattern =
-    /^\s*(\d+)\s+(\d+)\s+([\d.]+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+([\s\S]+?)\s*$/;
+  const pattern = /^\s*(\d+)\s+(\d+)\s+([\d.]+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+([\s\S]+?)\s*$/;
   for (const line of raw.split('\n')) {
     const match = pattern.exec(line);
     if (!match) continue;
@@ -165,7 +164,9 @@ function aggregate(
       cpuPercentAvg: cpuTotal / row.sampleCount,
       rssMbAvg: rssTotal / row.sampleCount,
     }))
-    .sort((a, b) => (b.cpuPercentMax === a.cpuPercentMax ? b.rssMbMax - a.rssMbMax : b.cpuPercentMax - a.cpuPercentMax));
+    .sort((a, b) =>
+      b.cpuPercentMax === a.cpuPercentMax ? b.rssMbMax - a.rssMbMax : b.cpuPercentMax - a.cpuPercentMax,
+    );
 
   const sustainedMinSamples = Math.max(2, Math.ceil(samples.length * ALERT_RATIO));
   const sustainedAlerts = rows.filter(
@@ -174,7 +175,9 @@ function aggregate(
   return { rows, sustainedAlerts, sustainedMinSamples };
 }
 
-export async function runTabCpuAudit(options: TabAuditOptions): Promise<{ jsonPath: string; markdownPath: string; sustainedAlertPids: number[] }> {
+export async function runTabCpuAudit(
+  options: TabAuditOptions,
+): Promise<{ jsonPath: string; markdownPath: string; sustainedAlertPids: number[] }> {
   const repoRoot = path.resolve(process.cwd());
   const outputDir = path.join(repoRoot, 'test-output', 'perf');
   fs.mkdirSync(outputDir, { recursive: true });
@@ -186,11 +189,11 @@ export async function runTabCpuAudit(options: TabAuditOptions): Promise<{ jsonPa
     if (i < options.sampleCount - 1) await sleep(options.sampleIntervalMs);
   }
 
-  const { rows: aggregateRows, sustainedAlerts, sustainedMinSamples } = aggregate(
-    samples,
-    options.cpuAlertPercent,
-    options.rssAlertMb,
-  );
+  const {
+    rows: aggregateRows,
+    sustainedAlerts,
+    sustainedMinSamples,
+  } = aggregate(samples, options.cpuAlertPercent, options.rssAlertMb);
 
   const latest = samples[samples.length - 1];
   const generatedAt = new Date().toISOString();

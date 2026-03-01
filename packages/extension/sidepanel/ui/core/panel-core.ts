@@ -1,9 +1,9 @@
 import { isRuntimeMessage } from '../../../../shared/src/runtime-messages.js';
 import { createMessage, normalizeConversationHistory } from '../../../ai/message-schema.js';
 import type { Message } from '../../../ai/message-schema.js';
-import { bindSidebarNavigation, setSidebarOpen } from './panel-navigation.js';
 import { appendTrace, pruneOldTraces } from '../chat/trace-store.js';
 import { recordUsage } from '../settings/usage-store.js';
+import { bindSidebarNavigation, setSidebarOpen } from './panel-navigation.js';
 
 const debounce = (fn: (...args: any[]) => void, ms: number) => {
   let timer: ReturnType<typeof setTimeout>;
@@ -13,6 +13,8 @@ const debounce = (fn: (...args: any[]) => void, ms: number) => {
   };
 };
 import { SidePanelUI } from './panel-ui.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
+
 
 const resolveTextAreaMaxHeight = (textarea: HTMLTextAreaElement, fallbackHeight: number): number => {
   const computedMaxHeight = Number.parseFloat(getComputedStyle(textarea).maxHeight);
@@ -30,7 +32,8 @@ const autoResizeTextArea = (textarea: HTMLTextAreaElement | null, maxHeight: num
   const nextHeight = Math.min(textarea.scrollHeight, resolvedMaxHeight);
   const clampedHeight = Math.max(nextHeight, resolvedMinHeight);
   textarea.style.height = `${clampedHeight}px`;
-  textarea.style.overflowY = textarea.scrollHeight > resolvedMaxHeight || clampedHeight >= resolvedMaxHeight ? 'auto' : 'hidden';
+  textarea.style.overflowY =
+    textarea.scrollHeight > resolvedMaxHeight || clampedHeight >= resolvedMaxHeight ? 'auto' : 'hidden';
 };
 
 const MAX_HISTORY_TURN_ENTRIES = 200;
@@ -112,7 +115,7 @@ const sanitizeTracePayload = (value: any, depth = 0): any => {
   return String(value);
 };
 
-(SidePanelUI.prototype as any).init = async function init() {
+sidePanelProto.init = async function init() {
   try {
     this.connectLifecyclePort();
     this.setupEventListeners();
@@ -137,7 +140,7 @@ const sanitizeTracePayload = (value: any, depth = 0): any => {
   }
 };
 
-(SidePanelUI.prototype as any).connectLifecyclePort = function connectLifecyclePort() {
+sidePanelProto.connectLifecyclePort = function connectLifecyclePort() {
   if (this.lifecyclePort) return;
   try {
     const port = chrome.runtime.connect({ name: 'sidepanel-lifecycle' });
@@ -152,7 +155,7 @@ const sanitizeTracePayload = (value: any, depth = 0): any => {
   }
 };
 
-(SidePanelUI.prototype as any).requestRunStop = function requestRunStop(note = 'Stopped') {
+sidePanelProto.requestRunStop = function requestRunStop(note = 'Stopped') {
   if (!this.lifecyclePort) {
     this.connectLifecyclePort?.();
   }
@@ -169,7 +172,7 @@ const sanitizeTracePayload = (value: any, depth = 0): any => {
   } catch {}
 };
 
-(SidePanelUI.prototype as any).setupEventListeners = function setupEventListeners() {
+sidePanelProto.setupEventListeners = function setupEventListeners() {
   bindSidebarNavigation(this.elements, {
     onOpen: () => this.openSettingsPanel(),
     onClose: () => this.closeSidebar(),
@@ -197,10 +200,13 @@ const sanitizeTracePayload = (value: any, depth = 0): any => {
     this.closeHistoryDrawer();
     this.startNewSession();
   });
-  this.elements.historySearchInput?.addEventListener('input', debounce(() => {
-    const query = (this.elements.historySearchInput?.value || '').trim();
-    this.filterHistoryList(query);
-  }, 150));
+  this.elements.historySearchInput?.addEventListener(
+    'input',
+    debounce(() => {
+      const query = (this.elements.historySearchInput?.value || '').trim();
+      this.filterHistoryList(query);
+    }, 150),
+  );
 
   // Balance popover on status bar click
   const statusBar = document.getElementById('statusBar');
@@ -214,9 +220,11 @@ const sanitizeTracePayload = (value: any, depth = 0): any => {
     });
     // Close popover when clicking outside
     document.addEventListener('click', (e: Event) => {
-      if (!balancePopover.classList.contains('hidden') &&
-          !balancePopover.contains(e.target as Node) &&
-          !statusBar.contains(e.target as Node)) {
+      if (
+        !balancePopover.classList.contains('hidden') &&
+        !balancePopover.contains(e.target as Node) &&
+        !statusBar.contains(e.target as Node)
+      ) {
         balancePopover.classList.add('hidden');
       }
     });
@@ -535,18 +543,6 @@ export PARCHI_RELAY_PORT="${port}"`;
   this.elements.exportBtn?.addEventListener('click', () => this.showExportMenu());
 
   this.elements.chatMessages?.addEventListener('scroll', () => this.handleChatScroll());
-  this.elements.chatMessages?.addEventListener(
-    'wheel',
-    (event: WheelEvent) => {
-      const chat = this.elements.chatMessages;
-      if (!chat) return;
-      if (Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
-      if (chat.scrollHeight <= chat.clientHeight) return;
-      chat.scrollTop += event.deltaY;
-      event.preventDefault();
-    },
-    { passive: false },
-  );
 
   // Delegated click: copy button inside code blocks
   this.elements.chatMessages?.addEventListener('click', (e: Event) => {
@@ -574,7 +570,6 @@ export PARCHI_RELAY_PORT="${port}"`;
   const debouncedModelRefresh = debounce(() => this.refreshModelCatalogForProfileEditor?.(), 800);
   this.elements.profileEditorEndpoint?.addEventListener('input', debouncedModelRefresh);
   this.elements.profileEditorApiKey?.addEventListener('input', debouncedModelRefresh);
-
 
   this.elements.profileEditorHeaders?.addEventListener('input', () => this.validateProfileEditorHeaders());
   this.elements.profileEditorTemperature?.addEventListener('input', () => {
@@ -614,7 +609,7 @@ export PARCHI_RELAY_PORT="${port}"`;
   });
 };
 
-(SidePanelUI.prototype as any).setupResizeObserver = function setupResizeObserver() {
+sidePanelProto.setupResizeObserver = function setupResizeObserver() {
   if (!this.elements.chatMessages || typeof ResizeObserver === 'undefined') return;
   this.chatResizeObserver = new ResizeObserver(() => {
     if (this.shouldAutoScroll() && this.isNearBottom) {
@@ -624,7 +619,7 @@ export PARCHI_RELAY_PORT="${port}"`;
   this.chatResizeObserver.observe(this.elements.chatMessages);
 };
 
-(SidePanelUI.prototype as any).flushQueuedMessage = function flushQueuedMessage() {
+sidePanelProto.flushQueuedMessage = function flushQueuedMessage() {
   if (!this.queuedMessage) return;
   const msg = this.queuedMessage;
   this.queuedMessage = null;
@@ -633,7 +628,7 @@ export PARCHI_RELAY_PORT="${port}"`;
   this.sendMessage();
 };
 
-(SidePanelUI.prototype as any).startWatchdog = function startWatchdog() {
+sidePanelProto.startWatchdog = function startWatchdog() {
   this.stopWatchdog();
   this._lastRuntimeMessageAt = Date.now();
   this._watchdogTimerId = setInterval(() => {
@@ -649,14 +644,14 @@ export PARCHI_RELAY_PORT="${port}"`;
   }, 15_000);
 };
 
-(SidePanelUI.prototype as any).stopWatchdog = function stopWatchdog() {
+sidePanelProto.stopWatchdog = function stopWatchdog() {
   if (this._watchdogTimerId != null) {
     clearInterval(this._watchdogTimerId);
     this._watchdogTimerId = null;
   }
 };
 
-(SidePanelUI.prototype as any).insertStoppedDivider = function insertStoppedDivider() {
+sidePanelProto.insertStoppedDivider = function insertStoppedDivider() {
   const el = document.createElement('div');
   el.className = 'stopped-divider';
   el.innerHTML = '<span>Stopped</span>';
@@ -664,7 +659,7 @@ export PARCHI_RELAY_PORT="${port}"`;
   this.scrollToBottom();
 };
 
-(SidePanelUI.prototype as any).recoverFromStuckState = function recoverFromStuckState() {
+sidePanelProto.recoverFromStuckState = function recoverFromStuckState() {
   this.stopWatchdog();
   this.stopThinkingTimer?.();
   this.stopRunTimer?.();
@@ -685,7 +680,7 @@ export PARCHI_RELAY_PORT="${port}"`;
   this.updateStatus('Disconnected', 'error');
 };
 
-(SidePanelUI.prototype as any).handleRuntimeMessage = function handleRuntimeMessage(message: any) {
+sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any) {
   this._lastRuntimeMessageAt = Date.now();
   // Runtime messages are broadcast to all extension views. Only render events
   // that belong to the currently active session to avoid spilling output across
@@ -751,14 +746,15 @@ export PARCHI_RELAY_PORT="${port}"`;
     } else if (phase === 'planning' || phase === 'executing' || phase === 'finalizing') {
       // Surface non-terminal phases with retry counts
       const phaseLabel = phase.charAt(0).toUpperCase() + phase.slice(1);
-      const retryInfo = message.attempts && message.maxRetries
-        ? (() => {
-            const parts: string[] = [];
-            if (message.attempts.api > 0) parts.push(`api ${message.attempts.api}/${message.maxRetries.api}`);
-            if (message.attempts.tool > 0) parts.push(`tool ${message.attempts.tool}/${message.maxRetries.tool}`);
-            return parts.length ? ` (retries: ${parts.join(', ')})` : '';
-          })()
-        : '';
+      const retryInfo =
+        message.attempts && message.maxRetries
+          ? (() => {
+              const parts: string[] = [];
+              if (message.attempts.api > 0) parts.push(`api ${message.attempts.api}/${message.maxRetries.api}`);
+              if (message.attempts.tool > 0) parts.push(`tool ${message.attempts.tool}/${message.maxRetries.tool}`);
+              return parts.length ? ` (retries: ${parts.join(', ')})` : '';
+            })()
+          : '';
       this.updateStatus(`${phaseLabel}${retryInfo}`, 'active');
     } else if (phase) {
       this.updateStatus(message.note || phase, 'active');
@@ -810,8 +806,21 @@ export PARCHI_RELAY_PORT="${port}"`;
     // Track which tab the model is interacting with.
     // Many browser tools resolve tabId internally via resolveTabId() so args.tabId
     // may be missing. Fall back to the session's active tab for known browser tools.
-    const browserTools = ['navigate', 'openTab', 'click', 'type', 'pressKey', 'scroll',
-      'getContent', 'screenshot', 'switchTab', 'focusTab', 'closeTab', 'watchVideo', 'getVideoInfo'];
+    const browserTools = [
+      'navigate',
+      'openTab',
+      'click',
+      'type',
+      'pressKey',
+      'scroll',
+      'getContent',
+      'screenshot',
+      'switchTab',
+      'focusTab',
+      'closeTab',
+      'watchVideo',
+      'getVideoInfo',
+    ];
     let toolTabId = typeof message.args?.tabId === 'number' ? message.args.tabId : null;
     if (!toolTabId && browserTools.includes(message.tool)) {
       toolTabId = this.sessionTabsState?.activeTabId ?? null;
@@ -1068,7 +1077,7 @@ export PARCHI_RELAY_PORT="${port}"`;
   }
 };
 
-(SidePanelUI.prototype as any).appendContextMessages = function appendContextMessages(
+sidePanelProto.appendContextMessages = function appendContextMessages(
   responseMessages?: Array<Record<string, unknown>>,
   fallbackContent?: string,
   fallbackThinking?: string | null,
@@ -1094,10 +1103,13 @@ export PARCHI_RELAY_PORT="${port}"`;
   }
 };
 
-(SidePanelUI.prototype as any).handleContextCompaction = function handleContextCompaction(message: any) {
+sidePanelProto.handleContextCompaction = function handleContextCompaction(message: any) {
   const trimmedCount = Number(message.trimmedCount || 0);
   const preservedCount = Number(message.preservedCount || 0);
-  const percent = typeof message.contextUsage?.percent === 'number' ? Math.max(0, Math.min(100, Math.round(message.contextUsage.percent))) : null;
+  const percent =
+    typeof message.contextUsage?.percent === 'number'
+      ? Math.max(0, Math.min(100, Math.round(message.contextUsage.percent)))
+      : null;
   const parts = [
     trimmedCount > 0 ? `${trimmedCount} summarized` : 'Context compacted',
     preservedCount > 0 ? `${preservedCount} preserved` : null,

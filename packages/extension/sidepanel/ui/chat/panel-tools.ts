@@ -1,5 +1,7 @@
 import { dedupeThinking } from '../../../ai/message-utils.js';
 import { SidePanelUI } from '../core/panel-ui.js';
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
+
 
 // ============================================================================
 // Blob URL helper — converts data: URLs to object URLs to avoid DOM base64 duplication
@@ -78,7 +80,7 @@ const toolIcons: Record<string, string> = {
 // Tool Display - Elegant inline visualization
 // ============================================================================
 
-(SidePanelUI.prototype as any).displayToolExecution = function displayToolExecution(
+sidePanelProto.displayToolExecution = function displayToolExecution(
   toolName: string,
   args: any,
   result: any,
@@ -139,7 +141,7 @@ const toolIcons: Record<string, string> = {
   this.updateActivityToggle();
 };
 
-(SidePanelUI.prototype as any).createToolElement = function createToolElement(entry: any) {
+sidePanelProto.createToolElement = function createToolElement(entry: any) {
   const container = document.createElement('div');
   container.className = 'tool-row running';
   container.dataset.toolId = entry.id;
@@ -167,28 +169,31 @@ const toolIcons: Record<string, string> = {
 
   // Click to expand/collapse tool result details
   const signal = entry.abortController?.signal;
-  container.addEventListener('click', () => {
-    const existing = container.querySelector('.tool-detail');
-    if (existing) {
-      existing.remove();
-      return;
-    }
-    if (!entry.result) return;
-    const detail = document.createElement('div');
-    detail.className = 'tool-detail';
-    const resultText = typeof entry.result === 'object'
-      ? JSON.stringify(entry.result, null, 2)
-      : String(entry.result);
-    const truncated = resultText.length > 2000 ? resultText.slice(0, 2000) + '\n...(truncated)' : resultText;
-    detail.textContent = truncated;
-    container.appendChild(detail);
-  }, signal ? { signal } : undefined);
+  container.addEventListener(
+    'click',
+    () => {
+      const existing = container.querySelector('.tool-detail');
+      if (existing) {
+        existing.remove();
+        return;
+      }
+      if (!entry.result) return;
+      const detail = document.createElement('div');
+      detail.className = 'tool-detail';
+      const resultText =
+        typeof entry.result === 'object' ? JSON.stringify(entry.result, null, 2) : String(entry.result);
+      const truncated = resultText.length > 2000 ? resultText.slice(0, 2000) + '\n...(truncated)' : resultText;
+      detail.textContent = truncated;
+      container.appendChild(detail);
+    },
+    signal ? { signal } : undefined,
+  );
   container.style.cursor = 'pointer';
 
   return container;
 };
 
-(SidePanelUI.prototype as any).animateToolDuration = function animateToolDuration(entry: any) {
+sidePanelProto.animateToolDuration = function animateToolDuration(entry: any) {
   if (!entry.durationEl || entry.endTime) return;
 
   const update = () => {
@@ -200,7 +205,7 @@ const toolIcons: Record<string, string> = {
   update();
 };
 
-(SidePanelUI.prototype as any).updateToolResult = function updateToolResult(entry: any, result: any) {
+sidePanelProto.updateToolResult = function updateToolResult(entry: any, result: any) {
   if (!entry || !entry.element) return;
 
   entry.endTime = Date.now();
@@ -259,7 +264,7 @@ const MAX_REPORT_IMAGES = 50;
 const MAX_REPORT_IMAGE_BYTES = 12 * 1024 * 1024; // 12 MB safety valve
 const MAX_TOOL_CALL_VIEWS = 200;
 
-(SidePanelUI.prototype as any).recordReportImage = function recordReportImage(image: any) {
+sidePanelProto.recordReportImage = function recordReportImage(image: any) {
   if (!image || typeof image.id !== 'string' || typeof image.dataUrl !== 'string') return;
   const normalized = {
     id: image.id,
@@ -305,7 +310,7 @@ const MAX_TOOL_CALL_VIEWS = 200;
   // Byte-based cap — evict oldest non-selected until under budget
   let totalBytes = 0;
   for (const img of this.reportImages.values()) {
-    totalBytes += (img.dataUrl?.length || 0);
+    totalBytes += img.dataUrl?.length || 0;
   }
   if (totalBytes > MAX_REPORT_IMAGE_BYTES) {
     const byteEvict: string[] = [];
@@ -313,7 +318,7 @@ const MAX_TOOL_CALL_VIEWS = 200;
       if (totalBytes <= MAX_REPORT_IMAGE_BYTES) break;
       if (!this.selectedReportImageIds.has(id)) {
         const img = this.reportImages.get(id);
-        totalBytes -= (img?.dataUrl?.length || 0);
+        totalBytes -= img?.dataUrl?.length || 0;
         byteEvict.push(id);
       }
     }
@@ -337,7 +342,7 @@ const MAX_TOOL_CALL_VIEWS = 200;
   }
 };
 
-(SidePanelUI.prototype as any).updateReportImageSelection = function updateReportImageSelection(ids: any[]) {
+sidePanelProto.updateReportImageSelection = function updateReportImageSelection(ids: any[]) {
   const nextSelected = new Set(
     (Array.isArray(ids) ? ids : [])
       .map((value: unknown) => String(value || '').trim())
@@ -357,7 +362,7 @@ const MAX_TOOL_CALL_VIEWS = 200;
   });
 };
 
-(SidePanelUI.prototype as any).attachScreenshotPreview = function attachScreenshotPreview(entry: any, result: any) {
+sidePanelProto.attachScreenshotPreview = function attachScreenshotPreview(entry: any, result: any) {
   if (!entry?.element) return;
 
   let image: any = null;
@@ -419,24 +424,28 @@ const MAX_TOOL_CALL_VIEWS = 200;
   `;
 
   const previewSignal = entry.abortController?.signal;
-  const listenerOpts = previewSignal ? { signal: previewSignal } as AddEventListenerOptions : undefined;
+  const listenerOpts = previewSignal ? ({ signal: previewSignal } as AddEventListenerOptions) : undefined;
   preview.addEventListener('click', (event) => event.stopPropagation(), listenerOpts);
   const checkbox = preview.querySelector('.report-image-toggle') as HTMLInputElement | null;
   checkbox?.addEventListener('click', (event) => event.stopPropagation(), listenerOpts);
-  checkbox?.addEventListener('change', (event) => {
-    event.stopPropagation();
-    const checked = checkbox.checked;
-    if (checked) {
-      this.selectedReportImageIds.add(image.id);
-    } else {
-      this.selectedReportImageIds.delete(image.id);
-    }
-    image.selected = checked;
-    preview.classList.toggle('selected', checked);
-  }, listenerOpts);
+  checkbox?.addEventListener(
+    'change',
+    (event) => {
+      event.stopPropagation();
+      const checked = checkbox.checked;
+      if (checked) {
+        this.selectedReportImageIds.add(image.id);
+      } else {
+        this.selectedReportImageIds.delete(image.id);
+      }
+      image.selected = checked;
+      preview.classList.toggle('selected', checked);
+    },
+    listenerOpts,
+  );
 };
 
-(SidePanelUI.prototype as any).nullifyFinalizedToolData = function nullifyFinalizedToolData() {
+sidePanelProto.nullifyFinalizedToolData = function nullifyFinalizedToolData() {
   for (const entry of this.toolCallViews.values()) {
     if (entry.endTime) {
       entry.args = null;
@@ -445,11 +454,11 @@ const MAX_TOOL_CALL_VIEWS = 200;
   }
 };
 
-(SidePanelUI.prototype as any).refreshTimelineHud = function refreshTimelineHud() {
+sidePanelProto.refreshTimelineHud = function refreshTimelineHud() {
   // No-op: run-hud removed
 };
 
-(SidePanelUI.prototype as any).getToolIcon = function getToolIcon(toolName: string): string {
+sidePanelProto.getToolIcon = function getToolIcon(toolName: string): string {
   // Check for exact match first
   if (toolIcons[toolName]) {
     return toolIcons[toolName];
@@ -467,7 +476,7 @@ const MAX_TOOL_CALL_VIEWS = 200;
   return toolIcons.default;
 };
 
-(SidePanelUI.prototype as any).getArgsTokens = function getArgsTokens(args: any): string[] {
+sidePanelProto.getArgsTokens = function getArgsTokens(args: any): string[] {
   if (!args || typeof args !== 'object') return [];
   const tokens: string[] = [];
 
@@ -506,7 +515,7 @@ const MAX_TOOL_CALL_VIEWS = 200;
 // Error Handling
 // ============================================================================
 
-(SidePanelUI.prototype as any).showErrorBanner = function showErrorBanner(
+sidePanelProto.showErrorBanner = function showErrorBanner(
   message: string,
   opts?: { category?: string; action?: string; recoverable?: boolean },
 ) {
@@ -557,11 +566,11 @@ const MAX_TOOL_CALL_VIEWS = 200;
   setTimeout(() => banner.remove(), dismissMs);
 };
 
-(SidePanelUI.prototype as any).clearRunIncompleteBanner = function clearRunIncompleteBanner() {
+sidePanelProto.clearRunIncompleteBanner = function clearRunIncompleteBanner() {
   document.querySelectorAll('.run-incomplete-banner').forEach((el) => el.remove());
 };
 
-(SidePanelUI.prototype as any).clearErrorBanner = function clearErrorBanner() {
+sidePanelProto.clearErrorBanner = function clearErrorBanner() {
   document.querySelectorAll('.error-banner').forEach((el) => el.remove());
 };
 
@@ -569,14 +578,14 @@ const MAX_TOOL_CALL_VIEWS = 200;
 // Legacy update helpers (for backward compatibility)
 // ============================================================================
 
-(SidePanelUI.prototype as any).updateToolMessage = function updateToolMessage(entry: any, result: any) {
+sidePanelProto.updateToolMessage = function updateToolMessage(entry: any, result: any) {
   if (!entry) return;
   if (entry.element) {
     this.updateToolResult(entry, result);
   }
 };
 
-(SidePanelUI.prototype as any).updateToolLogEntry = function updateToolLogEntry(_entry: any, _result: any) {
+sidePanelProto.updateToolLogEntry = function updateToolLogEntry(_entry: any, _result: any) {
   // Legacy method - tool log panel removed
 };
 
@@ -584,7 +593,7 @@ const MAX_TOOL_CALL_VIEWS = 200;
 // Activity State
 // ============================================================================
 
-(SidePanelUI.prototype as any).updateActivityState = function updateActivityState() {
+sidePanelProto.updateActivityState = function updateActivityState() {
   // --- Toolbar: timer + context ---
   const toolbarLabels: string[] = [];
 
@@ -634,11 +643,11 @@ const MAX_TOOL_CALL_VIEWS = 200;
   this.updateActivityToggle();
 };
 
-(SidePanelUI.prototype as any).updateActivityToggle = function updateActivityToggle() {
+sidePanelProto.updateActivityToggle = function updateActivityToggle() {
   // Activity panel removed — no-op
 };
 
-(SidePanelUI.prototype as any).toggleActivityPanel = function toggleActivityPanel(_force?: boolean) {
+sidePanelProto.toggleActivityPanel = function toggleActivityPanel(_force?: boolean) {
   // Activity panel removed — no-op
 };
 
@@ -646,7 +655,7 @@ const MAX_TOOL_CALL_VIEWS = 200;
    Mascot Bubble — click to show/hide status bubble above mascot
    ============================================================================ */
 
-(SidePanelUI.prototype as any).initMascotBubble = function initMascotBubble() {
+sidePanelProto.initMascotBubble = function initMascotBubble() {
   const mascot = document.getElementById('mascotCorner');
   if (!mascot) return;
 
@@ -681,7 +690,7 @@ const MAX_TOOL_CALL_VIEWS = 200;
   }
 };
 
-(SidePanelUI.prototype as any).toggleMascotBubble = function toggleMascotBubble() {
+sidePanelProto.toggleMascotBubble = function toggleMascotBubble() {
   const bubble = document.getElementById('mascotBubble');
   if (!bubble) return;
 
@@ -695,7 +704,7 @@ const MAX_TOOL_CALL_VIEWS = 200;
   }
 };
 
-(SidePanelUI.prototype as any).updateMascotBubbleContent = function updateMascotBubbleContent(
+sidePanelProto.updateMascotBubbleContent = function updateMascotBubbleContent(
   verb: string,
   elapsed: string,
 ) {
@@ -709,12 +718,12 @@ const MAX_TOOL_CALL_VIEWS = 200;
    Mascot Eye State
    ============================================================================ */
 
-(SidePanelUI.prototype as any).updateMascotEyeState = function updateMascotEyeState() {
+sidePanelProto.updateMascotEyeState = function updateMascotEyeState() {
   const mascot = document.getElementById('mascotCorner');
   if (!mascot) return;
 
   const isRunning = !!(this.runStartedAt || this.isStreaming || this.pendingToolCount > 0);
-  const isTyping = this._lastTypingAt && (Date.now() - this._lastTypingAt) < 5000;
+  const isTyping = this._lastTypingAt && Date.now() - this._lastTypingAt < 5000;
 
   // Remove all state classes
   mascot.classList.remove('sleeping', 'working', 'looking-up', 'thinking');
@@ -728,7 +737,7 @@ const MAX_TOOL_CALL_VIEWS = 200;
   }
 };
 
-(SidePanelUI.prototype as any).updateThinkingPanel = function updateThinkingPanel(
+sidePanelProto.updateThinkingPanel = function updateThinkingPanel(
   thinking: string | null,
   isStreaming = false,
 ) {
@@ -777,7 +786,7 @@ const MAX_TOOL_CALL_VIEWS = 200;
   }
 };
 
-(SidePanelUI.prototype as any).resetActivityPanel = function resetActivityPanel() {
+sidePanelProto.resetActivityPanel = function resetActivityPanel() {
   // Clear inline tool displays
   if (this.elements.chatMessages) {
     const trees = this.elements.chatMessages.querySelectorAll('.tool-card, .step-block');

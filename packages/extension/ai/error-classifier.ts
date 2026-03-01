@@ -23,21 +23,31 @@ export type ErrorClassificationContext = {
   useProxy?: boolean;
 };
 
+const asRecord = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+};
+
 export function classifyApiError(error: unknown, context: ErrorClassificationContext = {}): ClassifiedError {
-  const msg = error instanceof Error
-    ? error.message
-    : typeof (error as any)?.message === 'string'
-      ? String((error as any).message)
-      : String(error ?? '');
-  const statusCode = (error as any)?.statusCode ?? (error as any)?.status ?? 0;
-  const responseBody = String((error as any)?.responseBody ?? '');
-  const contextCombined = `${context.route || ''} ${context.provider || ''} ${context.proxyProvider || ''} ${context.model || ''}`.toLowerCase();
+  const errorRecord = asRecord(error);
+  const msg =
+    error instanceof Error
+      ? error.message
+      : typeof errorRecord?.message === 'string'
+        ? String(errorRecord.message)
+        : String(error ?? '');
+  const statusCode = Number(errorRecord?.statusCode ?? errorRecord?.status ?? 0);
+  const responseBody = String(errorRecord?.responseBody ?? '');
+  const contextCombined =
+    `${context.route || ''} ${context.provider || ''} ${context.proxyProvider || ''} ${context.model || ''}`.toLowerCase();
   const combined = `${msg} ${responseBody} ${contextCombined}`.toLowerCase();
   const contextSignalsManaged =
     context.route === 'proxy' ||
     context.useProxy === true ||
     String(context.provider || '').toLowerCase() === 'parchi' ||
-    String(context.model || '').toLowerCase().startsWith('parchi/');
+    String(context.model || '')
+      .toLowerCase()
+      .startsWith('parchi/');
   const hasManagedRouteSignal =
     contextSignalsManaged ||
     combined.includes('/ai-proxy') ||
@@ -110,9 +120,7 @@ export function classifyApiError(error: unknown, context: ErrorClassificationCon
       message: hasManagedRouteSignal
         ? managedAuthMessage
         : 'Authentication failed. Credentials may be invalid or expired.',
-      action: hasManagedRouteSignal
-        ? managedAuthAction
-        : 'If using BYOK, check your API key in Settings.',
+      action: hasManagedRouteSignal ? managedAuthAction : 'If using BYOK, check your API key in Settings.',
       recoverable: false,
     };
   }
@@ -220,6 +228,23 @@ export function classifyApiError(error: unknown, context: ErrorClassificationCon
       category: 'server',
       message: `Server error (${statusCode || 'unknown'}). The API provider may be experiencing issues.`,
       action: 'Try again in a few minutes.',
+      recoverable: true,
+    };
+  }
+
+  // Empty-200 / empty-body provider response (commonly transient overload/rate-limit edge)
+  if (
+    (statusCode === 200 || statusCode === 204 || statusCode === 0) &&
+    (combined.includes('200 ok') ||
+      combined.includes('response body was empty') ||
+      combined.includes('empty response body') ||
+      combined.includes('returned no body') ||
+      combined.includes('no output generated'))
+  ) {
+    return {
+      category: 'server',
+      message: 'Provider returned an empty response body.',
+      action: 'Wait a few seconds and retry, or switch to a fallback model.',
       recoverable: true,
     };
   }

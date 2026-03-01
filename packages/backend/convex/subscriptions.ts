@@ -26,9 +26,13 @@ const normalizeTokens = (value: number) => {
 };
 
 const insertCreditTransaction = async (
-  ctx: any,
+  ctx: {
+    db: {
+      insert: (table: string, value: Record<string, unknown>) => Promise<unknown>;
+    };
+  },
   args: {
-    userId: any;
+    userId: unknown;
     direction: 'credit' | 'debit';
     type: string;
     status: 'posted' | 'reserved' | 'voided' | 'denied';
@@ -75,12 +79,12 @@ export const getCurrent = queryGeneric({
 
     const usage = await ctx.db
       .query('usage')
-      .withIndex('by_userId_month', (q: any) => q.eq('userId', userId).eq('month', currentMonthKey()))
+      .withIndex('by_userId_month', (q) => q.eq('userId', userId).eq('month', currentMonthKey()))
       .first();
 
     const transactions = await ctx.db
       .query('creditTransactions')
-      .withIndex('by_userId_createdAt', (q: any) => q.eq('userId', userId))
+      .withIndex('by_userId_createdAt', (q) => q.eq('userId', userId))
       .order('desc')
       .take(120);
 
@@ -251,7 +255,7 @@ export const recordUsage = mutationGeneric({
 
     const existing = await ctx.db
       .query('usage')
-      .withIndex('by_userId_month', (q: any) => q.eq('userId', args.userId).eq('month', month))
+      .withIndex('by_userId_month', (q) => q.eq('userId', args.userId).eq('month', month))
       .first();
 
     if (existing?._id) {
@@ -284,7 +288,7 @@ export const adjustUsageTokens = mutationGeneric({
 
     const existing = await ctx.db
       .query('usage')
-      .withIndex('by_userId_month', (q: any) => q.eq('userId', args.userId).eq('month', month))
+      .withIndex('by_userId_month', (q) => q.eq('userId', args.userId).eq('month', month))
       .first();
 
     if (!existing?._id) {
@@ -532,7 +536,7 @@ export const releaseReservedCredits = mutationGeneric({
 
     const reservation = await ctx.db
       .query('creditTransactions')
-      .withIndex('by_requestId', (q: any) => q.eq('requestId', args.requestId))
+      .withIndex('by_requestId', (q) => q.eq('requestId', args.requestId))
       .first();
     if (reservation?._id && reservation.status === 'reserved') {
       await ctx.db.patch(reservation._id, {
@@ -603,7 +607,7 @@ export const settleReservedCredits = mutationGeneric({
 
     const reservation = await ctx.db
       .query('creditTransactions')
-      .withIndex('by_requestId', (q: any) => q.eq('requestId', args.requestId))
+      .withIndex('by_requestId', (q) => q.eq('requestId', args.requestId))
       .first();
     if (reservation?._id && reservation.status !== 'reserved') {
       return {

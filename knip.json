@@ -1,0 +1,47 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.mjs", "scripts/*.ts"],
+      "project": ["scripts/**/*"]
+    },
+    "packages/extension": {
+      "entry": ["sidepanel/panel.ts", "background/service.ts", "content-recording.ts", "offscreen/offscreen.ts"],
+      "project": ["**/*.ts"]
+    },
+    "packages/backend": {
+      "entry": ["convex/*.ts"],
+      "project": ["convex/**/*.ts"]
+    },
+    "packages/cli": {
+      "entry": ["src/main.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/relay-service": {
+      "entry": ["src/relay-daemon.ts", "src/cli.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/shared": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/website": {
+      "entry": ["public/**/*.js"],
+      "project": ["public/**/*"]
+    }
+  },
+  "ignore": [
+    "**/dist/**",
+    "**/dist-*/**",
+    "**/node_modules/**",
+    "**/*.d.ts",
+    "**/convex/_generated/**",
+    "tests/**",
+    "types/**"
+  ],
+  "ignoreDependencies": [
+    "@types/chrome",
+    "@types/node",
+    "@types/ws"
+  ]
+}

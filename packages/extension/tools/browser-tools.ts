@@ -1116,8 +1116,8 @@ export class BrowserTools {
       };
     }
 
-    const x = typeof args.x === 'number' ? args.x : NaN;
-    const y = typeof args.y === 'number' ? args.y : NaN;
+    const x = typeof args.x === 'number' ? args.x : Number.NaN;
+    const y = typeof args.y === 'number' ? args.y : Number.NaN;
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
       return { success: false, error: 'Missing or invalid x/y coordinates.' };
     }
@@ -1688,7 +1688,8 @@ export class BrowserTools {
           success: true,
           hasMatch: matches.length > 0,
           matchCount: matches.length,
-          matched: matches.length > 0 ? `Found ${matches.length} match(es) for provided HTML.` : 'No exact match found.',
+          matched:
+            matches.length > 0 ? `Found ${matches.length} match(es) for provided HTML.` : 'No exact match found.',
           scopeSelector: scopeSelector || ':root',
           snippetLength: normalizeWs ? normalizedNeedle.length : needle.length,
           sourceLength: haystack.length,
