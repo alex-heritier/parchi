@@ -365,7 +365,6 @@ sidePanelProto.loadSettings = async function loadSettings() {
 
   this.refreshConfigDropdown();
   this.setActiveConfig(this.currentConfig, true);
-  this.toggleCustomEndpoint();
   this.updateScreenshotToggleState();
   this.editProfile(this.currentConfig, true);
   this.updatePromptSections?.();
@@ -446,41 +445,7 @@ sidePanelProto.importSettings = async function importSettings(event: Event) {
 };
 
 sidePanelProto.collectCurrentFormProfile = function collectCurrentFormProfile() {
-  const current = this.configs[this.currentConfig] || {};
-  let extraHeaders = current.extraHeaders || {};
-  if (this.elements.customHeaders) {
-    const raw = this.elements.customHeaders.value || '';
-    if (raw.trim().length > 0) {
-      try {
-        extraHeaders = parseHeadersJson(raw);
-      } catch {
-        extraHeaders = current.extraHeaders || {};
-      }
-    } else {
-      extraHeaders = {};
-    }
-  }
-  return {
-    provider: this.elements.provider?.value ?? current.provider ?? '',
-    apiKey: this.elements.apiKey?.value ?? current.apiKey ?? '',
-    model: this.elements.model?.value ?? current.model ?? '',
-    customEndpoint: this.elements.customEndpoint?.value ?? current.customEndpoint ?? '',
-    extraHeaders,
-    systemPrompt: this.elements.systemPrompt?.value || current.systemPrompt || '',
-    temperature: Number.parseFloat(this.elements.temperature?.value) || current.temperature || 0.7,
-    maxTokens: Number.parseInt(this.elements.maxTokens?.value) || current.maxTokens || 4096,
-    contextLimit: Number.parseInt(this.elements.contextLimit?.value) || current.contextLimit || 200000,
-    timeout: Number.parseInt(this.elements.timeout?.value) || current.timeout || 30000,
-    enableScreenshots: this.elements.enableScreenshots?.value === 'true' || current.enableScreenshots || false,
-    sendScreenshotsAsImages:
-      this.elements.sendScreenshotsAsImages?.value === 'true' || current.sendScreenshotsAsImages || false,
-    screenshotQuality: this.elements.screenshotQuality?.value || current.screenshotQuality || 'high',
-    showThinking: this.elements.showThinking?.value === 'true',
-    streamResponses: this.elements.streamResponses?.value === 'true',
-    autoScroll: this.elements.autoScroll?.value === 'true',
-    confirmActions: this.elements.confirmActions?.value === 'true',
-    saveHistory: this.elements.saveHistory?.value === 'true',
-  };
+  return this.configs[this.currentConfig] || {};
 };
 
 sidePanelProto.collectToolPermissions = function collectToolPermissions() {
@@ -511,7 +476,8 @@ sidePanelProto.persistAllSettings = async function persistAllSettings({ silent =
     const activeProfile = this.configs[this.currentConfig] || {};
     const rawRelayUrl = (this.elements.relayUrl?.value || '').trim();
     const normalizedRelayUrl = rawRelayUrl && !rawRelayUrl.includes('://') ? `http://${rawRelayUrl}` : rawRelayUrl;
-    const payload = {
+    // Write flat top-level keys for backward compatibility with BackgroundService.resolveProfile
+    const payload: Record<string, any> = {
       provider: activeProfile.provider ?? '',
       apiKey: activeProfile.apiKey ?? '',
       model: activeProfile.model ?? '',
@@ -522,7 +488,7 @@ sidePanelProto.persistAllSettings = async function persistAllSettings({ silent =
       maxTokens: activeProfile.maxTokens || 4096,
       contextLimit: activeProfile.contextLimit || 200000,
       timeout: activeProfile.timeout || 30000,
-      enableScreenshots: activeProfile.enableScreenshots ?? false,
+      enableScreenshots: activeProfile.enableScreenshots ?? true,
       sendScreenshotsAsImages: activeProfile.sendScreenshotsAsImages ?? false,
       screenshotQuality: activeProfile.screenshotQuality || 'high',
       showThinking: activeProfile.showThinking !== false,
@@ -549,7 +515,7 @@ sidePanelProto.persistAllSettings = async function persistAllSettings({ silent =
       configs: this.configs,
     };
     await chrome.storage.local.set(payload);
-    this.updateContextUsage();
+    this.updateContextUsage?.();
     if (!silent) {
       this.updateStatus('Settings saved successfully', 'success');
     }

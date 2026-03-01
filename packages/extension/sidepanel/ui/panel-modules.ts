@@ -10,6 +10,7 @@ import './chat/panel-plan.js';
 import './chat/panel-action-timeline.js';
 import './chat/panel-recorder.js';
 import './settings/panel-profiles.js';
+import './settings/panel-provider-cards.js';
 import './core/panel-scroll.js';
 import './settings/panel-settings.js';
 import './settings/panel-oauth-providers.js';
