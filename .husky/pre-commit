@@ -1,1 +1,5 @@
+# Run lint-staged for quick formatting on staged files
 npx lint-staged
+
+# Run comprehensive security and correctness checks
+. "$(dirname "$0")/pre-commit-security.sh"

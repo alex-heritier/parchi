@@ -161,7 +161,7 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
     if (baseProvider === 'claude') {
       const anthropicOAuth = createAnthropic({
         apiKey: settings.oauthAccessToken,
-        baseURL: settings.oauthApiBaseUrl || 'https://api.anthropic.com',
+        baseURL: settings.oauthApiBaseUrl || 'https://api.anthropic.com/v1',
         headers: { ...extraHeaders, ...settings.oauthApiHeaders },
       });
       return anthropicOAuth(modelId);
@@ -180,7 +180,17 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
       return copilotProvider(modelId);
     }
 
-    // codex-oauth and qwen-oauth use OpenAI-compatible endpoints
+    // codex-oauth uses OpenAI-compatible endpoint
+    if (baseProvider === 'codex') {
+      const codexOAuth = createOpenAI({
+        apiKey: settings.oauthAccessToken,
+        baseURL: settings.oauthApiBaseUrl || 'https://api.openai.com/v1',
+        headers: { ...extraHeaders, ...settings.oauthApiHeaders },
+      });
+      return codexOAuth(modelId);
+    }
+
+    // qwen-oauth and other OpenAI-compatible providers
     const oauthProvider = createOpenAICompatible({
       name: `${baseProvider}-oauth`,
       apiKey: settings.oauthAccessToken,
