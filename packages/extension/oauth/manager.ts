@@ -189,13 +189,11 @@ export async function fetchProviderModels(key: OAuthProviderKey): Promise<string
       }
     }
 
-    if (models.length === 0) {
-      return staticModels;
+    const discoveredModels = normalizeOAuthModelIdsForProvider(key, models);
+    if (discoveredModels.length > 0) {
+      return discoveredModels;
     }
-
-    // Keep curated static defaults first, then append API-discovered models.
-    const mergedModels = normalizeOAuthModelIdsForProvider(key, [...staticModels, ...models]);
-    return mergedModels.length > 0 ? mergedModels : staticModels;
+    return staticModels;
   } catch (err) {
     console.warn(`[OAuth] Failed to fetch models for ${key}:`, err);
     return staticModels;

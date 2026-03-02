@@ -1,4 +1,6 @@
-import { OAUTH_PROVIDERS } from '../../../oauth/manager.js';
+import { OAUTH_PROVIDERS, fetchProviderModels } from '../../../oauth/manager.js';
+import { normalizeOAuthModelIdForProvider } from '../../../oauth/model-normalization.js';
+import type { OAuthProviderKey } from '../../../oauth/types.js';
 import type { OAuthProviderConfig } from '../../../oauth/types.js';
 import type { SidePanelUI } from '../core/panel-ui.js';
 
@@ -30,9 +32,22 @@ export async function syncOAuthProfiles(ui: SidePanelUI): Promise<void> {
     const profileName = oauthProfileName(config.key);
     const state = states?.[config.key];
     const connected = Boolean(state?.connected && state?.tokens?.accessToken);
+    let discoveredModels: string[] = [];
+
+    if (connected) {
+      try {
+        discoveredModels = await fetchProviderModels(config.key as OAuthProviderKey);
+      } catch {
+        discoveredModels = [];
+      }
+    }
+
+    const defaultModel = normalizeOAuthModelIdForProvider(
+      config.key,
+      discoveredModels[0] || config.models[0]?.id || '',
+    );
 
     if (connected && !configs[profileName]) {
-      const defaultModel = config.models[0]?.id || '';
       configs[profileName] = {
         provider: `${config.key}-oauth`,
         apiKey: '',
@@ -42,10 +57,26 @@ export async function syncOAuthProfiles(ui: SidePanelUI): Promise<void> {
         systemPrompt: ui.getDefaultSystemPrompt?.() || '',
         temperature: 0.7,
         maxTokens: 4096,
-        contextLimit: config.models[0]?.contextWindow || 200000,
+        contextLimit:
+          config.models.find((model) => model.id === defaultModel)?.contextWindow ||
+          config.models[0]?.contextWindow ||
+          200000,
         timeout: 30000,
       };
       changed = true;
+    } else if (connected && configs[profileName]) {
+      const existing = configs[profileName] as Record<string, any>;
+      const currentModel = String(existing?.model || '').trim();
+      const normalizedModel = normalizeOAuthModelIdForProvider(config.key, currentModel);
+      const nextModel = normalizedModel || defaultModel;
+      if (nextModel && nextModel !== currentModel) {
+        existing.model = nextModel;
+        const matchedContextWindow = config.models.find((model) => model.id === nextModel)?.contextWindow;
+        if (matchedContextWindow) {
+          existing.contextLimit = matchedContextWindow;
+        }
+        changed = true;
+      }
     } else if (!connected && configs[profileName]) {
       delete configs[profileName];
       if (ui.currentConfig === profileName) {
