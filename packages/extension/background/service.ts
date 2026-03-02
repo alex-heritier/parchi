@@ -21,6 +21,8 @@ import { extractTextFromResponseMessages, extractThinking } from '../ai/message-
 import { toModelMessages } from '../ai/model-convert.js';
 import { isValidFinalResponse } from '../ai/retry-engine.js';
 import { buildToolSet, describeImageWithModel, resolveLanguageModel } from '../ai/sdk-client.js';
+import { fetchProviderModels } from '../oauth/manager.js';
+import type { OAuthProviderKey } from '../oauth/types.js';
 import { RecordingCoordinator } from '../recording/recording-coordinator.js';
 import { RelayBridge } from '../relay/relay-bridge.js';
 import { BrowserTools } from '../tools/browser-tools.js';
@@ -893,7 +895,7 @@ export class BackgroundService {
         await refreshConvexProxyAuthSession(settings);
       }
 
-      const runtimeProfileResolution = resolveRuntimeModelProfile(orchestratorProfile, settings);
+      let runtimeProfileResolution = resolveRuntimeModelProfile(orchestratorProfile, settings);
       benchmarkRoute = runtimeProfileResolution.route;
       benchmarkProvider = String(orchestratorProfile?.provider || '');
       benchmarkModel = String(orchestratorProfile?.model || settings.model || '');
@@ -906,10 +908,34 @@ export class BackgroundService {
         });
         return;
       }
-      orchestratorProfile =
-        runtimeProfileResolution.route === 'oauth'
-          ? await injectOAuthTokens(runtimeProfileResolution.profile)
-          : runtimeProfileResolution.profile;
+      if (runtimeProfileResolution.route === 'oauth') {
+        try {
+          orchestratorProfile = await injectOAuthTokens(runtimeProfileResolution.profile);
+        } catch (oauthError) {
+          const canFallbackToActiveProfile = orchestratorEnabled && orchestratorProfileName !== activeProfileName;
+          if (!canFallbackToActiveProfile) {
+            throw oauthError;
+          }
+          const activeRuntimeProfile = resolveRuntimeModelProfile(activeProfile, settings);
+          if (!activeRuntimeProfile.allowed) {
+            throw oauthError;
+          }
+          this.sendRuntime(runMeta, {
+            type: 'run_warning',
+            message: `Orchestrator profile OAuth session is unavailable. Falling back to active profile "${activeProfileName}".`,
+          });
+          runtimeProfileResolution = activeRuntimeProfile;
+          orchestratorProfile =
+            activeRuntimeProfile.route === 'oauth'
+              ? await injectOAuthTokens(activeRuntimeProfile.profile)
+              : activeRuntimeProfile.profile;
+          benchmarkRoute = runtimeProfileResolution.route;
+          benchmarkProvider = String(orchestratorProfile?.provider || benchmarkProvider);
+          benchmarkModel = String(orchestratorProfile?.model || benchmarkModel);
+        }
+      } else {
+        orchestratorProfile = runtimeProfileResolution.profile;
+      }
       latestErrorContext = {
         route: runtimeProfileResolution.route,
         provider: String(orchestratorProfile?.provider || ''),
@@ -1010,9 +1036,22 @@ export class BackgroundService {
       let activeModelId = String(orchestratorProfile.model || settings.model || '').trim();
       let model = resolveLanguageModel(orchestratorProfile);
       const modelRetryOrder = [activeModelId];
+      const oauthProviderMap: Record<string, OAuthProviderKey> = {
+        'claude-oauth': 'claude',
+        'codex-oauth': 'codex',
+        'copilot-oauth': 'copilot',
+        'qwen-oauth': 'qwen',
+      };
       const openRouterLikeProvider =
         String(orchestratorProfile.provider || '').toLowerCase() === 'openrouter' ||
         String(orchestratorProfile.provider || '').toLowerCase() === 'parchi';
+      const oauthProviderKey =
+        oauthProviderMap[
+          String(orchestratorProfile.provider || '')
+            .trim()
+            .toLowerCase()
+        ] || null;
+      let oauthFallbackCandidatesLoaded = false;
       if (openRouterLikeProvider) {
         if (!modelRetryOrder.includes('openrouter/auto')) modelRetryOrder.push('openrouter/auto');
         if (!modelRetryOrder.includes('openai/gpt-4o-mini')) modelRetryOrder.push('openai/gpt-4o-mini');
@@ -1045,7 +1084,7 @@ export class BackgroundService {
       };
 
       const persistRecoveredModelSelection = async (nextModelId: string) => {
-        if (!openRouterLikeProvider) return;
+        if (!openRouterLikeProvider && !oauthProviderKey) return;
         const trimmed = String(nextModelId || '').trim();
         if (!trimmed) return;
         try {
@@ -1409,6 +1448,33 @@ export class BackgroundService {
                 });
                 await new Promise((resolve) => setTimeout(resolve, waitMs));
                 continue;
+              }
+
+              if (classified.category === 'model' && oauthProviderKey && !oauthFallbackCandidatesLoaded) {
+                oauthFallbackCandidatesLoaded = true;
+                try {
+                  const providerModelIds = await fetchProviderModels(oauthProviderKey);
+                  const currentRetrySet = new Set(
+                    modelRetryOrder.map((id) =>
+                      String(id || '')
+                        .trim()
+                        .toLowerCase(),
+                    ),
+                  );
+                  const nextCandidates = providerModelIds
+                    .map((id) => String(id || '').trim())
+                    .filter((id) => id.length > 0 && !currentRetrySet.has(id.toLowerCase()))
+                    .slice(0, 16);
+                  if (nextCandidates.length > 0) {
+                    modelRetryOrder.push(...nextCandidates);
+                    this.sendRuntime(runMeta, {
+                      type: 'run_warning',
+                      message: `Model "${activeModelId}" unavailable. Loaded ${nextCandidates.length} fallback model candidate(s) from ${oauthProviderKey} OAuth.`,
+                    });
+                  }
+                } catch (oauthModelError) {
+                  console.warn('[oauth-fallback] Failed to load OAuth fallback model candidates:', oauthModelError);
+                }
               }
 
               if (classified.category !== 'model') {

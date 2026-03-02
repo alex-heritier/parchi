@@ -73,6 +73,8 @@ export function classifyApiError(error: unknown, context: ErrorClassificationCon
     combined.includes('model is unavailable') ||
     combined.includes('model not available') ||
     combined.includes('model is not available') ||
+    combined.includes('model not supported') ||
+    combined.includes('model_not_supported') ||
     /model[^.\n]{0,120}(does not exist|not found|unavailable|invalid)/i.test(combined);
 
   // Managed billing / entitlement issues
