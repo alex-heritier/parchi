@@ -509,6 +509,60 @@ function testApiErrorClassification(runner: TestRunner) {
         .includes('no provider/ prefix'),
     );
   });
+
+  runner.test('OAuth permission scope failures do not get mislabeled as expired OAuth', () => {
+    const classified = classifyApiError(
+      {
+        statusCode: 403,
+        message: 'Forbidden',
+        responseBody:
+          '{"error":"You have insufficient permissions for this operation. Missing scopes: api.model.read."}',
+      },
+      {
+        route: 'oauth',
+        provider: 'codex-oauth',
+        model: 'gpt-5.3-codex',
+      },
+    );
+    runner.assertEqual(classified.category, 'auth');
+    runner.assertTrue(
+      String(classified.message || '')
+        .toLowerCase()
+        .includes('lacks required api permissions'),
+    );
+    runner.assertFalse(
+      String(classified.message || '')
+        .toLowerCase()
+        .includes('oauth authentication failed'),
+    );
+  });
+
+  runner.test('OAuth quota failures classify as rate limit (not auth)', () => {
+    const classified = classifyApiError(
+      {
+        statusCode: 403,
+        message: 'Forbidden',
+        responseBody:
+          '{"error":{"message":"You exceeded your current quota, please check your plan and billing details.","type":"insufficient_quota"}}',
+      },
+      {
+        route: 'oauth',
+        provider: 'codex-oauth',
+        model: 'gpt-5.3-codex',
+      },
+    );
+    runner.assertEqual(classified.category, 'rate_limit');
+    runner.assertTrue(
+      String(classified.message || '')
+        .toLowerCase()
+        .includes('quota'),
+    );
+    runner.assertFalse(
+      String(classified.message || '')
+        .toLowerCase()
+        .includes('oauth authentication failed'),
+    );
+  });
 }
 
 function testOAuthModelNormalization(runner: TestRunner) {

@@ -67,6 +67,24 @@ export function classifyApiError(error: unknown, context: ErrorClassificationCon
     combined.includes('invalid api key') ||
     combined.includes('invalid x-api-key') ||
     combined.includes('incorrect api key');
+  const hasOAuthPermissionSignal =
+    combined.includes('insufficient permissions') ||
+    combined.includes('insufficient permission') ||
+    combined.includes('missing scopes') ||
+    combined.includes('missing scope') ||
+    combined.includes('insufficient_scope') ||
+    combined.includes('api.model.read');
+  const hasQuotaSignal =
+    combined.includes('quota exceeded') ||
+    combined.includes('insufficient_quota') ||
+    combined.includes('exceeded your current quota') ||
+    combined.includes('billing details');
+  const hasRateLimitSignal =
+    statusCode === 429 ||
+    combined.includes('rate limit') ||
+    combined.includes('too many requests') ||
+    hasQuotaSignal ||
+    combined.includes('rate_limit');
   const hasModelSignal =
     combined.includes('model not found') ||
     combined.includes('invalid model') ||
@@ -107,6 +125,26 @@ export function classifyApiError(error: unknown, context: ErrorClassificationCon
     };
   }
 
+  if (hasOAuthRouteSignal && !hasManagedRouteSignal && hasOAuthPermissionSignal) {
+    return {
+      category: 'auth',
+      message: `${oauthProviderLabel} OAuth account lacks required API permissions.`,
+      action: `Grant API scopes/access for ${oauthProviderLabel} (for example missing model-read scope), then reconnect ${oauthProviderLabel} in Settings > OAuth.`,
+      recoverable: false,
+    };
+  }
+
+  // Rate limits and quota
+  if (hasRateLimitSignal) {
+    return {
+      category: 'rate_limit',
+      message: hasQuotaSignal
+        ? 'Request blocked by provider quota or billing limits.'
+        : 'Rate limit reached. Too many requests in a short time.',
+      action: hasQuotaSignal ? 'Check provider billing/quota, then retry.' : 'Wait a moment and try again.',
+      recoverable: !hasQuotaSignal,
+    };
+  }
   // Auth errors
   if (
     statusCode === 401 ||
@@ -141,23 +179,6 @@ export function classifyApiError(error: unknown, context: ErrorClassificationCon
       recoverable: false,
     };
   }
-
-  // Rate limits
-  if (
-    statusCode === 429 ||
-    combined.includes('rate limit') ||
-    combined.includes('too many requests') ||
-    combined.includes('quota exceeded') ||
-    combined.includes('rate_limit')
-  ) {
-    return {
-      category: 'rate_limit',
-      message: 'Rate limit reached. Too many requests in a short time.',
-      action: 'Wait a moment and try again.',
-      recoverable: true,
-    };
-  }
-
   // Context length
   if (
     combined.includes('context length') ||
