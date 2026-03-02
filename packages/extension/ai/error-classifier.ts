@@ -95,7 +95,6 @@ export function classifyApiError(error: unknown, context: ErrorClassificationCon
     combined.includes('model_not_supported') ||
     /model[^.\n]{0,120}(does not exist|not found|unavailable|invalid)/i.test(combined);
 
-  // Managed billing / entitlement issues
   if (
     statusCode === 402 ||
     combined.includes('insufficient credits') ||
