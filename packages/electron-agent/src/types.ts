@@ -41,4 +41,3 @@ export type ElectronToolRegistryEntry = {
   definition: ToolDefinition;
   handler: ElectronToolHandler;
 };
-

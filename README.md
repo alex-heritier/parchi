@@ -271,6 +271,44 @@ npm run relay -- tool navigate --args='{"url":"https://example.com"}'
 npm run relay -- run "Open example.com and summarize the page"
 ```
 
+### Electron desktop automation (relay-native + direct CLI)
+
+You can now control Electron apps (Slack, VS Code, Discord, etc.) in two modes:
+
+1. **Relay-native agent** (multi-agent routing through `parchi-relay`)
+2. **Direct CLI mode** (`parchi electron ...` passthrough to `agent-browser`)
+
+```bash
+# Build binaries
+npm run build
+
+# Start relay daemon (terminal A)
+PARCHI_RELAY_TOKEN=your-secret npm run relay:daemon
+
+# Start Electron relay agent (terminal B)
+PARCHI_RELAY_TOKEN=your-secret npm run electron:agent
+
+# Confirm agents and choose Electron as default when needed
+npm run relay -- agents
+npm run relay -- default-agent set <electron-agent-id>
+npm run relay -- tools
+npm run relay -- tool electron.launch --args='{\"app\":\"Slack\",\"port\":9222}'
+npm run relay -- tool electron.connect --args='{\"cdpEndpoint\":\"9222\"}'
+npm run relay -- tool electron.snapshot --args='{\"interactive\":true}'
+```
+
+Direct mode:
+
+```bash
+# Launch app with remote debugging
+parchi electron launch "Slack" --port=9222
+
+# Pass any agent-browser command through parchi
+parchi electron connect 9222
+parchi electron snapshot -i
+parchi electron click @e5
+```
+
 ---
 
 ## 🏗 Architecture
@@ -297,6 +335,7 @@ npm run relay -- run "Open example.com and summarize the page"
 |------|------|
 | `packages/backend/` | Convex backend (auth, billing, API proxy) |
 | `packages/cli/` | Local CLI entrypoint and daemon client |
+| `packages/electron-agent/` | Relay-native Electron desktop automation agent |
 | `packages/extension/` | Browser extension runtime, UI, and tools |
 | `packages/relay-service/` | Relay daemon + relay protocol CLI |
 | `packages/shared/` | Shared plans, prompts, schemas, and message types |

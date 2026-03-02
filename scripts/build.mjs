@@ -19,6 +19,7 @@ const distName = isFirefox ? 'dist-firefox' : 'dist';
 const distDir = path.join(rootDir, distName);
 const relayDistDir = path.join(rootDir, 'dist-relay');
 const cliDistDir = path.join(rootDir, 'dist-cli');
+const electronAgentDistDir = path.join(rootDir, 'dist-electron-agent');
 const extensionRoot = path.join(rootDir, 'packages', 'extension');
 const parseEnvText = (text) => {
   const parsed = {};
@@ -96,6 +97,7 @@ const run = async () => {
   cleanDir(distDir);
   cleanDir(relayDistDir);
   cleanDir(cliDistDir);
+  cleanDir(electronAgentDistDir);
 
   try {
     execSync('tsc -p tsconfig.json --noEmit', { stdio: 'inherit', cwd: rootDir });
@@ -144,6 +146,7 @@ const run = async () => {
       path.join(rootDir, 'tests', 'e2e', 'test-browser-tools.ts'),
       path.join(rootDir, 'tests', 'api', 'run-api-tests.ts'),
       path.join(rootDir, 'tests', 'relay', 'run-relay-tests.ts'),
+      path.join(rootDir, 'tests', 'relay', 'run-electron-agent-tests.ts'),
       path.join(rootDir, 'tests', 'relay', 'run-relay-benchmark.ts'),
       path.join(rootDir, 'tests', 'perf', 'run-perf-profile.ts'),
       path.join(rootDir, 'tests', 'perf', 'run-tab-cpu-audit.ts'),
@@ -187,6 +190,25 @@ const run = async () => {
       parchi: path.join(rootDir, 'packages', 'cli', 'src', 'main.ts'),
     },
     outdir: cliDistDir,
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    target: 'es2022',
+    sourcemap: true,
+    logLevel: 'info',
+    define: buildDefines,
+    packages: 'external',
+    banner: {
+      js: '#!/usr/bin/env node',
+    },
+  });
+
+  // Build Electron relay agent (Node.js)
+  await esbuild.build({
+    entryPoints: {
+      'electron-agent': path.join(rootDir, 'packages', 'electron-agent', 'src', 'main.ts'),
+    },
+    outdir: electronAgentDistDir,
     bundle: true,
     format: 'esm',
     platform: 'node',

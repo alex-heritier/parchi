@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import { WebSocket } from 'ws';
 import {
   type JsonRpcNotification,

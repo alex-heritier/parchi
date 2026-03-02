@@ -1,5 +1,6 @@
 import { DEFAULT_PORT, generateToken, isDaemonRunning, readAuth, readPid, removePid, writeAuth } from './auth.js';
 import { startDaemon } from './daemon.js';
+import { cmdElectron } from './electron.js';
 import { isNativeMessagingMode, parseArgs, runInitFlow } from './main-helpers.js';
 import { handleNativeMessaging } from './native-host.js';
 import { fetchRpc } from './rpc-client.js';
@@ -147,7 +148,8 @@ Commands:
   parchi tools                      List available tools
   parchi status                     Show daemon + extension connection status
   parchi stop                       Stop the daemon
-  parchi daemon                     Run daemon in foreground (for debugging)`);
+  parchi daemon                     Run daemon in foreground (for debugging)
+  parchi electron ...               Direct Electron control via agent-browser`);
     return;
   }
 
@@ -158,6 +160,7 @@ Commands:
   if (cmd === 'tools') return cmdTools(flags);
   if (cmd === 'tool') return cmdTool(positional, flags);
   if (cmd === 'run') return cmdRun(positional, flags);
+  if (cmd === 'electron') return cmdElectron(process.argv.slice(3));
 
   // Pass-through RPC for advanced usage
   if (cmd === 'rpc') {

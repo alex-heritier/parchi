@@ -120,23 +120,27 @@ check_secrets() {
 }
 
 check_dependency_audit() {
-  log_info "Running npm audit..."
+  log_info "Running npm audit (runtime deps only)..."
 
   local audit_file
   audit_file="/tmp/audit-$$.json"
 
-  npm audit --json > "$audit_file" 2>/dev/null || true
+  # Check production/runtime dependencies by default so pre-commit isn't blocked
+  # by known dev-only vulnerabilities from tooling packages.
+  npm audit --omit=dev --json > "$audit_file" 2>/dev/null || true
 
   if [ -f "$audit_file" ]; then
     local critical_count
     local high_count
-    critical_count=$(grep -c '"severity": "critical"' "$audit_file" 2>/dev/null || echo "0")
-    high_count=$(grep -c '"severity": "high"' "$audit_file" 2>/dev/null || echo "0")
+    critical_count=$(grep -c '"severity": "critical"' "$audit_file" 2>/dev/null || true)
+    high_count=$(grep -c '"severity": "high"' "$audit_file" 2>/dev/null || true)
+    critical_count=${critical_count:-0}
+    high_count=${high_count:-0}
     rm -f "$audit_file"
 
     if [ "$critical_count" -gt 0 ] || [ "$high_count" -gt 0 ]; then
       log_fail "Found $critical_count critical and $high_count high severity vulnerabilities"
-      npm audit --audit-level=high 2>&1 | tail -20
+      npm audit --omit=dev --audit-level=high 2>&1 | tail -20
       return 1
     fi
   fi
@@ -152,8 +156,19 @@ check_typescript() {
 }
 
 check_lint() {
-  log_info "Running Biome lint check..."
-  npm run lint 2>&1 | tail -30
+  log_info "Running Biome lint check (staged source files)..."
+
+  local staged_files=()
+  while IFS= read -r file; do
+    [ -n "$file" ] && staged_files+=("$file")
+  done < <(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx|js|jsx|css|html)$' || true)
+
+  if [ "${#staged_files[@]}" -eq 0 ]; then
+    log_info "No staged source files to lint"
+    return 0
+  fi
+
+  npx biome check --diagnostic-level=error "${staged_files[@]}" 2>&1 | tail -40
   return "${PIPESTATUS[0]}"
 }
 

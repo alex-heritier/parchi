@@ -2,4 +2,4 @@
 npx lint-staged
 
 # Run comprehensive security and correctness checks
-. "$(dirname "$0")/pre-commit-security.sh"
+bash "$(dirname "$0")/pre-commit-security.sh"

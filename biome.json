@@ -51,6 +51,7 @@
       "dist/**",
       "dist-cli/**",
       "dist-relay/**",
+      "dist-electron-agent/**",
       "dist-firefox/**",
       "node_modules/**",
       "server/node_modules/**",
