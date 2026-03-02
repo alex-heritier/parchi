@@ -565,6 +565,21 @@ export PARCHI_RELAY_PORT="${port}"`;
     this.refreshModelCatalogForProfileEditor?.();
   });
 
+  // Sync model text input to hidden select
+  this.elements.profileEditorModelInput?.addEventListener('input', () => {
+    const val = (this.elements.profileEditorModelInput?.value || '').trim();
+    const select = this.elements.profileEditorModel as HTMLSelectElement | null;
+    if (select) {
+      if (val && !Array.from(select.options).some((o: HTMLOptionElement) => o.value === val)) {
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = val;
+        select.insertBefore(opt, select.options[1] || null);
+      }
+      select.value = val;
+    }
+  });
+
   // Also refetch models when endpoint or API key changes (debounced)
   const debouncedModelRefresh = debounce(() => this.refreshModelCatalogForProfileEditor?.(), 800);
   this.elements.profileEditorEndpoint?.addEventListener('input', debouncedModelRefresh);

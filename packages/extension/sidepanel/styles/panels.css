@@ -513,6 +513,34 @@
   overflow-y: auto;
 }
 
+/* Model Combo (input + hidden select) */
+.model-combo-wrap {
+  position: relative;
+}
+
+.model-combo-wrap input {
+  width: 100%;
+  padding: 7px 10px;
+  background: var(--card);
+  border: 1px solid var(--ink-1);
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+  font-size: 12px;
+}
+
+.model-combo-wrap input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.1);
+}
+
+.model-combo-select {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+
 /* Model Picker */
 .model-picker-group {
   position: relative;

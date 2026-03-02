@@ -404,12 +404,7 @@ sidePanelProto.ensureManagedProviderDefaults = async function ensureManagedProvi
   const activeConfig = String(stored.activeConfig || 'default');
   const configs = isRecord(stored.configs) ? { ...stored.configs } : {};
   const mode = String(stored[ACCOUNT_MODE_KEY] || '').toLowerCase();
-  const hasCredits = Number(stored.convexCreditBalanceCents || 0) > 0;
-  const paidActive =
-    String(stored.convexSubscriptionPlan || '').toLowerCase() === 'pro' &&
-    String(stored.convexSubscriptionStatus || '').toLowerCase() === 'active';
-  const hasPaidAccess = hasCredits || paidActive;
-  const shouldActivateManaged = Boolean(options.forceActivate || (mode === ACCOUNT_MODE_PAID && hasPaidAccess));
+  const shouldActivateManaged = Boolean(options.forceActivate);
   if (mode !== ACCOUNT_MODE_PAID && !options.forceActivate) return;
 
   const existingManaged = isRecord(configs[MANAGED_PROFILE_NAME]) ? { ...configs[MANAGED_PROFILE_NAME] } : {};
@@ -955,7 +950,8 @@ sidePanelProto.refreshAccountPanel = async function refreshAccountPanel({ silent
       if (stored[ACCOUNT_MODE_KEY] !== ACCOUNT_MODE_PAID) {
         await chrome.storage.local.set({ [ACCOUNT_MODE_KEY]: ACCOUNT_MODE_PAID });
       }
-      await this.ensureManagedProviderDefaults({ forceActivate: true });
+      // Only ensure the managed profile exists; don't force-switch if user picked another profile
+      await this.ensureManagedProviderDefaults();
     }
 
     // Show "Buy Credits" row always; hide legacy upgrade if user has credits or a subscription
