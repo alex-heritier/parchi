@@ -57,6 +57,12 @@ export function classifyApiError(error: unknown, context: ErrorClassificationCon
     combined.includes('insufficient credits') ||
     combined.includes('subscription is not active') ||
     combined.includes('recovery token');
+  const oauthProvider = String(context.provider || '')
+    .trim()
+    .toLowerCase();
+  const hasOAuthRouteSignal =
+    context.route === 'oauth' || oauthProvider.endsWith('-oauth') || combined.includes('oauth session');
+  const oauthProviderLabel = oauthProvider.endsWith('-oauth') ? oauthProvider.replace(/-oauth$/, '') : 'oauth';
   const hasAuthKeySignal =
     combined.includes('invalid api key') ||
     combined.includes('invalid x-api-key') ||
@@ -109,6 +115,15 @@ export function classifyApiError(error: unknown, context: ErrorClassificationCon
     combined.includes('forbidden') ||
     combined.includes('permission denied')
   ) {
+    if (hasOAuthRouteSignal && !hasManagedRouteSignal) {
+      return {
+        category: 'auth',
+        message: `${oauthProviderLabel} OAuth authentication failed.`,
+        action: `Reconnect ${oauthProviderLabel} in Settings > OAuth, then retry.`,
+        recoverable: true,
+      };
+    }
+
     const managedAuthMessage = hasAuthKeySignal
       ? 'Managed runtime key is invalid or expired.'
       : 'Managed runtime authentication failed.';
@@ -183,7 +198,10 @@ export function classifyApiError(error: unknown, context: ErrorClassificationCon
     return {
       category: 'model',
       message: `Model not found or unavailable.${detail}`,
-      action: 'Check the model name in your profile settings.',
+      action:
+        hasOAuthRouteSignal && !hasManagedRouteSignal
+          ? 'Use the raw model ID for OAuth providers (no provider/ prefix), then retry.'
+          : 'Check the model name in your profile settings.',
       recoverable: false,
     };
   }

@@ -3,6 +3,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { generateText, jsonSchema, tool } from 'ai';
 import type { ToolDefinition } from '../../shared/src/tools.js';
+import { normalizeOAuthModelIdForProvider } from '../oauth/model-normalization.js';
 
 export type { ToolDefinition };
 
@@ -154,9 +155,18 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
     return openRouterProvider(normalizeOpenRouterModelId(modelId));
   }
 
+  if (provider.endsWith('-oauth') && !settings.oauthAccessToken) {
+    const baseProvider = provider.replace(/-oauth$/, '');
+    throw new Error(`OAuth session expired for ${baseProvider}. Please reconnect in Settings > OAuth.`);
+  }
+
   // OAuth subscription providers (claude-oauth, codex-oauth, copilot-oauth, qwen-oauth)
   if (provider.endsWith('-oauth') && settings.oauthAccessToken) {
     const baseProvider = provider.replace(/-oauth$/, '');
+    const oauthModelId = normalizeOAuthModelIdForProvider(baseProvider, modelId);
+    if (!oauthModelId) {
+      throw new Error('No model configured. Open Settings and choose a model before running.');
+    }
 
     if (baseProvider === 'claude') {
       const anthropicOAuth = createAnthropic({
@@ -164,7 +174,7 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
         baseURL: settings.oauthApiBaseUrl || 'https://api.anthropic.com/v1',
         headers: { ...extraHeaders, ...settings.oauthApiHeaders },
       });
-      return anthropicOAuth(modelId);
+      return anthropicOAuth(oauthModelId);
     }
 
     if (baseProvider === 'copilot') {
@@ -177,7 +187,7 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
           ...(settings.oauthApiHeaders || {}),
         },
       });
-      return copilotProvider(modelId);
+      return copilotProvider(oauthModelId);
     }
 
     // codex-oauth uses OpenAI-compatible endpoint
@@ -187,7 +197,7 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
         baseURL: settings.oauthApiBaseUrl || 'https://api.openai.com/v1',
         headers: { ...extraHeaders, ...settings.oauthApiHeaders },
       });
-      return codexOAuth(modelId);
+      return codexOAuth(oauthModelId);
     }
 
     // qwen-oauth and other OpenAI-compatible providers
@@ -197,7 +207,7 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
       baseURL: settings.oauthApiBaseUrl || 'https://api.openai.com/v1',
       headers: { ...extraHeaders, ...settings.oauthApiHeaders },
     });
-    return oauthProvider(modelId);
+    return oauthProvider(oauthModelId);
   }
 
   if (provider === 'custom') {

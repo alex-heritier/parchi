@@ -22,6 +22,7 @@ import {
   fetchOpenAIModels,
   getStaticOAuthModelIds,
 } from './model-listing.js';
+import { normalizeOAuthModelIdsForProvider } from './model-normalization.js';
 
 export type { OAuthProviderKey, OAuthProviderState, OAuthTokenSet, DeviceCodeResponse };
 export { OAUTH_PROVIDERS } from './providers.js';
@@ -169,7 +170,8 @@ export async function fetchProviderModels(key: OAuthProviderKey): Promise<string
   if (!config) return [];
 
   const accessToken = await getAccessToken(key);
-  if (!accessToken) return getStaticOAuthModelIds(config);
+  const staticModels = normalizeOAuthModelIdsForProvider(key, getStaticOAuthModelIds(config));
+  if (!accessToken) return staticModels;
 
   try {
     let models: string[] = [];
@@ -187,16 +189,15 @@ export async function fetchProviderModels(key: OAuthProviderKey): Promise<string
       }
     }
 
-    const staticModels = getStaticOAuthModelIds(config);
     if (models.length === 0) {
       return staticModels;
     }
 
     // Keep curated static defaults first, then append API-discovered models.
-    const mergedModels = [...staticModels, ...models.filter((id) => !staticModels.includes(id))];
-    return mergedModels;
+    const mergedModels = normalizeOAuthModelIdsForProvider(key, [...staticModels, ...models]);
+    return mergedModels.length > 0 ? mergedModels : staticModels;
   } catch (err) {
     console.warn(`[OAuth] Failed to fetch models for ${key}:`, err);
-    return getStaticOAuthModelIds(config);
+    return staticModels;
   }
 }

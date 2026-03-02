@@ -21,6 +21,7 @@ import {
 import type { Message } from '../../packages/extension/ai/message-schema.js';
 import { extractThinking } from '../../packages/extension/ai/message-utils.js';
 import { createExponentialBackoff, isValidFinalResponse } from '../../packages/extension/ai/retry-engine.js';
+import { normalizeOAuthModelIdForProvider } from '../../packages/extension/oauth/model-normalization.js';
 
 import { buildRunPlan, normalizePlanStatus, normalizePlanSteps } from '../../packages/shared/src/plan.js';
 import type { RunPlan } from '../../packages/shared/src/plan.js';
@@ -450,6 +451,82 @@ function testApiErrorClassification(runner: TestRunner) {
     );
     runner.assertTrue(String(classified.action || '').includes('OPENROUTER_API_KEY'));
   });
+
+  runner.test('OAuth auth failures recommend reconnecting OAuth (not BYOK)', () => {
+    const classified = classifyApiError(
+      {
+        statusCode: 401,
+        message: 'Unauthorized',
+        responseBody: '{"error":{"message":"Invalid authentication"}}',
+      },
+      {
+        route: 'oauth',
+        provider: 'codex-oauth',
+        model: 'gpt-5.3-codex',
+      },
+    );
+    runner.assertEqual(classified.category, 'auth');
+    runner.assertTrue(
+      String(classified.message || '')
+        .toLowerCase()
+        .includes('oauth authentication failed'),
+    );
+    runner.assertTrue(
+      String(classified.action || '')
+        .toLowerCase()
+        .includes('settings > oauth'),
+    );
+    runner.assertFalse(
+      String(classified.action || '')
+        .toLowerCase()
+        .includes('check your api key in settings'),
+    );
+  });
+
+  runner.test('OAuth model failures suggest raw model IDs (no provider prefix)', () => {
+    const classified = classifyApiError(
+      {
+        statusCode: 400,
+        message: 'Bad Request',
+        responseBody:
+          '{"error":{"message":"The requested model is not supported.","code":"model_not_supported","type":"invalid_request_error"}}',
+      },
+      {
+        route: 'oauth',
+        provider: 'copilot-oauth',
+        model: 'copilot/claude-sonnet-4',
+      },
+    );
+    runner.assertEqual(classified.category, 'model');
+    runner.assertTrue(
+      String(classified.action || '')
+        .toLowerCase()
+        .includes('no provider/ prefix'),
+    );
+  });
+}
+
+function testOAuthModelNormalization(runner: TestRunner) {
+  log('\n=== Testing OAuth Model Normalization ===', 'info');
+
+  runner.test('Copilot prefixed model IDs are normalized', () => {
+    runner.assertEqual(
+      normalizeOAuthModelIdForProvider('copilot-oauth', 'copilot/claude-sonnet-4'),
+      'claude-sonnet-4',
+    );
+    runner.assertEqual(
+      normalizeOAuthModelIdForProvider('copilot', 'github-copilot/gpt-4o'),
+      'gpt-4o',
+    );
+  });
+
+  runner.test('Codex prefixed model IDs are normalized', () => {
+    runner.assertEqual(normalizeOAuthModelIdForProvider('codex-oauth', 'openai/gpt-5.2'), 'gpt-5.2');
+  });
+
+  runner.test('Non-prefixed OAuth model IDs remain unchanged', () => {
+    runner.assertEqual(normalizeOAuthModelIdForProvider('qwen-oauth', 'qwen-max'), 'qwen-max');
+  });
 }
 
 // Test Message Schema
@@ -768,6 +845,7 @@ function main() {
   testInputValidation(runner);
   testErrorHandling(runner);
   testApiErrorClassification(runner);
+  testOAuthModelNormalization(runner);
   testMessageSchema(runner);
 
   testConversationCompaction(runner);
