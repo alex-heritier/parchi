@@ -130,11 +130,6 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
 ];
 
-const asRecord = (value: unknown): JsonRecord => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  return value as JsonRecord;
-};
-
 const asString = (value: unknown): string | null => {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();

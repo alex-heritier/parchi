@@ -30,7 +30,11 @@ const normalizeRelayUrl = (raw: string) => {
 };
 
 const buildDefaultAgentId = () => {
-  const host = os.hostname().replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 32) || 'host';
+  const host =
+    os
+      .hostname()
+      .replace(/[^a-zA-Z0-9_-]/g, '-')
+      .slice(0, 32) || 'host';
   return `electron-${host}-${process.pid}`;
 };
 

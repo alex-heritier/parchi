@@ -127,3 +127,27 @@ Extension agent (WebSocket `/v1/extension?token=...`):
 - Keep the relay token private. Treat it like a local admin password.
 - Bind to `127.0.0.1` unless you explicitly intend to expose it.
 - If you expose it beyond localhost, add additional auth and transport security.
+
+## Electron Agent Mode
+
+Parchi now supports a dedicated relay-native Electron agent:
+
+```bash
+# Terminal A
+PARCHI_RELAY_TOKEN=<TOKEN> npm run relay:daemon
+
+# Terminal B
+PARCHI_RELAY_TOKEN=<TOKEN> npm run electron:agent
+```
+
+Then select the Electron agent with:
+
+```bash
+npm run relay -- agents
+npm run relay -- default-agent set <electron-agent-id>
+```
+
+Useful methods:
+- `tool.call` with `electron.launch`
+- `tool.call` with `electron.connect`
+- `tool.call` with `electron.snapshot`, `electron.click`, `electron.type`, `electron.press`

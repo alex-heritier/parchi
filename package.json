@@ -1,6 +1,6 @@
 {
   "name": "parchi-extension",
-  "version": "0.4.11",
+  "version": "0.4.13",
   "description": "Warm-paper browser automation extension with configurable LLM providers",
   "private": true,
   "type": "module",
@@ -19,6 +19,7 @@
     "relay": "node dist-relay/relay.js",
     "relay:secure": "node scripts/relay-secure.mjs",
     "parchi": "node dist-cli/parchi.js",
+    "electron:agent": "node dist-electron-agent/electron-agent.js",
     "validate": "node scripts/build.mjs && node dist/tests/validate-extension.js",
     "test": "node scripts/build.mjs && node dist/tests/run-tests.js",
     "test:unit": "node scripts/build.mjs && node dist/tests/unit/run-unit-tests.js",
@@ -26,7 +27,7 @@
     "test:integration": "echo 'Load tests/integration/test-page.html in browser and run tests'",
     "test:api": "node scripts/build.mjs && node dist/tests/api/run-api-tests.js",
     "test:e2e": "node scripts/build.mjs && node dist/tests/e2e/run-e2e.js",
-    "test:relay": "node scripts/build.mjs && node dist/tests/relay/run-relay-tests.js",
+    "test:relay": "node scripts/build.mjs && node dist/tests/relay/run-relay-tests.js && node dist/tests/relay/run-electron-agent-tests.js",
     "bench:relay": "node scripts/build.mjs && node dist/tests/relay/run-relay-benchmark.js",
     "perf:tabs": "node scripts/build.mjs && node dist/tests/perf/run-tab-cpu-audit.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -67,7 +68,8 @@
   "license": "MIT",
   "bin": {
     "parchi": "dist-cli/parchi.js",
-    "parchi-relay": "dist-relay/relay.js"
+    "parchi-relay": "dist-relay/relay.js",
+    "parchi-electron-agent": "dist-electron-agent/electron-agent.js"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "3.0.17",
@@ -85,7 +87,7 @@
       "biome check --write"
     ],
     "*.{json,md,css}": [
-      "biome format --write"
+      "biome format --write --no-errors-on-unmatched"
     ]
   },
   "devDependencies": {

@@ -6,6 +6,7 @@ dist/
 dist-firefox/
 dist-relay/
 dist-cli/
+dist-electron-agent/
 build/
 server/dist/
 *.map

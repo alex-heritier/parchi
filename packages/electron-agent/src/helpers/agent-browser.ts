@@ -1,5 +1,5 @@
-import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 import type { AgentBrowserRunResult } from '../types.js';
 
 const require = createRequire(import.meta.url);
