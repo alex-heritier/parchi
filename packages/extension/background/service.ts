@@ -20,7 +20,13 @@ import type { Message, ToolCall } from '../ai/message-schema.js';
 import { extractTextFromResponseMessages, extractThinking } from '../ai/message-utils.js';
 import { toModelMessages } from '../ai/model-convert.js';
 import { isValidFinalResponse } from '../ai/retry-engine.js';
-import { buildToolSet, describeImageWithModel, resolveLanguageModel } from '../ai/sdk-client.js';
+import {
+  buildCodexOAuthProviderOptions,
+  buildToolSet,
+  describeImageWithModel,
+  isCodexOAuthProvider,
+  resolveLanguageModel,
+} from '../ai/sdk-client.js';
 import { fetchProviderModels } from '../oauth/manager.js';
 import type { OAuthProviderKey } from '../oauth/types.js';
 import { RecordingCoordinator } from '../recording/recording-coordinator.js';
@@ -54,6 +60,9 @@ import type { RunMeta, SessionState } from './service-types.js';
 import { enhanceSystemPrompt } from './system-prompt.js';
 import { checkToolPermission } from './tool-permissions.js';
 import { buildPlanFromArgs, extractXmlToolCalls, stripXmlToolCalls } from './xml-tool-parser.js';
+
+const profileUsesCodexOAuth = (profile: Record<string, any> | null | undefined) =>
+  isCodexOAuthProvider(String(profile?.provider || ''));
 
 export class BackgroundService {
   browserTools: BrowserTools;
@@ -1267,28 +1276,36 @@ export class BackgroundService {
           this.sendRuntime(runMeta, { type: 'assistant_stream_start' });
         }
 
+        const orchestratorSystemPrompt = enhanceSystemPrompt(
+          orchestratorProfile.systemPrompt || '',
+          context,
+          sessionState,
+          matchedSkills,
+        );
+        const codexOAuthProfile = profileUsesCodexOAuth(orchestratorProfile as any);
+        const providerOptions: any = {};
+        if (enableAnthropicThinking) {
+          providerOptions.anthropic = {
+            thinking: {
+              type: 'enabled',
+              budgetTokens: Math.min(Math.max(1024, Math.floor((orchestratorProfile.maxTokens ?? 4096) * 0.5)), 16384),
+            },
+          };
+        }
+        if (codexOAuthProfile) {
+          providerOptions.openai = buildCodexOAuthProviderOptions(orchestratorSystemPrompt).openai;
+        }
+
         const result = streamText({
           model,
-          system: enhanceSystemPrompt(orchestratorProfile.systemPrompt || '', context, sessionState, matchedSkills),
+          system: orchestratorSystemPrompt,
           messages: modelMessages,
           tools: toolSet,
           abortSignal,
           temperature: orchestratorProfile.temperature ?? 0.7,
-          maxOutputTokens: orchestratorProfile.maxTokens ?? 4096,
+          maxOutputTokens: codexOAuthProfile ? undefined : (orchestratorProfile.maxTokens ?? 4096),
           stopWhen: stepCountIs(48),
-          providerOptions: enableAnthropicThinking
-            ? {
-                anthropic: {
-                  thinking: {
-                    type: 'enabled',
-                    budgetTokens: Math.min(
-                      Math.max(1024, Math.floor((orchestratorProfile.maxTokens ?? 4096) * 0.5)),
-                      16384,
-                    ),
-                  },
-                },
-              }
-            : undefined,
+          providerOptions: Object.keys(providerOptions).length > 0 ? providerOptions : undefined,
           onChunk: ({ chunk }) => {
             markFirstChunk();
             const chunkType = typeof (chunk as any).type === 'string' ? String((chunk as any).type) : '';
@@ -1597,9 +1614,16 @@ export class BackgroundService {
               finalizePromptParts.push(`TOOL_RESULTS_JSON=${toolDigest}`);
             }
 
+            const finalizeSystemPrompt = enhanceSystemPrompt(
+              orchestratorProfile.systemPrompt || '',
+              context,
+              sessionState,
+              matchedSkills,
+            );
+            const finalizeUsesCodexOAuth = profileUsesCodexOAuth(orchestratorProfile as any);
             const finalizeResult = await generateText({
               model,
-              system: enhanceSystemPrompt(orchestratorProfile.systemPrompt || '', context, sessionState, matchedSkills),
+              system: finalizeSystemPrompt,
               messages: [
                 ...toModelMessages(currentHistory),
                 {
@@ -1609,7 +1633,12 @@ export class BackgroundService {
               ],
               abortSignal,
               temperature: 0.2,
-              maxOutputTokens: Math.min(2048, orchestratorProfile.maxTokens ?? 4096),
+              maxOutputTokens: finalizeUsesCodexOAuth
+                ? undefined
+                : Math.min(2048, orchestratorProfile.maxTokens ?? 4096),
+              providerOptions: finalizeUsesCodexOAuth
+                ? buildCodexOAuthProviderOptions(finalizeSystemPrompt)
+                : undefined,
             });
 
             const candidateRaw = String(finalizeResult.text || '');
@@ -1739,6 +1768,7 @@ export class BackgroundService {
           }
           promptText += previousSummary ? UPDATE_SUMMARIZATION_PROMPT : SUMMARIZATION_PROMPT;
 
+          const summaryUsesCodexOAuth = profileUsesCodexOAuth(orchestratorProfile as any);
           const summaryResult = await generateText({
             model,
             system: SUMMARIZATION_SYSTEM_PROMPT,
@@ -1750,7 +1780,10 @@ export class BackgroundService {
             ],
             abortSignal,
             temperature: 0.2,
-            maxOutputTokens: Math.floor(0.8 * compactionSettings.reserveTokens),
+            maxOutputTokens: summaryUsesCodexOAuth ? undefined : Math.floor(0.8 * compactionSettings.reserveTokens),
+            providerOptions: summaryUsesCodexOAuth
+              ? buildCodexOAuthProviderOptions(SUMMARIZATION_SYSTEM_PROMPT)
+              : undefined,
           });
 
           const parsedSummary = extractThinking(summaryResult.text || '', null);
@@ -1866,12 +1899,16 @@ export class BackgroundService {
       const resolvedProfile =
         runtimeProfile.route === 'oauth' ? await injectOAuthTokens(runtimeProfile.profile) : runtimeProfile.profile;
       const model = resolveLanguageModel(resolvedProfile as any);
+      const smokeUsesCodexOAuth = profileUsesCodexOAuth(resolvedProfile as any);
 
       const result = streamText({
         model,
         messages: [{ role: 'user', content: prompt }],
-        maxOutputTokens: 64,
+        maxOutputTokens: smokeUsesCodexOAuth ? undefined : 64,
         temperature: 0,
+        providerOptions: smokeUsesCodexOAuth
+          ? buildCodexOAuthProviderOptions('You are a concise assistant.')
+          : undefined,
       });
 
       const [text, responseMessages, usage] = await Promise.all([
@@ -1933,12 +1970,10 @@ export class BackgroundService {
       const resolvedProfile2 =
         runtimeProfile.route === 'oauth' ? await injectOAuthTokens(runtimeProfile.profile) : runtimeProfile.profile;
       const model = resolveLanguageModel(resolvedProfile2 as any);
+      const workflowUsesCodexOAuth = profileUsesCodexOAuth(resolvedProfile2 as any);
 
       const outputLimit = Math.min(maxOutputTokens || 4096, 4096);
-
-      const result = await generateText({
-        model,
-        system: `You are a workflow prompt engineer. Your job is to distill a chat session transcript into a single, reusable workflow prompt.
+      const workflowSystemPrompt = `You are a workflow prompt engineer. Your job is to distill a chat session transcript into a single, reusable workflow prompt.
 
 Rules:
 - Output ONLY the workflow prompt itself — no preamble, no "Here is your workflow:", no markdown fences wrapping the entire output.
@@ -1948,15 +1983,19 @@ Rules:
 - Omit irrelevant chatter, greetings, and status updates.
 - If the session involved browser automation, include the exact actions (navigate, click, type, scroll) with their targets.
 - Keep the prompt concise but thorough — aim for under 1500 words.
-- Use imperative mood ("Navigate to…", "Click…", "Wait for…").`,
+- Use imperative mood ("Navigate to…", "Click…", "Wait for…").`;
+      const result = await generateText({
+        model,
+        system: workflowSystemPrompt,
         messages: [
           {
             role: 'user',
             content: `Here is the full chat session transcript. Please create a workflow prompt out of it that captures the complete process step by step, so it can be reused to reproduce this exact behavior in a new session.\n\n---\n\n${sessionContext}`,
           },
         ],
-        maxOutputTokens: outputLimit,
+        maxOutputTokens: workflowUsesCodexOAuth ? undefined : outputLimit,
         temperature: 0.3,
+        providerOptions: workflowUsesCodexOAuth ? buildCodexOAuthProviderOptions(workflowSystemPrompt) : undefined,
       });
 
       const text = typeof result.text === 'string' ? result.text.trim() : '';
@@ -2773,6 +2812,7 @@ Always cite evidence from tools. Finish by calling subagent_complete with a shor
         : profileSettings;
       const subModel = resolveLanguageModel(resolvedSubProfile);
       const abortSignal = this.activeRuns.get(runMeta.runId)?.controller.signal;
+      const subagentUsesCodexOAuth = profileUsesCodexOAuth(resolvedSubProfile as any);
       const result = streamText({
         model: subModel,
         system: subAgentSystemPrompt,
@@ -2780,7 +2820,8 @@ Always cite evidence from tools. Finish by calling subagent_complete with a shor
         tools: toolSet,
         abortSignal,
         temperature: profileSettings.temperature ?? 0.4,
-        maxOutputTokens: profileSettings.maxTokens ?? 1024,
+        maxOutputTokens: subagentUsesCodexOAuth ? undefined : (profileSettings.maxTokens ?? 1024),
+        providerOptions: subagentUsesCodexOAuth ? buildCodexOAuthProviderOptions(subAgentSystemPrompt) : undefined,
         stopWhen: stepCountIs(24),
       });
 

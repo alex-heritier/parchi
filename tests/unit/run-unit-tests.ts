@@ -20,13 +20,20 @@ import {
 } from '../../packages/extension/ai/message-schema.js';
 import type { Message } from '../../packages/extension/ai/message-schema.js';
 import { extractThinking } from '../../packages/extension/ai/message-utils.js';
+import { PROVIDER_REGISTRY } from '../../packages/extension/ai/providers/registry.js';
 import { createExponentialBackoff, isValidFinalResponse } from '../../packages/extension/ai/retry-engine.js';
+import {
+  CODEX_OAUTH_BASE_URL,
+  buildCodexOAuthProviderOptions,
+  isCodexOAuthProvider,
+} from '../../packages/extension/ai/sdk-client.js';
 import { resolveRuntimeModelProfile } from '../../packages/extension/background/model-profiles.js';
 import {
   isLikelyTextGenerationModelId,
   prioritizeOAuthModelCandidates,
 } from '../../packages/extension/oauth/model-candidates.js';
 import { normalizeOAuthModelIdForProvider } from '../../packages/extension/oauth/model-normalization.js';
+import { OAUTH_PROVIDERS } from '../../packages/extension/oauth/providers.js';
 
 import { buildRunPlan, normalizePlanStatus, normalizePlanSteps } from '@parchi/shared';
 import type { RunPlan } from '@parchi/shared';
@@ -641,6 +648,27 @@ function testRuntimeModelProfileRouting(runner: TestRunner) {
   });
 }
 
+function testCodexOAuthRuntimeConfig(runner: TestRunner) {
+  log('\n=== Testing Codex OAuth Runtime Config ===', 'info');
+
+  runner.test('Codex OAuth provider detection works', () => {
+    runner.assertTrue(isCodexOAuthProvider('codex-oauth'));
+    runner.assertFalse(isCodexOAuthProvider('openai'));
+  });
+
+  runner.test('Codex OAuth provider options force store=false and instructions', () => {
+    const options = buildCodexOAuthProviderOptions('System prompt');
+    runner.assertEqual(options.openai.store, false);
+    runner.assertEqual(options.openai.instructions, 'System prompt');
+  });
+
+  runner.test('Codex OAuth base URLs target ChatGPT codex endpoint', () => {
+    runner.assertEqual(OAUTH_PROVIDERS.codex.apiBaseUrl, CODEX_OAUTH_BASE_URL);
+    runner.assertEqual(PROVIDER_REGISTRY['codex-oauth']?.defaultBaseUrl, CODEX_OAUTH_BASE_URL);
+    runner.assertTrue(String(PROVIDER_REGISTRY['codex-oauth']?.modelsEndpoint || '').includes('client_version'));
+  });
+}
+
 // Test Message Schema
 function testMessageSchema(runner: TestRunner) {
   log('\n=== Testing Message Schema ===', 'info');
@@ -960,6 +988,7 @@ function main() {
   testOAuthModelNormalization(runner);
   testOAuthModelCandidates(runner);
   testRuntimeModelProfileRouting(runner);
+  testCodexOAuthRuntimeConfig(runner);
   testMessageSchema(runner);
 
   testConversationCompaction(runner);

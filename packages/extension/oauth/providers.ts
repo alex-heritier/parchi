@@ -35,7 +35,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       id_token_add_organizations: 'true',
       codex_cli_simplified_flow: 'true',
     },
-    apiBaseUrl: 'https://api.openai.com/v1',
+    apiBaseUrl: 'https://chatgpt.com/backend-api/codex',
     models: [
       { id: 'gpt-5.3-codex', label: 'GPT-5.3 Codex', contextWindow: 200000 },
       { id: 'gpt-5.3-codex-spark', label: 'GPT-5.3 Codex Spark', contextWindow: 200000 },

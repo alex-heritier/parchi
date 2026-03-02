@@ -26,14 +26,39 @@ function extractModelIds(payload: unknown): string[] {
     .map((entry: unknown) => {
       if (typeof entry === 'string') return entry;
       if (entry && typeof entry === 'object') {
-        const e = entry as { id?: unknown; name?: unknown };
+        const e = entry as { id?: unknown; name?: unknown; slug?: unknown };
         if (typeof e.id === 'string') return e.id;
+        if (typeof e.slug === 'string') return e.slug;
         if (typeof e.name === 'string') return e.name;
       }
       return '';
     })
     .map((id: string) => id.trim())
     .filter((id: string) => id.length > 0);
+}
+
+const CODEX_CLIENT_VERSION = '1.0.0';
+
+/**
+ * Codex OAuth (ChatGPT subscription): GET https://chatgpt.com/backend-api/codex/models?client_version=1.0.0
+ * Auth: Authorization: Bearer {token}
+ */
+export async function fetchCodexModels(token: string, baseUrl: string): Promise<string[]> {
+  const base = baseUrl.replace(/\/+$/, '');
+  const url = `${base}/models?client_version=${encodeURIComponent(CODEX_CLIENT_VERSION)}`;
+  const response = await fetchWithTimeout(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
+  });
+  if (!response.ok) {
+    console.warn(`[OAuth] Codex /models returned ${response.status}`);
+    return [];
+  }
+  const data = await response.json();
+  return extractModelIds(data);
 }
 
 /**
@@ -78,7 +103,7 @@ export async function fetchAnthropicModels(token: string, baseUrl: string): Prom
 }
 
 /**
- * OpenAI (Codex OAuth): GET https://api.openai.com/v1/models
+ * OpenAI platform: GET https://api.openai.com/v1/models
  * Auth: Authorization: Bearer {token}
  */
 export async function fetchOpenAIModels(token: string): Promise<string[]> {

@@ -18,6 +18,7 @@ import type { DeviceCodeResponse, OAuthProviderKey, OAuthProviderState, OAuthTok
 import { prioritizeOAuthModelCandidates } from './model-candidates.js';
 import {
   fetchAnthropicModels,
+  fetchCodexModels,
   fetchCopilotModels,
   fetchOpenAICompatibleModels,
   fetchOpenAIModels,
@@ -180,7 +181,10 @@ export async function fetchProviderModels(key: OAuthProviderKey): Promise<string
     if (key === 'claude') {
       models = await fetchAnthropicModels(accessToken, config.apiBaseUrl);
     } else if (key === 'codex') {
-      models = await fetchOpenAIModels(accessToken);
+      models = await fetchCodexModels(accessToken, config.apiBaseUrl || 'https://chatgpt.com/backend-api/codex');
+      if (models.length === 0) {
+        models = await fetchOpenAIModels(accessToken);
+      }
     } else if (key === 'copilot') {
       models = await fetchCopilotModels(accessToken, config.apiBaseUrl, config.apiHeaders);
     } else if (key === 'qwen') {

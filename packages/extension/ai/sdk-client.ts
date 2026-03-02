@@ -4,8 +4,10 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { ToolDefinition } from '@parchi/shared';
 import { generateText, jsonSchema, tool } from 'ai';
 import { normalizeOAuthModelIdForProvider } from '../oauth/model-normalization.js';
+import { CODEX_OAUTH_BASE_URL, buildCodexOAuthProviderOptions, isCodexOAuthProvider } from './codex-oauth.js';
 
 export type { ToolDefinition };
+export { CODEX_OAUTH_BASE_URL, buildCodexOAuthProviderOptions, isCodexOAuthProvider } from './codex-oauth.js';
 
 export type SDKModelSettings = {
   provider: string;
@@ -22,9 +24,6 @@ export type SDKModelSettings = {
   oauthApiHeaders?: Record<string, string>;
 };
 
-/**
- * Auto-prefix bare model names for OpenRouter (requires `provider/model` format).
- */
 export function normalizeOpenRouterModelId(modelId: string): string {
   let model = modelId.trim();
   if (/^(parchi|openrouter)\//i.test(model)) {
@@ -121,14 +120,11 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
   }
 
   if (provider === 'kimi') {
-    // Kimi is Anthropic-compatible (x-api-key + /v1/messages)
-    // Also requires User-Agent header (enforced via declarativeNetRequest in background.ts)
     let baseURL = (settings.customEndpoint || 'https://api.kimi.com/coding')
       .replace(/\/v1\/messages\/?$/i, '')
       .replace(/\/messages\/?$/i, '')
       .replace(/\/+$/, '');
 
-    // createAnthropic expects base ending in /v1 — it appends /messages
     if (!/\/v1$/i.test(baseURL)) {
       baseURL = `${baseURL}/v1`;
     }
@@ -160,7 +156,6 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
     throw new Error(`OAuth session expired for ${baseProvider}. Please reconnect in Settings > OAuth.`);
   }
 
-  // OAuth subscription providers (claude-oauth, codex-oauth, copilot-oauth, qwen-oauth)
   if (provider.endsWith('-oauth') && settings.oauthAccessToken) {
     const baseProvider = provider.replace(/-oauth$/, '');
     const oauthModelId = normalizeOAuthModelIdForProvider(baseProvider, modelId);
@@ -190,17 +185,15 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
       return copilotProvider(oauthModelId);
     }
 
-    // codex-oauth uses OpenAI-compatible endpoint
     if (baseProvider === 'codex') {
       const codexOAuth = createOpenAI({
         apiKey: settings.oauthAccessToken,
-        baseURL: settings.oauthApiBaseUrl || 'https://api.openai.com/v1',
+        baseURL: settings.oauthApiBaseUrl || CODEX_OAUTH_BASE_URL,
         headers: { ...extraHeaders, ...settings.oauthApiHeaders },
       });
       return codexOAuth(oauthModelId);
     }
 
-    // qwen-oauth and other OpenAI-compatible providers
     const oauthProvider = createOpenAICompatible({
       name: `${baseProvider}-oauth`,
       apiKey: settings.oauthAccessToken,
@@ -278,9 +271,10 @@ export async function describeImageWithModel({
   maxTokens?: number;
 }) {
   const model = resolveLanguageModel(settings);
-  const result = await generateText({
+  const codexOAuth = isCodexOAuthProvider(settings.provider);
+  const request: Parameters<typeof generateText>[0] = {
     model,
-    maxOutputTokens: maxTokens,
+    providerOptions: codexOAuth ? buildCodexOAuthProviderOptions('You are a concise vision assistant.') : undefined,
     messages: [
       {
         role: 'user',
@@ -290,6 +284,10 @@ export async function describeImageWithModel({
         ],
       },
     ],
-  });
+  };
+  if (!codexOAuth) {
+    request.maxOutputTokens = maxTokens;
+  }
+  const result = await generateText(request);
   return result.text;
 }
