@@ -1,10 +1,13 @@
+import fs from 'node:fs';
 import os from 'node:os';
+import path from 'node:path';
 import { resolveAgentBrowserCommandPrefix } from './helpers/agent-browser.js';
 import type { ElectronAgentConfig } from './types.js';
 
 const DEFAULT_RELAY_HOST = '127.0.0.1';
 const DEFAULT_RELAY_PORT = '17373';
 const DEFAULT_BROWSER_TIMEOUT_MS = 120_000;
+const RELAY_SECURE_STATE_PATH = path.join(os.homedir(), '.parchi', 'relay-secure.json');
 
 const parseFlags = (argv: string[]) => {
   const flags: Record<string, string> = {};
@@ -38,15 +41,40 @@ const buildDefaultAgentId = () => {
   return `electron-${host}-${process.pid}`;
 };
 
+type RelaySecureState = {
+  token?: string;
+  host?: string;
+  port?: number;
+};
+
+const readRelaySecureState = (): RelaySecureState => {
+  try {
+    const raw = fs.readFileSync(RELAY_SECURE_STATE_PATH, 'utf8');
+    const parsed = JSON.parse(raw) as RelaySecureState;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed;
+  } catch {
+    return {};
+  }
+};
+
 export const loadElectronAgentConfig = (argv = process.argv.slice(2)): ElectronAgentConfig => {
   const flags = parseFlags(argv);
-  const relayToken = (flags.token || process.env.PARCHI_RELAY_TOKEN || '').trim();
+  const relaySecureState = readRelaySecureState();
+  const relayToken = (flags.token || process.env.PARCHI_RELAY_TOKEN || relaySecureState.token || '').trim();
   if (!relayToken) {
-    throw new Error('Missing relay token. Set PARCHI_RELAY_TOKEN or pass --token=<value>.');
+    throw new Error(
+      'Missing relay token. Set PARCHI_RELAY_TOKEN, pass --token=<value>, or run `npm run relay:secure -- start` first.',
+    );
   }
 
+  const secureRelayUrl =
+    relaySecureState.host && Number.isFinite(relaySecureState.port)
+      ? `${relaySecureState.host}:${relaySecureState.port}`
+      : '';
+
   const relayUrl = normalizeRelayUrl(
-    flags.relayUrl || process.env.PARCHI_RELAY_URL || `${DEFAULT_RELAY_HOST}:${DEFAULT_RELAY_PORT}`,
+    flags.relayUrl || process.env.PARCHI_RELAY_URL || secureRelayUrl || `${DEFAULT_RELAY_HOST}:${DEFAULT_RELAY_PORT}`,
   );
   if (!relayUrl) {
     throw new Error('Missing relay URL. Set PARCHI_RELAY_URL or pass --relayUrl=<url>.');
