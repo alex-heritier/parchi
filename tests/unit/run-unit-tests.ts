@@ -621,6 +621,13 @@ function testOAuthModelCandidates(runner: TestRunner) {
     runner.assertTrue(prioritized.includes('gpt-4o-mini'));
     runner.assertFalse(prioritized.includes('text-embedding-3-small'));
   });
+
+  runner.test('Copilot static OAuth catalog includes Sonnet 4.5 and Gemini 3 Pro preview IDs', () => {
+    const copilotModels = OAUTH_PROVIDERS.copilot.models.map((model) => model.id);
+    runner.assertTrue(copilotModels.includes('claude-sonnet-4.5'));
+    runner.assertTrue(copilotModels.includes('gemini-3-pro-preview'));
+    runner.assertTrue(copilotModels.includes('gemini-3.1-pro-preview'));
+  });
 }
 
 function testRuntimeModelProfileRouting(runner: TestRunner) {

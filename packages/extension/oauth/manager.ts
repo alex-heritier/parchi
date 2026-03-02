@@ -187,6 +187,22 @@ export async function fetchProviderModels(key: OAuthProviderKey): Promise<string
       }
     } else if (key === 'copilot') {
       models = await fetchCopilotModels(accessToken, config.apiBaseUrl, config.apiHeaders);
+      if (models.length === 0) {
+        const state = await getProviderState(key);
+        const refreshToken = state?.tokens?.refreshToken;
+        if (refreshToken) {
+          try {
+            const refreshed = await refreshCopilotToken(refreshToken);
+            await updateProviderTokens(key, {
+              accessToken: refreshed.accessToken,
+              expiresAt: refreshed.expiresAt,
+            });
+            models = await fetchCopilotModels(refreshed.accessToken, config.apiBaseUrl, config.apiHeaders);
+          } catch (refreshErr) {
+            console.warn('[OAuth] Copilot token refresh for model listing failed:', refreshErr);
+          }
+        }
+      }
     } else if (key === 'qwen') {
       const apiBase = await getApiBaseUrl(key);
       if (apiBase) {
