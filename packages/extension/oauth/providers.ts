@@ -37,6 +37,12 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     apiBaseUrl: 'https://api.openai.com/v1',
     models: [
+      { id: 'gpt-5.3-codex', label: 'GPT-5.3 Codex', contextWindow: 200000 },
+      { id: 'gpt-5.3-codex-spark', label: 'GPT-5.3 Codex Spark', contextWindow: 200000 },
+      { id: 'gpt-5.2', label: 'GPT-5.2', contextWindow: 200000 },
+      { id: 'gpt-5.2-codex', label: 'GPT-5.2 Codex', contextWindow: 200000 },
+      { id: 'gpt-5.1-codex-mini', label: 'GPT-5.1 Codex Mini', contextWindow: 200000 },
+      { id: 'gpt-5.1-codex-max', label: 'GPT-5.1 Codex Max', contextWindow: 200000 },
       { id: 'gpt-4o', label: 'GPT-4o', contextWindow: 128000, supportsVision: true },
       { id: 'gpt-4o-mini', label: 'GPT-4o Mini', contextWindow: 128000, supportsVision: true },
       { id: 'o3', label: 'o3', contextWindow: 200000 },
