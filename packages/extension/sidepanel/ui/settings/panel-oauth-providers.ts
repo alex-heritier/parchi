@@ -8,6 +8,7 @@ import {
   fetchProviderModels,
   getAllProviderStates,
 } from '../../../oauth/manager.js';
+import { normalizeOAuthModelIdForProvider } from '../../../oauth/model-normalization.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 
 import { getOAuthProfileNameForProvider, syncOAuthProfiles } from './oauth-profiles.js';
@@ -50,7 +51,7 @@ sidePanelProto.renderOAuthProviderGrid = async function renderOAuthProviderGrid(
     const error = state?.error || '';
     const profileName = getOAuthProfileNameForProvider(config.key);
     const profileConfig = this.configs?.[profileName];
-    const currentModel = profileConfig?.model || '';
+    const currentModel = normalizeOAuthModelIdForProvider(config.key, String(profileConfig?.model || ''));
     const fetchedModels = modelsByProvider[config.key] || [];
 
     const card = document.createElement('div');
@@ -120,19 +121,21 @@ sidePanelProto.updateOAuthProfileModel = async function updateOAuthProfileModel(
 ) {
   const profileName = getOAuthProfileNameForProvider(key);
   if (!this.configs?.[profileName]) return;
+  const normalizedModelId = normalizeOAuthModelIdForProvider(key, modelId);
+  if (!normalizedModelId) return;
 
   const providerConfig = OAUTH_PROVIDERS[key];
-  const modelInfo = providerConfig?.models.find((m: any) => m.id === modelId);
+  const modelInfo = providerConfig?.models.find((m: any) => m.id === normalizedModelId);
 
   this.configs[profileName] = {
     ...this.configs[profileName],
-    model: modelId,
+    model: normalizedModelId,
     contextLimit: modelInfo?.contextWindow || this.configs[profileName].contextLimit || 200000,
   };
   await this.persistAllSettings?.({ silent: true });
   this.populateModelSelect?.();
   this.updateModelDisplay?.();
-  this.updateStatus(`${providerConfig?.name || key} model set to ${modelId}`, 'success');
+  this.updateStatus(`${providerConfig?.name || key} model set to ${normalizedModelId}`, 'success');
 };
 
 sidePanelProto.startOAuthConnect = async function startOAuthConnect(key: OAuthProviderKey) {

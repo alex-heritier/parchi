@@ -1,6 +1,5 @@
 import { APICallError } from '@ai-sdk/provider';
 import { generateText, stepCountIs, streamText } from 'ai';
-import { buildRunPlan } from '../../shared/src/plan.js';
 import type { RunPlan } from '../../shared/src/plan.js';
 import type { ComposedSkill } from '../../shared/src/recording.js';
 import { RUNTIME_MESSAGE_SCHEMA_VERSION } from '../../shared/src/runtime-messages.js';
@@ -26,16 +25,8 @@ import { isValidFinalResponse } from '../ai/retry-engine.js';
 import {
   buildToolSet,
   describeImageWithModel,
-  normalizeOpenRouterModelId,
   resolveLanguageModel,
 } from '../ai/sdk-client.js';
-import { refreshRuntimeAuthSession } from '../convex/client.js';
-import {
-  getAccessToken as getOAuthAccessToken,
-  getApiBaseUrl as getOAuthApiBaseUrl,
-  getProviderConfig as getOAuthProviderConfig,
-} from '../oauth/manager.js';
-import type { OAuthProviderKey } from '../oauth/types.js';
 import { RecordingCoordinator } from '../recording/recording-coordinator.js';
 import { RelayBridge } from '../relay/relay-bridge.js';
 import { BrowserTools } from '../tools/browser-tools.js';
@@ -45,39 +36,34 @@ import {
   setupActionClickOpensPanel,
   setupKimiUserAgentHeaderSupport,
 } from './browser-compat.js';
-
-type RunMeta = {
-  runId: string;
-  turnId: string;
-  sessionId: string;
-};
-
-type ReportImage = {
-  id: string;
-  dataUrl: string;
-  byteSize: number;
-  capturedAt: number;
-  toolCallId?: string;
-  tabId?: number;
-  url?: string;
-  title?: string;
-  visionDescription?: string;
-};
-
-type SessionState = {
-  sessionId: string;
-  currentPlan: RunPlan | null;
-  subAgentCount: number;
-  subAgentProfileCursor: number;
-  lastBrowserAction: string | null;
-  awaitingVerification: boolean;
-  currentStepVerified: boolean;
-  kimiWarningSent: boolean;
-  failureTracker: Map<string, { count: number; lastError: string }>;
-  reportImages: ReportImage[];
-  reportImageBytes: number;
-  selectedReportImageIds: Set<string>;
-};
+import { recordContentPerfEvent } from './content-perf.js';
+import {
+  applyConvexProxyProfile,
+  hasOwnApiKey,
+  injectOAuthTokens,
+  isVisionModelProfile,
+  refreshConvexProxyAuthSession,
+  resolveProfile,
+  resolveRuntimeModelProfile,
+  resolveTeamProfiles,
+} from './model-profiles.js';
+import {
+  applyReportImageSelection,
+  captureReportImage,
+  estimateDataUrlBytes,
+  getReportImageSummary,
+  trimReportImages,
+} from './report-images.js';
+import type { RunMeta, SessionState } from './service-types.js';
+import { enhanceSystemPrompt } from './system-prompt.js';
+import {
+  checkToolPermission,
+} from './tool-permissions.js';
+import {
+  buildPlanFromArgs,
+  extractXmlToolCalls,
+  stripXmlToolCalls,
+} from './xml-tool-parser.js';
 
 export class BackgroundService {
   browserTools: BrowserTools;
@@ -490,10 +476,10 @@ export class BackgroundService {
           'allowedDomains',
         ]);
         const activeProfileName = (settings as any).activeConfig || 'default';
-        const activeProfile = this.resolveProfile(settings as any, activeProfileName);
+        const activeProfile = resolveProfile(settings as any, activeProfileName);
         const orchestratorEnabled = (settings as any).useOrchestrator === true;
-        const teamProfiles = this.resolveTeamProfiles(settings as any);
-        const visionToolsEnabled = this.isVisionModelProfile(activeProfile);
+        const teamProfiles = resolveTeamProfiles(settings as any);
+        const visionToolsEnabled = isVisionModelProfile(activeProfile);
         return this.getToolsForSession(settings as any, orchestratorEnabled, teamProfiles, visionToolsEnabled);
 
       case 'tool.call': {
@@ -506,7 +492,7 @@ export class BackgroundService {
         if (!tool) throw new Error('tool.call: missing tool');
         const safeArgs = args && typeof args === 'object' && !Array.isArray(args) ? (args as Record<string, any>) : {};
         const settings = await chrome.storage.local.get(['toolPermissions', 'allowedDomains']);
-        const perm = await this.checkToolPermission(tool, safeArgs, settings, sessionId);
+        const perm = await checkToolPermission(tool, safeArgs, settings, this.currentSettings, sessionId, this.currentSessionId, (id) => this.getBrowserTools(id));
         if (!perm.allowed) {
           throw new Error(perm.reason || 'Tool blocked by policy');
         }
@@ -753,7 +739,7 @@ export class BackgroundService {
         }
 
         case 'content_perf_event': {
-          void this.recordContentPerfEvent(message.event, sender);
+          void recordContentPerfEvent(message.event, sender);
           sendResponse({ success: true });
           break;
         }
@@ -769,89 +755,6 @@ export class BackgroundService {
       });
       sendResponse({ success: false, error: error.message });
     }
-  }
-
-  private async recordContentPerfEvent(event: any, sender?: chrome.runtime.MessageSender) {
-    const source = typeof event?.source === 'string' ? event.source : 'unknown';
-    const reason = typeof event?.reason === 'string' ? event.reason : 'unspecified';
-    const normalized = {
-      source,
-      reason,
-      ts: Number.isFinite(Number(event?.ts)) ? Number(event.ts) : Date.now(),
-      url: typeof event?.url === 'string' ? this.clampContentPerfString(event.url, 400) : '',
-      tabId: typeof sender?.tab?.id === 'number' ? sender.tab.id : null,
-      frameId: typeof sender?.frameId === 'number' ? sender.frameId : null,
-      details: this.sanitizeContentPerfDetails(event),
-    };
-
-    console.warn('[content-perf]', normalized);
-
-    try {
-      const stored = await chrome.storage.local.get(['contentPerfEvents']);
-      const history = Array.isArray(stored.contentPerfEvents) ? stored.contentPerfEvents : [];
-      history.push(normalized);
-      if (history.length > BackgroundService.MAX_CONTENT_PERF_EVENTS) {
-        history.splice(0, history.length - BackgroundService.MAX_CONTENT_PERF_EVENTS);
-      }
-      await chrome.storage.local.set({
-        contentPerfEvents: history,
-        contentPerfLastEventAt: Date.now(),
-      });
-    } catch {
-      // Ignore storage write failures for telemetry-only path.
-    }
-  }
-
-  private sanitizeContentPerfDetails(event: unknown): Record<string, unknown> {
-    if (!event || typeof event !== 'object') return {};
-    const details: Record<string, unknown> = {};
-    const raw = event as Record<string, unknown>;
-    const visited = new WeakSet<object>();
-    for (const [key, value] of Object.entries(raw)) {
-      if (key === 'source' || key === 'reason' || key === 'ts' || key === 'url') continue;
-      details[key] = this.sanitizeContentPerfValue(value, 0, visited);
-    }
-    return details;
-  }
-
-  private sanitizeContentPerfValue(value: unknown, depth: number, visited: WeakSet<object>): unknown {
-    if (value == null) return value;
-    if (depth >= BackgroundService.MAX_CONTENT_PERF_DEPTH) {
-      return '[truncated-depth]';
-    }
-
-    if (typeof value === 'string') return this.clampContentPerfString(value);
-    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-    if (typeof value === 'boolean') return value;
-    if (typeof value !== 'object') return String(value);
-
-    if (visited.has(value as object)) return '[circular]';
-    visited.add(value as object);
-
-    if (Array.isArray(value)) {
-      return value
-        .slice(0, BackgroundService.MAX_CONTENT_PERF_ARRAY_ITEMS)
-        .map((entry) => this.sanitizeContentPerfValue(entry, depth + 1, visited));
-    }
-
-    const output: Record<string, unknown> = {};
-    const entries = Object.entries(value as Record<string, unknown>).slice(
-      0,
-      BackgroundService.MAX_CONTENT_PERF_OBJECT_KEYS,
-    );
-    for (const [key, entry] of entries) {
-      if (key.toLowerCase().includes('dataurl')) {
-        output[key] = '[omitted-dataurl]';
-        continue;
-      }
-      output[key] = this.sanitizeContentPerfValue(entry, depth + 1, visited);
-    }
-    return output;
-  }
-
-  private clampContentPerfString(input: string, maxLength: number = BackgroundService.MAX_CONTENT_PERF_STRING_LENGTH) {
-    if (input.length <= maxLength) return input;
-    return `${input.slice(0, maxLength)}…`;
   }
 
   async processUserMessage(
@@ -981,22 +884,22 @@ export class BackgroundService {
       const orchestratorProfileName = settings.orchestratorProfile || activeProfileName;
       const visionProfileName = settings.visionProfile || null;
       const orchestratorEnabled = settings.useOrchestrator === true;
-      const teamProfiles = this.resolveTeamProfiles(settings);
+      const teamProfiles = resolveTeamProfiles(settings);
 
-      const activeProfile = this.resolveProfile(settings, activeProfileName);
+      const activeProfile = resolveProfile(settings, activeProfileName);
       let orchestratorProfile = orchestratorEnabled
-        ? this.resolveProfile(settings, orchestratorProfileName)
+        ? resolveProfile(settings, orchestratorProfileName)
         : activeProfile;
       let visionProfile =
-        settings.visionBridge !== false ? this.resolveProfile(settings, visionProfileName || activeProfileName) : null;
+        settings.visionBridge !== false ? resolveProfile(settings, visionProfileName || activeProfileName) : null;
 
       // Paid-mode runs may happen long after the account tab refreshed auth.
       // Rehydrate/refresh proxy auth in-place so chat runs don't rely on stale tokens.
-      if (!this.hasOwnApiKey(orchestratorProfile)) {
-        await this.refreshConvexProxyAuthSession(settings);
+      if (!hasOwnApiKey(orchestratorProfile)) {
+        await refreshConvexProxyAuthSession(settings);
       }
 
-      const runtimeProfileResolution = this.resolveRuntimeModelProfile(orchestratorProfile, settings);
+      const runtimeProfileResolution = resolveRuntimeModelProfile(orchestratorProfile, settings);
       benchmarkRoute = runtimeProfileResolution.route;
       benchmarkProvider = String(orchestratorProfile?.provider || '');
       benchmarkModel = String(orchestratorProfile?.model || settings.model || '');
@@ -1011,7 +914,7 @@ export class BackgroundService {
       }
       orchestratorProfile =
         runtimeProfileResolution.route === 'oauth'
-          ? await this.injectOAuthTokens(runtimeProfileResolution.profile)
+          ? await injectOAuthTokens(runtimeProfileResolution.profile)
           : runtimeProfileResolution.profile;
       latestErrorContext = {
         route: runtimeProfileResolution.route,
@@ -1020,8 +923,8 @@ export class BackgroundService {
         model: String(orchestratorProfile?.model || settings.model || ''),
         useProxy: Boolean((orchestratorProfile as any)?.useProxy),
       };
-      if (visionProfile && !this.hasOwnApiKey(visionProfile) && runtimeProfileResolution.route === 'proxy') {
-        visionProfile = this.applyConvexProxyProfile(visionProfile, settings);
+      if (visionProfile && !hasOwnApiKey(visionProfile) && runtimeProfileResolution.route === 'proxy') {
+        visionProfile = applyConvexProxyProfile(visionProfile, settings);
       }
 
       const kimiInUse =
@@ -1037,7 +940,7 @@ export class BackgroundService {
         });
       }
 
-      const visionToolsEnabled = this.isVisionModelProfile(orchestratorProfile);
+      const visionToolsEnabled = isVisionModelProfile(orchestratorProfile);
       const tools = this.getToolsForSession(settings, orchestratorEnabled, teamProfiles, visionToolsEnabled);
       const streamEnabled = settings.streamResponses !== false && settings.streamResponses !== 'false';
       streamResponsesEnabled = streamEnabled;
@@ -1244,7 +1147,7 @@ export class BackgroundService {
         const modelMessages = toModelMessages(messages);
 
         // Inject recorded context images into the last user message if the model supports vision
-        if (recordedImages.length > 0 && this.isVisionModelProfile(orchestratorProfile)) {
+        if (recordedImages.length > 0 && isVisionModelProfile(orchestratorProfile)) {
           for (let i = modelMessages.length - 1; i >= 0; i--) {
             const msg = modelMessages[i];
             if (msg.role === 'user') {
@@ -1333,7 +1236,7 @@ export class BackgroundService {
 
         const result = streamText({
           model,
-          system: this.enhanceSystemPrompt(
+          system: enhanceSystemPrompt(
             orchestratorProfile.systemPrompt || '',
             context,
             sessionState,
@@ -1490,7 +1393,7 @@ export class BackgroundService {
                 runtimeProfileResolution.route === 'proxy' &&
                 (classified.category === 'auth' || statusCode === 401 || statusCode === 403);
               if (isProxyAuthFailure && !refreshedProxyAuthOnce) {
-                const refreshed = await this.refreshConvexProxyAuthSession(settings, { force: true });
+                const refreshed = await refreshConvexProxyAuthSession(settings, { force: true });
                 if (refreshed) {
                   refreshedProxyAuthOnce = true;
                   if ((orchestratorProfile as any)?.useProxy) {
@@ -1533,7 +1436,7 @@ export class BackgroundService {
       while (true) {
         if (abortSignal.aborted) return;
         const passResult = await runModelPassWithFallback(currentHistory);
-        const xmlToolCalls = this.extractXmlToolCalls(passResult.text);
+        const xmlToolCalls = extractXmlToolCalls(passResult.text);
         toolResults = passResult.toolResults || [];
 
         if (xmlToolCalls.length > 0 && toolResults.length === 0 && recoveryAttempt < maxRecoveryAttempts) {
@@ -1542,7 +1445,7 @@ export class BackgroundService {
             message: 'Detected XML tool call output. Executing tools and retrying.',
           });
 
-          const cleanedText = this.stripXmlToolCalls(passResult.text);
+          const cleanedText = stripXmlToolCalls(passResult.text);
           const parsedXmlAssistant = extractThinking(cleanedText, passResult.reasoningText || null);
           const toolMessages: Message[] = [];
           const xmlToolCallEntries: ToolCall[] = [];
@@ -1599,7 +1502,7 @@ export class BackgroundService {
           continue;
         }
 
-        const cleanedText = this.stripXmlToolCalls(passResult.text);
+        const cleanedText = stripXmlToolCalls(passResult.text);
         const parsedFinal = extractThinking(cleanedText, passResult.reasoningText || null);
         reasoningText = parsedFinal.thinking || passResult.reasoningText || null;
         totalUsage = passResult.totalUsage || totalUsage;
@@ -1641,7 +1544,7 @@ export class BackgroundService {
 
             const finalizeResult = await generateText({
               model,
-              system: this.enhanceSystemPrompt(
+              system: enhanceSystemPrompt(
                 orchestratorProfile.systemPrompt || '',
                 context,
                 sessionState,
@@ -1882,11 +1785,11 @@ export class BackgroundService {
   ) {
     try {
       const runtimeSettings = settings as Record<string, any>;
-      if (!this.hasOwnApiKey({ apiKey: settings.apiKey || '' })) {
-        await this.refreshConvexProxyAuthSession(runtimeSettings);
+      if (!hasOwnApiKey({ apiKey: settings.apiKey || '' })) {
+        await refreshConvexProxyAuthSession(runtimeSettings);
       }
 
-      const runtimeProfile = this.resolveRuntimeModelProfile(
+      const runtimeProfile = resolveRuntimeModelProfile(
         {
           provider: settings.provider || 'openai',
           apiKey: settings.apiKey || '',
@@ -1912,7 +1815,7 @@ export class BackgroundService {
 
       const resolvedProfile =
         runtimeProfile.route === 'oauth'
-          ? await this.injectOAuthTokens(runtimeProfile.profile)
+          ? await injectOAuthTokens(runtimeProfile.profile)
           : runtimeProfile.profile;
       const model = resolveLanguageModel(resolvedProfile as any);
 
@@ -1966,7 +1869,7 @@ export class BackgroundService {
     try {
       const settings =
         this.currentSettings || (await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[]));
-      const runtimeProfile = this.resolveRuntimeModelProfile(
+      const runtimeProfile = resolveRuntimeModelProfile(
         {
           provider: settings.provider,
           apiKey: settings.apiKey,
@@ -1981,7 +1884,7 @@ export class BackgroundService {
       }
       const resolvedProfile2 =
         runtimeProfile.route === 'oauth'
-          ? await this.injectOAuthTokens(runtimeProfile.profile)
+          ? await injectOAuthTokens(runtimeProfile.profile)
           : runtimeProfile.profile;
       const model = resolveLanguageModel(resolvedProfile2 as any);
 
@@ -2069,7 +1972,7 @@ Rules:
 
     if (toolName === 'set_plan') {
       const hadPlan = Boolean(sessionState.currentPlan && sessionState.currentPlan.steps.length > 0);
-      const plan = this.buildPlanFromArgs(args, sessionState.currentPlan);
+      const plan = buildPlanFromArgs(args, sessionState.currentPlan);
       if (!plan) {
         const errorResult = {
           success: false,
@@ -2150,7 +2053,7 @@ Rules:
     }
 
     if (toolName === 'list_report_images') {
-      const images = this.getReportImageSummary(sessionState);
+      const images = getReportImageSummary(sessionState);
       const result = {
         success: true,
         images,
@@ -2170,7 +2073,7 @@ Rules:
       const mode: 'replace' | 'add' | 'remove' | 'clear' =
         requestedMode === 'add' || requestedMode === 'remove' || requestedMode === 'clear' ? requestedMode : 'replace';
 
-      const images = this.applyReportImageSelection(sessionState, imageIds, mode);
+      const images = applyReportImageSelection(sessionState, imageIds, mode);
       const selectedImageIds = Array.from(sessionState.selectedReportImageIds);
       this.sendRuntime(options.runMeta, {
         type: 'report_images_selection',
@@ -2199,7 +2102,7 @@ Rules:
     }
 
     // Use the run's settings snapshot so parallel runs can't trample each other.
-    const permissionCheck = await this.checkToolPermission(toolName, args, options.settings, sessionId);
+    const permissionCheck = await checkToolPermission(toolName, args, options.settings, this.currentSettings, sessionId, this.currentSessionId, (id) => this.getBrowserTools(id));
     if (!permissionCheck.allowed) {
       const blocked = {
         success: false,
@@ -2303,7 +2206,7 @@ Rules:
         }
       }
 
-      const reportImage = this.captureReportImage(sessionState, finalResult, args, callId);
+      const reportImage = captureReportImage(sessionState, finalResult, args, callId);
       if (reportImage) {
         const imagePayload = {
           id: reportImage.id,
@@ -2319,7 +2222,7 @@ Rules:
         this.sendRuntime(options.runMeta, {
           type: 'report_image_captured',
           image: imagePayload,
-          images: this.getReportImageSummary(sessionState),
+          images: getReportImageSummary(sessionState),
           selectedImageIds: Array.from(sessionState.selectedReportImageIds),
         });
         finalResult.reportImageId = reportImage.id;
@@ -2414,305 +2317,6 @@ Rules:
     return { result, plan: sessionState.currentPlan };
   }
 
-  private getReportImageSummary(sessionState: SessionState) {
-    return sessionState.reportImages.map((image) => ({
-      id: image.id,
-      capturedAt: image.capturedAt,
-      url: image.url,
-      title: image.title,
-      tabId: image.tabId,
-      visionDescription: image.visionDescription,
-      selected: sessionState.selectedReportImageIds.has(image.id),
-    }));
-  }
-
-  private captureReportImage(
-    sessionState: SessionState,
-    result: Record<string, any>,
-    args: Record<string, any>,
-    toolCallId: string,
-  ): ReportImage | null {
-    const dataUrl = typeof result?.dataUrl === 'string' ? result.dataUrl : '';
-    if (!dataUrl) return null;
-    const byteSize = this.estimateDataUrlBytes(dataUrl);
-    if (!Number.isFinite(byteSize) || byteSize <= 0) return null;
-    if (byteSize > BackgroundService.MAX_REPORT_IMAGE_BYTES_PER_IMAGE) {
-      return null;
-    }
-
-    const id = `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const image: ReportImage = {
-      id,
-      dataUrl,
-      byteSize,
-      capturedAt: Date.now(),
-      toolCallId,
-      tabId: typeof args?.tabId === 'number' ? args.tabId : undefined,
-      url: typeof result?.url === 'string' ? result.url : undefined,
-      title: typeof result?.title === 'string' ? result.title : undefined,
-      visionDescription: typeof result?.visionDescription === 'string' ? result.visionDescription : undefined,
-    };
-    sessionState.reportImages.push(image);
-    sessionState.reportImageBytes += byteSize;
-    this.trimReportImages(sessionState);
-    return image;
-  }
-
-  private estimateDataUrlBytes(dataUrl: string): number {
-    if (!dataUrl) return 0;
-    const commaIndex = dataUrl.indexOf(',');
-    const payload = commaIndex >= 0 ? dataUrl.slice(commaIndex + 1) : dataUrl;
-    if (!payload) return 0;
-    const rawLength = payload.length;
-    const padding = payload.endsWith('==') ? 2 : payload.endsWith('=') ? 1 : 0;
-    return Math.max(0, Math.floor((rawLength * 3) / 4) - padding);
-  }
-
-  private trimReportImages(sessionState: SessionState) {
-    while (
-      sessionState.reportImages.length > BackgroundService.MAX_REPORT_IMAGES_PER_SESSION ||
-      sessionState.reportImageBytes > BackgroundService.MAX_REPORT_IMAGE_BYTES_PER_SESSION
-    ) {
-      let evictionIndex = sessionState.reportImages.findIndex(
-        (candidate) => !sessionState.selectedReportImageIds.has(candidate.id),
-      );
-      if (evictionIndex < 0) evictionIndex = 0;
-      const [evicted] = sessionState.reportImages.splice(evictionIndex, 1);
-      if (!evicted) break;
-      sessionState.reportImageBytes = Math.max(0, sessionState.reportImageBytes - Number(evicted.byteSize || 0));
-      sessionState.selectedReportImageIds.delete(evicted.id);
-    }
-  }
-
-  private applyReportImageSelection(
-    sessionState: SessionState,
-    imageIds: string[],
-    mode: 'replace' | 'add' | 'remove' | 'clear',
-  ) {
-    const validIds = new Set(sessionState.reportImages.map((image) => image.id));
-    const filteredIds = imageIds.filter((id) => validIds.has(id));
-
-    if (mode === 'clear') {
-      sessionState.selectedReportImageIds.clear();
-    } else if (mode === 'replace') {
-      sessionState.selectedReportImageIds = new Set(filteredIds);
-    } else if (mode === 'add') {
-      filteredIds.forEach((id) => sessionState.selectedReportImageIds.add(id));
-    } else if (mode === 'remove') {
-      filteredIds.forEach((id) => sessionState.selectedReportImageIds.delete(id));
-    }
-
-    return this.getReportImageSummary(sessionState);
-  }
-
-  extractXmlToolCalls(text: string): Array<{ name: string; args: Record<string, unknown>; raw: string }> {
-    if (!text || typeof text !== 'string') return [];
-    const results: Array<{ name: string; args: Record<string, unknown>; raw: string }> = [];
-    const blocks: string[] = [];
-
-    const blockRegex = /<\s*(?:tool|function)_call[^>]*>[\s\S]*?<\s*\/\s*(?:tool|function)_call\s*>/gi;
-    let match: RegExpExecArray | null;
-    while ((match = blockRegex.exec(text))) {
-      blocks.push(match[0]);
-    }
-
-    const inlineRegex = /([A-Za-z0-9_]+)\s*<\s*argkey\s*>[\s\S]*?<\s*\/\s*tool_call\s*>/gi;
-    while ((match = inlineRegex.exec(text))) {
-      blocks.push(match[0]);
-    }
-
-    if (!blocks.length && /<\s*argkey\s*>/i.test(text)) {
-      blocks.push(text);
-    }
-
-    for (const block of blocks) {
-      const name = this.extractXmlToolName(block);
-      if (!name) continue;
-      const args = this.extractXmlArgs(block);
-      results.push({ name, args, raw: block });
-    }
-
-    return results;
-  }
-
-  extractXmlToolName(block: string): string {
-    const nameMatch =
-      block.match(/<\s*(?:tool|function)_name\s*>([^<]+)<\s*\/\s*(?:tool|function)_name\s*>/i) ||
-      block.match(/<\s*name\s*>([^<]+)<\s*\/\s*name\s*>/i) ||
-      block.match(/<\s*tool\s*>([^<]+)<\s*\/\s*tool\s*>/i) ||
-      block.match(/<\s*function\s*>([^<]+)<\s*\/\s*function\s*>/i) ||
-      block.match(/([A-Za-z0-9_]+)\s*<\s*argkey\s*>/i);
-
-    if (!nameMatch) return '';
-    const name = nameMatch[1] ? String(nameMatch[1]) : '';
-    return name.trim();
-  }
-
-  extractXmlArgs(block: string): Record<string, unknown> {
-    const args: Record<string, unknown> = {};
-    const pairRegex = /<\s*argkey\s*>([\s\S]*?)<\s*\/\s*argkey\s*>\s*<\s*argvalue\s*>([\s\S]*?)<\s*\/\s*argvalue\s*>/gi;
-    let match: RegExpExecArray | null;
-    while ((match = pairRegex.exec(block))) {
-      const key = String(match[1] || '').trim();
-      const value = this.coerceXmlArgValue(String(match[2] || '').trim());
-      if (key) args[key] = value;
-    }
-
-    const namedRegex = /<\s*arg\s+name\s*=\s*['\"]?([^'\">]+)['\"]?\s*>([\s\S]*?)<\s*\/\s*arg\s*>/gi;
-    while ((match = namedRegex.exec(block))) {
-      const key = String(match[1] || '').trim();
-      const value = this.coerceXmlArgValue(String(match[2] || '').trim());
-      if (key) args[key] = value;
-    }
-
-    return args;
-  }
-
-  coerceXmlArgValue(value: string): unknown {
-    if (!value) return '';
-    const trimmed = value.trim();
-    if (!trimmed) return '';
-    if (trimmed === 'true') return true;
-    if (trimmed === 'false') return false;
-    if (!Number.isNaN(Number(trimmed)) && trimmed.length < 18) return Number(trimmed);
-    try {
-      return JSON.parse(trimmed);
-    } catch {
-      return trimmed;
-    }
-  }
-
-  stripXmlToolCalls(text: string): string {
-    if (!text || typeof text !== 'string') return text;
-    let cleaned = text;
-    cleaned = cleaned.replace(/<\s*(?:tool|function)_call[^>]*>[\s\S]*?<\s*\/\s*(?:tool|function)_call\s*>/gi, '');
-    cleaned = cleaned.replace(/[A-Za-z0-9_]+\s*<\s*argkey\s*>[\s\S]*?<\s*\/\s*tool_call\s*>/gi, '');
-    cleaned = cleaned.replace(/<\s*argkey\s*>[\s\S]*?<\s*\/\s*argvalue\s*>/gi, '');
-    return cleaned.trim();
-  }
-
-  parsePlanSteps(text: string) {
-    if (!text) return [];
-    return text
-      .split('\n')
-      .map((line) =>
-        line
-          .replace(/^\s*[-*]\s*/, '')
-          .replace(/^\s*\d+[.)]\s*/, '')
-          .trim(),
-      )
-      .filter(Boolean);
-  }
-
-  buildPlanFromArgs(args: Record<string, any>, existingPlan?: RunPlan | null) {
-    const stepInput = Array.isArray(args?.steps) ? args.steps : null;
-    const planText = typeof args?.plan === 'string' ? args.plan : '';
-    const parsedSteps = planText ? this.parsePlanSteps(planText) : [];
-    const combined = stepInput && stepInput.length ? stepInput : parsedSteps;
-    if (!combined || combined.length === 0) return null;
-    return buildRunPlan(combined, {
-      existingPlan: existingPlan || null,
-      maxSteps: 12,
-    });
-  }
-
-  getToolPermissionCategory(toolName) {
-    const mapping = {
-      navigate: 'navigate',
-      openTab: 'navigate',
-      click: 'interact',
-      type: 'interact',
-      pressKey: 'interact',
-      scroll: 'interact',
-      getContent: 'read',
-      findHtml: 'read',
-      screenshot: 'screenshots',
-      watchVideo: 'screenshots',
-      getVideoInfo: 'screenshots',
-      getTabs: 'tabs',
-      closeTab: 'tabs',
-      switchTab: 'tabs',
-      groupTabs: 'tabs',
-      focusTab: 'tabs',
-      describeSessionTabs: 'tabs',
-    };
-    return mapping[toolName] || null;
-  }
-
-  parseAllowedDomains(value = '') {
-    return String(value)
-      .split(/[\n,]/)
-      .map((entry) => entry.trim().toLowerCase())
-      .filter(Boolean);
-  }
-
-  isUrlAllowed(url, allowlist) {
-    if (!allowlist.length) return true;
-    try {
-      const hostname = new URL(url).hostname.toLowerCase();
-      return allowlist.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
-    } catch (error) {
-      return false;
-    }
-  }
-
-  async resolveToolUrl(_toolName, args, sessionId?: string) {
-    if (args?.url) return args.url;
-    const tools = this.getBrowserTools(sessionId || this.currentSessionId || 'default');
-    const tabId = args?.tabId || tools.getCurrentSessionTabId();
-    try {
-      if (tabId) {
-        const tab = await chrome.tabs.get(tabId);
-        return tab?.url || '';
-      }
-    } catch (error) {
-      console.warn('Failed to resolve tab URL for permissions:', error);
-    }
-    const [active] = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
-    return active?.url || '';
-  }
-
-  async checkToolPermission(toolName, args, settingsOverride?: Record<string, any> | null, sessionId?: string) {
-    const settings = settingsOverride || this.currentSettings;
-    if (!settings) return { allowed: true };
-    const permissions = settings.toolPermissions || {};
-    const category = this.getToolPermissionCategory(toolName);
-    if (category && permissions[category] === false) {
-      return {
-        allowed: false,
-        reason: `Permission blocked: ${category}`,
-        policy: {
-          type: 'permission',
-          category,
-          reason: `Permission blocked: ${category}`,
-        },
-      };
-    }
-
-    if (category === 'tabs') return { allowed: true };
-
-    const allowlist = this.parseAllowedDomains(settings.allowedDomains || '');
-    if (!allowlist.length) return { allowed: true };
-
-    const targetUrl = await this.resolveToolUrl(toolName, args, sessionId);
-    if (!this.isUrlAllowed(targetUrl, allowlist)) {
-      return {
-        allowed: false,
-        reason: 'Blocked by allowed domains list.',
-        policy: {
-          type: 'allowlist',
-          domain: targetUrl,
-          reason: 'Blocked by allowed domains list.',
-        },
-      };
-    }
-
-    return { allowed: true };
-  }
-
   private isRunCancelled(runId: string) {
     return this.cancelledRunIds.has(runId);
   }
@@ -2763,14 +2367,6 @@ Rules:
 
   private static readonly MAX_SESSIONS = 10;
   private static readonly MAX_FAILURE_TRACKER_ENTRIES = 250;
-  private static readonly MAX_REPORT_IMAGES_PER_SESSION = 50;
-  private static readonly MAX_REPORT_IMAGE_BYTES_PER_IMAGE = 4 * 1024 * 1024;
-  private static readonly MAX_REPORT_IMAGE_BYTES_PER_SESSION = 48 * 1024 * 1024;
-  private static readonly MAX_CONTENT_PERF_EVENTS = 100;
-  private static readonly MAX_CONTENT_PERF_STRING_LENGTH = 240;
-  private static readonly MAX_CONTENT_PERF_ARRAY_ITEMS = 8;
-  private static readonly MAX_CONTENT_PERF_OBJECT_KEYS = 12;
-  private static readonly MAX_CONTENT_PERF_DEPTH = 3;
 
   private getSessionState(sessionId: string): SessionState {
     const id = typeof sessionId === 'string' && sessionId.trim() ? sessionId : 'default';
@@ -2782,11 +2378,11 @@ Rules:
       }
       if (!Number.isFinite(existing.reportImageBytes)) {
         existing.reportImageBytes = existing.reportImages.reduce(
-          (sum, image) => sum + this.estimateDataUrlBytes(String(image?.dataUrl || '')),
+          (sum, image) => sum + estimateDataUrlBytes(String(image?.dataUrl || '')),
           0,
         );
       }
-      this.trimReportImages(existing);
+      trimReportImages(existing);
       return existing;
     }
     // Evict oldest sessions when at capacity
@@ -2904,382 +2500,6 @@ Rules:
     } catch {
       return [];
     }
-  }
-
-  enhanceSystemPrompt(
-    basePrompt: string,
-    context,
-    sessionState: SessionState,
-    matchedSkills: Array<{ name: string; description: string; steps: string }> = [],
-  ) {
-    const tabsSection =
-      Array.isArray(context.availableTabs) && context.availableTabs.length
-        ? `Tabs selected (${context.availableTabs.length}). You MUST only act on these tabs (session tabs). Always pass tabId from this list to navigate/click/type/pressKey/scroll/getContent/screenshot.\n${context.availableTabs
-            .map((tab) => `  - [${tab.id}] ${tab.title || 'Untitled'} - ${tab.url}`)
-            .join('\n')}`
-        : 'No tabs selected; tools will fail until the user selects at least one tab in the UI.';
-    const teamProfiles = Array.isArray(context.teamProfiles) ? context.teamProfiles : [];
-    const teamSection = teamProfiles.length
-      ? `Team profiles available for sub-agents:\n${teamProfiles
-          .map((profile) => `  - ${profile.name}: ${profile.provider || 'provider'} · ${profile.model || 'model'}`)
-          .join('\n')}\nUse spawn_subagent with a profile name to delegate parallel browser work.`
-      : '';
-    const orchestratorSection = context.orchestratorEnabled ? 'Orchestrator mode is enabled.' : '';
-    const modelLabel = String(context.model || '').toLowerCase();
-    const isKimi = context.provider === 'kimi' || modelLabel.includes('kimi');
-    const thinkingSection =
-      context.showThinking && isKimi
-        ? '\n<thinking>\nIf you produce internal reasoning, wrap it in <analysis>...</analysis> tags. Keep it concise. Do not include the analysis in your final answer text.\n</thinking>'
-        : '';
-    const toolCatalog = Array.isArray(context.toolCatalog) ? context.toolCatalog : [];
-    const availableToolNames = toolCatalog.length
-      ? toolCatalog.map((tool) => String(tool?.name || '')).filter(Boolean)
-      : [];
-    const toolCatalogSection = toolCatalog.length
-      ? `<tooling>
-${toolCatalog.map((tool) => `  - ${tool.name}: ${tool.description || 'No description.'}`).join('\n')}
-</tooling>`
-      : '';
-    const hasVisionTools =
-      availableToolNames.includes('screenshot') ||
-      availableToolNames.includes('watchVideo') ||
-      availableToolNames.includes('getVideoInfo');
-    const visionToolSection = hasVisionTools
-      ? `<vision_tools>
-Vision-capable tools enabled:
-  - screenshot: capture a full screenshot of the current tab for visual verification.
-  - watchVideo: analyze on-page video/audio elements for motion content.
-  - getVideoInfo: fetch metadata for video elements (duration, playback, resolution).
-  - findHtml: confirm whether exact HTML structure exists within page markup.
-If vision tools are enabled, use them when visual structure or media context cannot be verified by text alone.
-</vision_tools>`
-      : '<vision_tools>Vision-capable tools are disabled for this model.</vision_tools>';
-    const orchestratorToolSection = context.orchestratorEnabled
-      ? availableToolNames.includes('spawn_subagent')
-        ? '<orchestrator_tools>Orchestrator tools enabled: spawn_subagent, subagent_complete. Use spawn_subagent for focused parallel work, and have each sub-agent report via subagent_complete.</orchestrator_tools>'
-        : '<orchestrator_tools>Orchestrator mode is enabled.</orchestrator_tools>'
-      : '';
-
-    // Build state section with enforcement - tracks exactly what model needs to do next
-    let stateSection = '';
-    let requiredNextCall = '';
-
-    if (!sessionState.currentPlan || sessionState.currentPlan.steps.length === 0) {
-      // No plan - MUST create one first
-      requiredNextCall = 'set_plan({ steps: [{ title: "..." }, ...] })';
-      stateSection = `
-<execution_state>
-⛔ NO ACTIVE PLAN
-
-REQUIRED NEXT CALL: ${requiredNextCall}
-
-You CANNOT call navigate, click, type, scroll, or pressKey until you call set_plan.
-Create 3-6 specific action steps, then proceed.
-</execution_state>`;
-    } else {
-      const steps = sessionState.currentPlan.steps;
-      const doneCount = steps.filter((s) => s.status === 'done').length;
-      const currentIndex = steps.findIndex((s) => s.status !== 'done');
-      const planLines = steps.map((step, i) => {
-        const marker = step.status === 'done' ? '[✓]' : i === currentIndex ? '[→]' : '[ ]';
-        return `${marker} step_index=${i}: ${step.title}`;
-      });
-
-      if (currentIndex === -1) {
-        // All steps complete
-        requiredNextCall = 'Provide final summary with findings';
-        stateSection = `
-<execution_state>
-✅ ALL STEPS COMPLETE (${doneCount}/${steps.length})
-${planLines.join('\n')}
-
-REQUIRED: Provide your final summary now with evidence from getContent.
-</execution_state>`;
-      } else if (sessionState.awaitingVerification) {
-        // Browser action taken but getContent not called yet
-        requiredNextCall = 'getContent({ mode: "text" })';
-        stateSection = `
-<execution_state>
-PROGRESS: ${doneCount}/${steps.length} steps complete
-${planLines.join('\n')}
-
-CURRENT STEP: "${steps[currentIndex].title}"
-LAST ACTION: ${sessionState.lastBrowserAction || 'unknown'}
-VERIFICATION: ⚠️ PENDING - getContent NOT called
-
-⛔ REQUIRED NEXT CALL: ${requiredNextCall}
-
-You MUST call getContent to verify your action before proceeding.
-Do NOT call update_plan or any other tool until you call getContent.
-</execution_state>`;
-      } else {
-        // Ready to mark step done or execute next action
-        requiredNextCall = `update_plan({ step_index: ${currentIndex}, status: "done" })`;
-        stateSection = `
-<execution_state>
-PROGRESS: ${doneCount}/${steps.length} steps complete
-${planLines.join('\n')}
-
-CURRENT STEP: "${steps[currentIndex].title}"
-VERIFICATION: ✓ getContent was called
-
-⚠️ REQUIRED NEXT CALL: ${requiredNextCall}
-
-After marking step ${currentIndex} done, proceed to step ${currentIndex + 1}.
-</execution_state>`;
-      }
-    }
-
-    const skillSection =
-      matchedSkills.length > 0
-        ? `<available_skills>\nSite-matched skills for ${context.currentUrl}:\n${matchedSkills
-            .map((s) => `- ${s.name}: ${s.description}\n  Steps: ${s.steps}`)
-            .join('\n')}\n</available_skills>`
-        : '';
-
-    return `${basePrompt}
- ${stateSection}${thinkingSection}
-${toolCatalogSection}
-${visionToolSection}
-${orchestratorToolSection}
-${skillSection ? `\n${skillSection}` : ''}
-
- <browser_context>
-URL: ${context.currentUrl}
-Title: ${context.currentTitle}
-Tab: ${context.tabId}
-${tabsSection}
-</browser_context>
-${orchestratorSection ? `\n${orchestratorSection}` : ''}
-${teamSection ? `\n${teamSection}` : ''}
-
-<checkpoint>
-Before your next tool call, verify:
-□ Required next call shown above: ${requiredNextCall}
-□ If awaiting verification, call getContent first
-□ If step complete, call update_plan before next step
-
-When a tool fails:
-• Read the error message carefully
-• Try alternative approaches (different selector, wait longer, scroll first, etc.)
-• You can retry the same tool with different parameters
-• If an element is not found, try a broader selector or use text-based selection
-• Never give up - keep trying until you succeed or exhaust options
-</checkpoint>`;
-  }
-
-  hasOwnApiKey(profile: Record<string, any> | null | undefined) {
-    return Boolean(String(profile?.apiKey || '').trim());
-  }
-
-  hasConfiguredModel(profile: Record<string, any> | null | undefined) {
-    return Boolean(String(profile?.model || '').trim());
-  }
-
-  async injectOAuthTokens(profile: Record<string, any>): Promise<Record<string, any>> {
-    const provider = String(profile?.provider || '')
-      .trim()
-      .toLowerCase();
-    if (!provider.endsWith('-oauth')) return profile;
-    const baseKey = provider.replace(/-oauth$/, '') as OAuthProviderKey;
-    const accessToken = await getOAuthAccessToken(baseKey);
-    if (!accessToken) {
-      throw new Error(`OAuth session expired for ${baseKey}. Please reconnect in Settings > OAuth.`);
-    }
-    const apiBaseUrl = await getOAuthApiBaseUrl(baseKey);
-    const config = getOAuthProviderConfig(baseKey);
-    return {
-      ...profile,
-      oauthAccessToken: accessToken,
-      oauthApiBaseUrl: apiBaseUrl || undefined,
-      oauthApiHeaders: config?.apiHeaders || undefined,
-    };
-  }
-
-  normalizeProxyModelId(provider: string, modelId: string) {
-    const model = String(modelId || '').trim();
-    if (!model) return '';
-    if (provider !== 'openrouter') return model;
-    return normalizeOpenRouterModelId(model);
-  }
-
-  hasActivePaidSubscription(settings: Record<string, any> = {}) {
-    const mode = String(settings.accountModeChoice || '').toLowerCase();
-    if (mode !== 'paid') return false;
-    // Support both legacy subscriptions AND prepaid credits
-    const hasCredits = Number(settings.convexCreditBalanceCents || 0) > 0;
-    const status = String(settings.convexSubscriptionStatus || '').toLowerCase();
-    const plan = String(settings.convexSubscriptionPlan || '').toLowerCase();
-    const hasLegacySub = plan === 'pro' && status === 'active';
-    return hasCredits || hasLegacySub;
-  }
-
-  resolveConvexProxyBaseUrl(settings: Record<string, any> = {}) {
-    const explicitSite = String(settings.convexSiteUrl || '').trim();
-    const rawBase = explicitSite || String(settings.convexUrl || '').trim();
-    if (!rawBase) return '';
-    try {
-      const url = new URL(rawBase);
-      if (url.hostname.endsWith('.convex.cloud')) {
-        url.hostname = url.hostname.replace(/\.convex\.cloud$/i, '.convex.site');
-      }
-      return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
-    } catch {
-      return rawBase.replace(/\/+$/, '');
-    }
-  }
-
-  canUseConvexProxy(settings: Record<string, any> = {}) {
-    return Boolean(this.resolveConvexProxyBaseUrl(settings) && String(settings.convexAccessToken || '').trim());
-  }
-
-  async refreshConvexProxyAuthSession(settings: Record<string, any>, options: { force?: boolean } = {}) {
-    const mode = String(settings.accountModeChoice || '')
-      .trim()
-      .toLowerCase();
-    if (mode !== 'paid') return false;
-    if (!this.resolveConvexProxyBaseUrl(settings)) return false;
-
-    try {
-      const session = await refreshRuntimeAuthSession({ force: options.force === true });
-      const accessToken = String(session.accessToken || '').trim();
-      if (!accessToken) return false;
-      settings.convexAccessToken = accessToken;
-      settings.convexRefreshToken = String(session.refreshToken || '').trim();
-      settings.convexTokenExpiresAt = Number(session.expiresAt || 0);
-      return true;
-    } catch (error) {
-      console.warn('[paid-auth] Failed to refresh convex proxy auth session:', error);
-      return false;
-    }
-  }
-
-  applyConvexProxyProfile(profile: Record<string, any>, settings: Record<string, any>) {
-    const preferredProvider =
-      profile?.provider === 'kimi'
-        ? 'kimi'
-        : profile?.provider === 'anthropic'
-          ? 'anthropic'
-          : profile?.provider === 'openrouter' || profile?.provider === 'parchi'
-            ? 'openrouter'
-            : 'openai';
-    const requestedModel = String(profile?.model || settings.model || '').trim();
-    const normalizedModel = this.normalizeProxyModelId(preferredProvider, requestedModel);
-    const proxyBaseUrl = this.resolveConvexProxyBaseUrl(settings);
-    return {
-      provider: preferredProvider,
-      apiKey: profile?.apiKey || '',
-      model: normalizedModel,
-      customEndpoint: profile?.customEndpoint || '',
-      extraHeaders: profile?.extraHeaders || {},
-      useProxy: true,
-      proxyBaseUrl,
-      proxyAuthToken: String(settings.convexAccessToken || '').trim(),
-      proxyProvider: preferredProvider,
-    };
-  }
-
-  resolveRuntimeModelProfile(profile: Record<string, any>, settings: Record<string, any>) {
-    if (!this.hasConfiguredModel(profile)) {
-      return {
-        allowed: false,
-        route: 'none',
-        profile,
-        errorMessage: 'No model configured. Open Settings and choose a model to continue.',
-      };
-    }
-    if (this.hasOwnApiKey(profile)) {
-      return { allowed: true, route: 'byok', profile };
-    }
-    // OAuth subscription providers (e.g. claude-oauth, codex-oauth)
-    const provider = String(profile?.provider || '')
-      .trim()
-      .toLowerCase();
-    if (provider.endsWith('-oauth')) {
-      return { allowed: true, route: 'oauth', profile };
-    }
-    if (!this.hasActivePaidSubscription(settings)) {
-      return {
-        allowed: false,
-        route: 'none',
-        profile,
-        errorMessage: 'No access configured. Add your own API key in Setup, or buy credits in Account & Billing.',
-      };
-    }
-    if (!this.canUseConvexProxy(settings)) {
-      return {
-        allowed: false,
-        route: 'none',
-        profile,
-        errorMessage:
-          'Paid access is selected but auth is missing. Sign in again in Account & Billing, then click Refresh.',
-      };
-    }
-    return {
-      allowed: true,
-      route: 'proxy',
-      profile: this.applyConvexProxyProfile(profile, settings),
-    };
-  }
-
-  resolveProfile(settings: Record<string, any>, name = 'default') {
-    const base = {
-      provider: settings.provider,
-      apiKey: settings.apiKey,
-      model: settings.model,
-      customEndpoint: settings.customEndpoint,
-      extraHeaders: settings.extraHeaders,
-      systemPrompt: settings.systemPrompt,
-      sendScreenshotsAsImages: settings.sendScreenshotsAsImages,
-      screenshotQuality: settings.screenshotQuality,
-      showThinking: settings.showThinking,
-      streamResponses: settings.streamResponses,
-      temperature: settings.temperature,
-      maxTokens: settings.maxTokens,
-      timeout: settings.timeout,
-      contextLimit: settings.contextLimit,
-      enableScreenshots: settings.enableScreenshots,
-    };
-    const profile = settings.configs && settings.configs[name] ? settings.configs[name] : {};
-    return { ...base, ...profile };
-  }
-
-  resolveTeamProfiles(settings: Record<string, any>) {
-    const names = Array.isArray(settings.auxAgentProfiles) ? settings.auxAgentProfiles : [];
-    const unique = Array.from(new Set(names)).filter(
-      (name): name is string => typeof name === 'string' && name.trim().length > 0,
-    );
-    return unique.map((name) => {
-      const profile = this.resolveProfile(settings, name);
-      return {
-        name,
-        provider: profile.provider || '',
-        model: profile.model || '',
-      };
-    });
-  }
-
-  isVisionModelProfile(profile: Record<string, any> | null | undefined) {
-    const provider = String(profile?.provider || '').toLowerCase();
-    const model = String(profile?.model || '').toLowerCase();
-
-    if (!provider) return false;
-    if (provider === 'anthropic' || provider === 'claude-oauth') return true;
-    if (provider === 'kimi') return true;
-    if (provider === 'codex-oauth' || provider === 'copilot-oauth') {
-      return /gpt-4o|vision/i.test(model);
-    }
-    if (provider === 'openrouter' || provider === 'parchi') {
-      return /(claude|gpt-4o|gpt-4-turbo|gemini|vision)/i.test(model);
-    }
-    if (provider === 'openai') {
-      return /gpt-4o|gpt-4\.1|gpt-4-turbo|gpt-4-vision|vision/.test(model);
-    }
-    if (provider === 'google') {
-      return /(gemini|imagen)/.test(model);
-    }
-
-    return model.includes('vision');
   }
 
   getToolsForSession(
@@ -3455,7 +2675,7 @@ When a tool fails:
     if (!profileName) {
       profileName = settings?.activeConfig || 'default';
     }
-    const profileSettings = this.resolveProfile(settings || {}, profileName);
+    const profileSettings = resolveProfile(settings || {}, profileName);
 
     const subagentName = args.name || `Sub-Agent ${sessionState.subAgentCount}`;
     this.sendRuntime(runMeta, {
@@ -3469,7 +2689,7 @@ When a tool fails:
       const subAgentSystemPrompt = `${args.prompt || 'You are a focused sub-agent working under an orchestrator. Be concise and tool-driven.'}
 Always cite evidence from tools. Finish by calling subagent_complete with a short summary and any structured findings.`;
 
-      const tools = this.getToolsForSession(profileSettings, false, [], this.isVisionModelProfile(profileSettings));
+      const tools = this.getToolsForSession(profileSettings, false, [], isVisionModelProfile(profileSettings));
       const toolSet = buildToolSet(tools, async (toolName, toolArgs, options) =>
         this.executeToolByName(
           toolName,
@@ -3495,7 +2715,7 @@ Always cite evidence from tools. Finish by calling subagent_complete with a shor
       ];
 
       const resolvedSubProfile = String(profileSettings?.provider || '').endsWith('-oauth')
-        ? await this.injectOAuthTokens(profileSettings)
+        ? await injectOAuthTokens(profileSettings)
         : profileSettings;
       const subModel = resolveLanguageModel(resolvedSubProfile);
       const abortSignal = this.activeRuns.get(runMeta.runId)?.controller.signal;

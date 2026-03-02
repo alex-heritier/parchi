@@ -1,57 +1,11 @@
-<div class="settings-section-label">Active Profile</div>
-<div class="form-group">
-    <label for="activeConfig">Profile</label>
-    <select id="activeConfig">
-        <option value="default">Default</option>
-    </select>
-</div>
-
-<div class="settings-divider"></div>
-<div class="settings-section-label">Vision & Orchestrator</div>
-<div class="form-group">
-    <label for="enableScreenshots">Screenshots</label>
-    <select id="enableScreenshots">
-        <option value="true">Enabled</option>
-        <option value="false">Disabled</option>
-    </select>
-</div>
-<div class="form-group">
-    <label for="sendScreenshotsAsImages">Send Screenshots as</label>
-    <select id="sendScreenshotsAsImages">
-        <option value="true">Images (vision models)</option>
-        <option value="false">Text description</option>
-    </select>
-</div>
-<div class="form-group">
-    <label for="visionProfile">Vision Profile</label>
-    <select id="visionProfile">
-        <option value="">Same as main</option>
-    </select>
-</div>
-<div class="form-group">
-    <label for="visionBridge">Vision Bridge</label>
-    <select id="visionBridge">
-        <option value="true">Enabled</option>
-        <option value="false">Disabled</option>
-    </select>
-    <small>Describe screenshots for non-vision models</small>
-</div>
-<div class="form-group">
-    <label for="orchestratorToggle">Orchestrator Mode</label>
-    <select id="orchestratorToggle">
-        <option value="false">Disabled</option>
-        <option value="true">Enabled</option>
-    </select>
-</div>
-<div class="form-group">
-    <label for="orchestratorProfile">Orchestrator Profile</label>
-    <select id="orchestratorProfile">
-        <option value="">Same as main</option>
-    </select>
-</div>
-
-<div class="settings-divider"></div>
-<div class="settings-section-label">Profiles</div>
+<!-- Hidden elements for settings persistence (not shown in Profiles tab) -->
+<select id="activeConfig" class="hidden"><option value="default">Default</option></select>
+<select id="enableScreenshots" class="hidden"><option value="true">Enabled</option><option value="false">Disabled</option></select>
+<select id="sendScreenshotsAsImages" class="hidden"><option value="true">Images (vision models)</option><option value="false">Text description</option></select>
+<select id="visionProfile" class="hidden"><option value="">Same as main</option></select>
+<select id="visionBridge" class="hidden"><option value="true">Enabled</option><option value="false">Disabled</option></select>
+<select id="orchestratorToggle" class="hidden"><option value="false">Disabled</option><option value="true">Enabled</option></select>
+<select id="orchestratorProfile" class="hidden"><option value="">Same as main</option></select>
 <div class="profile-actions-row">
     <input id="newProfileNameInput" type="text" placeholder="Profile name" />
     <button id="createProfileBtn" class="btn btn-primary">Create</button>

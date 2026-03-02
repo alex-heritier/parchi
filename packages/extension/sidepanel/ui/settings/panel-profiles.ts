@@ -1,4 +1,5 @@
 import { SidePanelUI } from '../core/panel-ui.js';
+import { normalizeOAuthModelIdForProvider } from '../../../oauth/model-normalization.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
 const parseHeadersJson = (raw: string): Record<string, string> => {
@@ -361,10 +362,13 @@ sidePanelProto.editProfile = function editProfile(name: string, silent = false) 
 };
 
 sidePanelProto.collectProfileEditorData = function collectProfileEditorData() {
+  const provider = String(this.elements.profileEditorProvider.value || '').trim();
+  const rawModel = (this.elements.profileEditorModelInput?.value || this.elements.profileEditorModel.value || '').trim();
+  const model = provider.endsWith('-oauth') ? normalizeOAuthModelIdForProvider(provider, rawModel) : rawModel;
   return {
-    provider: this.elements.profileEditorProvider.value,
+    provider,
     apiKey: this.elements.profileEditorApiKey.value,
-    model: (this.elements.profileEditorModelInput?.value || this.elements.profileEditorModel.value || '').trim(),
+    model,
     customEndpoint: this.elements.profileEditorEndpoint.value,
     extraHeaders: (() => {
       const raw = this.elements.profileEditorHeaders?.value || '';
