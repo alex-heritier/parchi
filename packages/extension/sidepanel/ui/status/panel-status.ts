@@ -450,12 +450,11 @@ sidePanelProto.populateModelSelect = function populateModelSelect() {
     const option = document.createElement('option');
     option.value = name; // Use profile name as value
 
-    // Format: icon provider/model (e.g., "🅒 anthropic/claude-sonnet")
-    const providerIcon = this.getProviderIcon(config.provider);
+    // Format: provider/model (plain text so it follows theme colors)
     const isOAuthProvider = String(config.provider || '').endsWith('-oauth');
     const providerLabel = isOAuthProvider ? config.provider.replace(/-oauth$/, '') : config.provider || 'unconfigured';
     const modelShort = this.shortenModelName(config.model || 'no-model');
-    option.textContent = `${providerIcon} ${providerLabel}/${modelShort}`;
+    option.textContent = `${providerLabel}/${modelShort}`;
 
     if (name === this.currentConfig) {
       option.selected = true;
@@ -667,20 +666,4 @@ sidePanelProto.toggleBalancePopover = async function toggleBalancePopover() {
   } catch {
     // Ignore storage read failures
   }
-};
-
-sidePanelProto.getProviderIcon = function getProviderIcon(provider: string): string {
-  const icons: Record<string, string> = {
-    anthropic: '🅒',
-    openai: '🅞',
-    kimi: '🅚',
-    openrouter: '🅡',
-    parchi: '🅟',
-    custom: '⚙️',
-    'claude-oauth': '🅒',
-    'codex-oauth': '🅞',
-    'copilot-oauth': '🅖',
-    'qwen-oauth': '🅠',
-  };
-  return icons[provider] || '⚙️';
 };
