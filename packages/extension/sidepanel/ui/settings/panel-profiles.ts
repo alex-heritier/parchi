@@ -304,7 +304,9 @@ sidePanelProto.editProfile = function editProfile(name: string, silent = false) 
   if (this.elements.profileEditorApiKey && !isOAuth) {
     this.elements.profileEditorApiKey.value = config.apiKey || '';
   }
-  // Profile editor model is now a <select> — ensure option exists before setting value
+  if (this.elements.profileEditorModelInput) {
+    this.elements.profileEditorModelInput.value = config.model || '';
+  }
   if (this.elements.profileEditorModel) {
     const modelVal = config.model || '';
     const modelSelect = this.elements.profileEditorModel as HTMLSelectElement;
@@ -362,7 +364,7 @@ sidePanelProto.collectProfileEditorData = function collectProfileEditorData() {
   return {
     provider: this.elements.profileEditorProvider.value,
     apiKey: this.elements.profileEditorApiKey.value,
-    model: this.elements.profileEditorModel.value,
+    model: (this.elements.profileEditorModelInput?.value || this.elements.profileEditorModel.value || '').trim(),
     customEndpoint: this.elements.profileEditorEndpoint.value,
     extraHeaders: (() => {
       const raw = this.elements.profileEditorHeaders?.value || '';

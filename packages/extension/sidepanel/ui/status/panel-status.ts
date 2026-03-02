@@ -92,6 +92,7 @@ const populateModelSelectElement = (
   models: string[],
   currentValue: string,
   placeholder = 'Select model...',
+  datalist?: HTMLDataListElement | null,
 ) => {
   const prevValue = select.value || currentValue;
   select.innerHTML = '';
@@ -118,6 +119,15 @@ const populateModelSelectElement = (
 
   if (prevValue) {
     select.value = prevValue;
+  }
+
+  if (datalist) {
+    datalist.innerHTML = '';
+    for (const model of models) {
+      const option = document.createElement('option');
+      option.value = model;
+      datalist.appendChild(option);
+    }
   }
 };
 
@@ -461,16 +471,18 @@ sidePanelProto.refreshModelCatalogForProfileEditor = async function refreshModel
   const apiKeyEl = this.elements.profileEditorApiKey;
   const endpointEl = this.elements.profileEditorEndpoint;
   const modelSelect = this.elements.profileEditorModel as HTMLSelectElement | null;
+  const modelDatalist = this.elements.profileEditorModelList as HTMLDataListElement | null;
+  const modelInput = this.elements.profileEditorModelInput as HTMLInputElement | null;
   if (!providerEl) return;
 
   const provider = String(providerEl.value || '')
     .trim()
     .toLowerCase();
-  const currentModel = String(modelSelect?.value || '').trim();
+  const currentModel = String(modelInput?.value || modelSelect?.value || '').trim();
 
   if (!provider) {
     this._profileEditorModels = [];
-    if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
+    if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel, 'Select model...', modelDatalist);
     return;
   }
 
@@ -491,7 +503,13 @@ sidePanelProto.refreshModelCatalogForProfileEditor = async function refreshModel
       this._profileEditorModels = [];
     }
     if (modelSelect) {
-      populateModelSelectElement(modelSelect, this._profileEditorModels, currentModel, 'Select model...');
+      populateModelSelectElement(
+        modelSelect,
+        this._profileEditorModels,
+        currentModel,
+        'Select model...',
+        modelDatalist,
+      );
     }
     return;
   }
@@ -502,14 +520,14 @@ sidePanelProto.refreshModelCatalogForProfileEditor = async function refreshModel
   const endpointBase = normalizeEndpointBase(provider, customEndpoint);
   if (!endpointBase) {
     this._profileEditorModels = [];
-    if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
+    if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel, 'Select model...', modelDatalist);
     return;
   }
 
   const allowsUnauthedList = provider === 'openrouter' || provider === 'parchi';
   if (!apiKey && !allowsUnauthedList) {
     this._profileEditorModels = [];
-    if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
+    if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel, 'Select model...', modelDatalist);
     return;
   }
 
@@ -544,7 +562,7 @@ sidePanelProto.refreshModelCatalogForProfileEditor = async function refreshModel
     this._profileEditorModels = [];
   }
   if (modelSelect) {
-    populateModelSelectElement(modelSelect, this._profileEditorModels, currentModel);
+    populateModelSelectElement(modelSelect, this._profileEditorModels, currentModel, 'Select model...', modelDatalist);
   }
 };
 

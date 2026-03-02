@@ -86,6 +86,8 @@ export const getSidePanelElements = (): SidePanelElements => ({
   profileEditorProvider: byId<HTMLSelectElement>('profileEditorProvider'),
   profileEditorApiKey: byId<HTMLInputElement>('profileEditorApiKey'),
   profileEditorModel: byId<HTMLSelectElement>('profileEditorModel'),
+  profileEditorModelInput: byId<HTMLInputElement>('profileEditorModelInput'),
+  profileEditorModelList: byId<HTMLDataListElement>('profileEditorModelList'),
   profileEditorEndpoint: byId<HTMLInputElement>('profileEditorEndpoint'),
   profileEditorEndpointGroup: byId<HTMLElement>('profileEditorEndpointGroup'),
   profileEditorHeaders: byId<HTMLTextAreaElement>('profileEditorHeaders'),
