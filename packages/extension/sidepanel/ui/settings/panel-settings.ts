@@ -193,19 +193,26 @@ sidePanelProto.switchSettingsTab = function switchSettingsTab(
   const resolvedTab = (tabMap[tabName] || tabName) as 'providers' | 'profiles' | 'design' | 'advanced';
   this.currentSettingsTab = resolvedTab;
 
+  const tabs = ['providers', 'profiles', 'design', 'advanced'] as const;
   const tabElements: Record<string, HTMLElement | null> = {
     providers: this.elements.settingsTabProviders || document.getElementById('settingsTabProviders'),
     profiles: this.elements.settingsTabProfiles || document.getElementById('settingsTabProfiles'),
     design: this.elements.settingsTabDesign || document.getElementById('settingsTabDesign'),
     advanced: this.elements.settingsTabAdvanced || document.getElementById('settingsTabAdvanced'),
   };
+  const btnElements: Record<string, HTMLElement | null> = {
+    providers: this.elements.settingsTabProvidersBtn || document.getElementById('settingsTabProvidersBtn'),
+    profiles: this.elements.settingsTabProfilesBtn || document.getElementById('settingsTabProfilesBtn'),
+    design: this.elements.settingsTabDesignBtn || document.getElementById('settingsTabDesignBtn'),
+    advanced: this.elements.settingsTabAdvancedBtn || document.getElementById('settingsTabAdvancedBtn'),
+  };
 
-  // Scroll the target section container into view and expand its first <details>
-  const container = tabElements[resolvedTab];
-  if (container) {
-    const firstDetails = container.querySelector('details') as HTMLDetailsElement | null;
-    if (firstDetails) firstDetails.open = true;
-    container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  for (const tab of tabs) {
+    const isActive = tab === resolvedTab;
+    tabElements[tab]?.classList.toggle('hidden', !isActive);
+    btnElements[tab]?.classList.toggle('active', isActive);
+    const pane = tabElements[tab]?.querySelector('.settings-tab-pane') as HTMLElement | null;
+    pane?.classList.toggle('active', isActive);
   }
 
   if (resolvedTab === 'providers') {

@@ -1,6 +1,7 @@
-<!-- ===== PROVIDERS ===== -->
-<details class="settings-section" open>
-    <summary>API Key Providers</summary>
+<!-- ===== PROVIDERS TAB ===== -->
+<div class="settings-tab-pane" data-pane="providers">
+    <details class="settings-section" open>
+        <summary>API Key Providers</summary>
         <div class="settings-body">
             <div class="account-inline-note">Add your own API keys. Keys are stored locally and never sent to our servers.</div>
             <div id="apiProviderGrid" class="provider-card-grid"></div>
@@ -165,120 +166,104 @@
             </div>
         </div>
     </details>
+</div>
 
-<!-- ===== APPEARANCE ===== -->
-<details class="settings-section">
-    <summary>Appearance</summary>
-    <div class="settings-body">
-        <div class="form-group">
-            <label for="themeSelect">Theme</label>
-            <div id="themeGrid" class="theme-grid"></div>
-        </div>
+<!-- ===== DESIGN TAB (appearance) ===== -->
+<div class="settings-tab-pane" data-pane="design">
+    <div class="form-group">
+        <label for="themeSelect">Theme</label>
+        <div id="themeGrid" class="theme-grid"></div>
+    </div>
+    <div class="settings-divider"></div>
+    <div class="form-group">
+        <label for="uiZoom">Text Size <span class="form-value" id="uiZoomValue">100%</span></label>
+        <input type="range" id="uiZoom" min="0.85" max="1.25" step="0.05" value="1" />
+    </div>
+    <div class="form-group">
+        <label for="fontPreset">Typography</label>
+        <select id="fontPreset">
+            <option value="default">Jakarta (Default)</option>
+            <option value="geist">Geist</option>
+            <option value="soft">Nunito</option>
+            <option value="dm-sans">DM Sans</option>
+            <option value="plex">IBM Plex</option>
+            <option value="manrope">Manrope</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="fontStylePreset">Font Style</label>
+        <select id="fontStylePreset">
+            <option value="normal">Regular</option>
+            <option value="medium">Medium</option>
+            <option value="semibold">Semibold</option>
+        </select>
+    </div>
+</div>
+
+<!-- ===== ADVANCED TAB ===== -->
+<div class="settings-tab-pane" data-pane="advanced">
+    <div class="settings-section-label">System Prompt</div>
+    <div class="form-group">
+        <label for="systemPrompt">Main Prompt</label>
+        <textarea id="systemPrompt" rows="5" class="system-prompt-textarea" placeholder="Leave empty for default..."></textarea>
+        <small>Override the default system prompt</small>
+    </div>
+    <div id="orchestratorPromptSection" class="form-group hidden">
         <div class="settings-divider"></div>
-        <div class="form-group">
-            <label for="uiZoom">Text Size <span class="form-value" id="uiZoomValue">100%</span></label>
-            <input type="range" id="uiZoom" min="0.85" max="1.25" step="0.05" value="1" />
-        </div>
-        <div class="form-group">
-            <label for="fontPreset">Typography</label>
-            <select id="fontPreset">
-                <option value="default">Jakarta (Default)</option>
-                <option value="geist">Geist</option>
-                <option value="soft">Nunito</option>
-                <option value="dm-sans">DM Sans</option>
-                <option value="plex">IBM Plex</option>
-                <option value="manrope">Manrope</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="fontStylePreset">Font Style</label>
-            <select id="fontStylePreset">
-                <option value="normal">Regular</option>
-                <option value="medium">Medium</option>
-                <option value="semibold">Semibold</option>
-            </select>
-        </div>
+        <label for="orchestratorPromptTextarea">Orchestrator Prompt</label>
+        <textarea id="orchestratorPromptTextarea" rows="5" class="system-prompt-textarea" placeholder="Leave empty to use orchestrator profile's prompt..."></textarea>
+        <small>System prompt for the orchestrator profile.</small>
     </div>
-</details>
+    <div id="visionPromptSection" class="form-group hidden">
+        <div class="settings-divider"></div>
+        <label for="visionPromptTextarea">Vision Prompt</label>
+        <textarea id="visionPromptTextarea" rows="5" class="system-prompt-textarea" placeholder="Leave empty to use vision profile's prompt..."></textarea>
+        <small>System prompt for the vision profile.</small>
+    </div>
 
-<!-- ===== SYSTEM PROMPT ===== -->
-<details class="settings-section">
-    <summary>System Prompt</summary>
-    <div class="settings-body">
-        <div class="form-group">
-            <label for="systemPrompt">Main Prompt</label>
-            <textarea id="systemPrompt" rows="5" class="system-prompt-textarea" placeholder="Leave empty for default..."></textarea>
-            <small>Override the default system prompt</small>
-        </div>
-        <div id="orchestratorPromptSection" class="form-group hidden">
-            <div class="settings-divider"></div>
-            <label for="orchestratorPromptTextarea">Orchestrator Prompt</label>
-            <textarea id="orchestratorPromptTextarea" rows="5" class="system-prompt-textarea" placeholder="Leave empty to use orchestrator profile's prompt..."></textarea>
-            <small>System prompt for the orchestrator profile.</small>
-        </div>
-        <div id="visionPromptSection" class="form-group hidden">
-            <div class="settings-divider"></div>
-            <label for="visionPromptTextarea">Vision Prompt</label>
-            <textarea id="visionPromptTextarea" rows="5" class="system-prompt-textarea" placeholder="Leave empty to use vision profile's prompt..."></textarea>
-            <small>System prompt for the vision profile.</small>
-        </div>
+    <div class="settings-divider"></div>
+    <div class="settings-section-label">Browser</div>
+    <div class="form-group">
+        <label for="allowedDomains">Allowed Domains</label>
+        <input type="text" id="allowedDomains" placeholder="Leave empty for all domains" />
+        <small>Comma-separated, e.g.: google.com, github.com</small>
     </div>
-</details>
 
-<!-- ===== BROWSER ===== -->
-<details class="settings-section">
-    <summary>Browser</summary>
-    <div class="settings-body">
-        <div class="form-group">
-            <label for="allowedDomains">Allowed Domains</label>
-            <input type="text" id="allowedDomains" placeholder="Leave empty for all domains" />
-            <small>Comma-separated, e.g.: google.com, github.com</small>
+    <div class="settings-divider"></div>
+    <div class="settings-section-label">Relay</div>
+    <div class="form-group">
+        <label for="relayEnabled">Enable Relay</label>
+        <select id="relayEnabled">
+            <option value="false">Disabled</option>
+            <option value="true">Enabled</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="relayUrl">Relay URL</label>
+        <input type="text" id="relayUrl" placeholder="http://127.0.0.1:17373" />
+    </div>
+    <div class="form-group">
+        <label for="relayToken">Relay Token</label>
+        <input type="password" id="relayToken" placeholder="PARCHI_RELAY_TOKEN" />
+    </div>
+    <div class="form-group">
+        <label>Connection</label>
+        <div class="relay-status-row">
+            <span id="relayConnectedBadge" class="status-pill">Disconnected</span>
+            <span id="relayLastErrorText" class="relay-last-error"></span>
         </div>
     </div>
-</details>
+    <div class="form-row">
+        <button id="saveRelayBtn" class="btn btn-primary" style="flex: 1;">Apply</button>
+        <button id="copyRelayEnvBtn" class="btn btn-secondary" style="flex: 1;">Copy Env Vars</button>
+    </div>
 
-<!-- ===== RELAY ===== -->
-<details class="settings-section">
-    <summary>Relay</summary>
-    <div class="settings-body">
-        <div class="form-group">
-            <label for="relayEnabled">Enable Relay</label>
-            <select id="relayEnabled">
-                <option value="false">Disabled</option>
-                <option value="true">Enabled</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="relayUrl">Relay URL</label>
-            <input type="text" id="relayUrl" placeholder="http://127.0.0.1:17373" />
-        </div>
-        <div class="form-group">
-            <label for="relayToken">Relay Token</label>
-            <input type="password" id="relayToken" placeholder="PARCHI_RELAY_TOKEN" />
-        </div>
-        <div class="form-group">
-            <label>Connection</label>
-            <div class="relay-status-row">
-                <span id="relayConnectedBadge" class="status-pill">Disconnected</span>
-                <span id="relayLastErrorText" class="relay-last-error"></span>
-            </div>
-        </div>
-        <div class="form-row">
-            <button id="saveRelayBtn" class="btn btn-primary" style="flex: 1;">Apply</button>
-            <button id="copyRelayEnvBtn" class="btn btn-secondary" style="flex: 1;">Copy Env Vars</button>
-        </div>
+    <div class="settings-divider"></div>
+    <div class="settings-section-label">Import / Export</div>
+    <div class="form-row">
+        <button id="exportSettingsBtn" class="btn btn-secondary" style="flex: 1;">Export</button>
+        <button id="importSettingsBtn" class="btn btn-secondary" style="flex: 1;">Import</button>
+        <input id="importSettingsInput" type="file" accept="application/json" style="display: none;" />
     </div>
-</details>
-
-<!-- ===== IMPORT / EXPORT ===== -->
-<details class="settings-section">
-    <summary>Import / Export</summary>
-    <div class="settings-body">
-        <div class="form-row">
-            <button id="exportSettingsBtn" class="btn btn-secondary" style="flex: 1;">Export</button>
-            <button id="importSettingsBtn" class="btn btn-secondary" style="flex: 1;">Import</button>
-            <input id="importSettingsInput" type="file" accept="application/json" style="display: none;" />
-        </div>
-        <small>Export all profiles to JSON. Import overwrites current settings.</small>
-    </div>
-</details>
+    <small>Export all profiles to JSON. Import overwrites current settings.</small>
+</div>
