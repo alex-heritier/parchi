@@ -3,7 +3,6 @@ import { safeJsonStringify as safeJsonStringifyFn } from '../../../../shared/src
 import { SidePanelUI } from './panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-
 sidePanelProto.safeJsonStringify = (value: unknown) => safeJsonStringifyFn(value);
 
 sidePanelProto.truncateText = function truncateText(text: string, limit = 1200) {
@@ -49,10 +48,7 @@ sidePanelProto.createStepContainer = function createStepContainer(stepIndex: num
   };
 };
 
-sidePanelProto.ensureStepContainer = function ensureStepContainer(
-  stepIndex: number,
-  stepTitle?: string,
-) {
+sidePanelProto.ensureStepContainer = function ensureStepContainer(stepIndex: number, stepTitle?: string) {
   if (!this.streamingState?.eventsEl) return null;
 
   const normalizedIndex = Number.isFinite(stepIndex) ? stepIndex : 0;

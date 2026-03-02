@@ -223,12 +223,12 @@ export const injectedClick = async (spec: SelectorSpec, waitMs: number): Promise
     firePointer('pointerover');
     fireMouse('mouseover');
     firePointer('pointerdown');
-   fireMouse('mousedown');
+    fireMouse('mousedown');
     firePointer('pointerup');
     fireMouse('mouseup');
     fireMouse('click');
     (target as any).click?.();
-    return { success: true };
+    return { success: true as const };
   };
 
   const start = performance.now();

@@ -1,7 +1,6 @@
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-
 sidePanelProto.updateContextUsage = function updateContextUsage(actualTokens: number | null = null) {
   let approxTokens;
 
@@ -10,17 +9,21 @@ sidePanelProto.updateContextUsage = function updateContextUsage(actualTokens: nu
     approxTokens = this.sessionTokensUsed;
   } else {
     const joined = this.contextHistory
-      .map((msg: any) => {
-        if (!msg) return '';
-        if (typeof msg.content === 'string') return msg.content;
-        if (Array.isArray(msg.content)) {
-          return msg.content
-            .map((p: any) => {
+      .map((msg: unknown) => {
+        if (!msg || typeof msg !== 'object') return '';
+        const m = msg as { content?: unknown };
+        if (typeof m.content === 'string') return m.content;
+        if (Array.isArray(m.content)) {
+          return m.content
+            .map((p: unknown) => {
               if (typeof p === 'string') return p;
-              if (p?.text) return p.text;
-              if (p?.content) return JSON.stringify(p.content);
-              if (p?.output) {
-                const output = p.output?.value ?? p.output;
+              if (!p || typeof p !== 'object') return '';
+              const part = p as { text?: unknown; content?: unknown; output?: unknown };
+              if (typeof part.text === 'string') return part.text;
+              if (part.content !== undefined) return JSON.stringify(part.content);
+              if (part.output !== undefined) {
+                const outObj = part.output as { value?: unknown };
+                const output = outObj?.value ?? part.output;
                 if (typeof output === 'string') return output;
                 try {
                   return JSON.stringify(output);

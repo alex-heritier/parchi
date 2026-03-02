@@ -2,7 +2,6 @@ import { getActiveTab } from '../../../utils/active-tab.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-
 sidePanelProto.ingestFilesIntoComposer = async function ingestFilesIntoComposer(
   files: File[],
   source: 'picker' | 'paste' = 'picker',
@@ -205,10 +204,7 @@ sidePanelProto.toggleGroupSelection = function toggleGroupSelection(
   this.loadTabs();
 };
 
-sidePanelProto.toggleTabSelection = function toggleTabSelection(
-  tab: chrome.tabs.Tab,
-  itemElement: HTMLElement,
-) {
+sidePanelProto.toggleTabSelection = function toggleTabSelection(tab: chrome.tabs.Tab, itemElement: HTMLElement) {
   if (typeof tab.id !== 'number') return;
   if (this.selectedTabs.has(tab.id)) {
     this.selectedTabs.delete(tab.id);

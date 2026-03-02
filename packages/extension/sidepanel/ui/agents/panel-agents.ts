@@ -12,8 +12,8 @@ sidePanelProto.addSubagent = function addSubagent(id: string, name: string, task
     status: 'running',
     messages: [],
     startedAt: Date.now(),
-    completedAt: null,
-    summary: null,
+    completedAt: undefined,
+    summary: undefined,
   });
   this.renderAgentNav();
   this.renderSubagentActivity(id, 'start', { name, tasks });
@@ -28,7 +28,7 @@ sidePanelProto.updateSubagentStatus = function updateSubagentStatus(id: string, 
     agent.status = status;
     if (status === 'completed' || status === 'error') {
       agent.completedAt = Date.now();
-      agent.summary = summary || null;
+      agent.summary = summary || undefined;
     }
     this.renderAgentNav();
     this.renderSubagentActivity(id, status === 'completed' ? 'complete' : status, { summary });

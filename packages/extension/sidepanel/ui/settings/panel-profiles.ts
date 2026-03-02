@@ -1,7 +1,6 @@
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-
 const parseHeadersJson = (raw: string): Record<string, string> => {
   const trimmed = raw.trim();
   if (!trimmed) return {};
@@ -187,9 +186,7 @@ sidePanelProto.renderProfileGrid = function renderProfileGrid() {
       name !== 'default' && !isOAuth
         ? `<button class="agent-card-delete" data-delete-profile="${this.escapeHtml(name)}" title="Delete profile">&times;</button>`
         : '';
-    const providerLabel = isOAuth
-      ? config.provider.replace(/-oauth$/, '')
-      : config.provider || 'Provider';
+    const providerLabel = isOAuth ? config.provider.replace(/-oauth$/, '') : config.provider || 'Provider';
     const oauthTag = isOAuth ? '<span class="oauth-badge">OAuth</span>' : '';
     card.innerHTML = `
         <div class="agent-card-header">
@@ -456,9 +453,7 @@ sidePanelProto.saveProfileEdits = async function saveProfileEdits() {
   }
 };
 
-sidePanelProto.populateFormFromConfig = function populateFormFromConfig(
-  config: Record<string, any> = {},
-) {
+sidePanelProto.populateFormFromConfig = function populateFormFromConfig(config: Record<string, any> = {}) {
   // Use optional chaining for all element accesses since settings UI may be simplified
   if (this.elements.provider) this.elements.provider.value = config.provider || '';
   if (this.elements.apiKey) this.elements.apiKey.value = config.apiKey || '';

@@ -1,7 +1,6 @@
 import { SidePanelUI } from './panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-
 sidePanelProto.scrollToBottom = function scrollToBottom({ force = false } = {}) {
   if (!this.elements.chatMessages) return;
   if (!force && !this.shouldAutoScroll()) return;

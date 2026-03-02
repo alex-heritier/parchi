@@ -1,7 +1,6 @@
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-
 type Workflow = { id: string; name: string; prompt: string; createdAt: number };
 
 // Rough chars-per-token ratio (conservative; real tokenizers vary).
@@ -579,9 +578,7 @@ sidePanelProto.handleWorkflowKeydown = function handleWorkflowKeydown(event: Key
   return false;
 };
 
-sidePanelProto.updateWorkflowMenuHighlight = function updateWorkflowMenuHighlight(
-  items: NodeListOf<Element>,
-): void {
+sidePanelProto.updateWorkflowMenuHighlight = function updateWorkflowMenuHighlight(items: NodeListOf<Element>): void {
   items.forEach((item, i) => {
     if (i === this.workflowMenuIndex) {
       item.classList.add('active');

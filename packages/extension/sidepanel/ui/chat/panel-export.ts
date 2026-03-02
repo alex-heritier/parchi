@@ -100,10 +100,7 @@ sidePanelProto.showExportMenu = function showExportMenu(): void {
 
 /* ── Unified export ───────────────────────────────────────────────────── */
 
-sidePanelProto.runExport = async function runExport(
-  scope: 'all' | 'last',
-  includeActions: boolean,
-): Promise<void> {
+sidePanelProto.runExport = async function runExport(scope: 'all' | 'last', includeActions: boolean): Promise<void> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const tag = scope === 'all' ? 'session' : 'response';
   const filename = `${tag}-${timestamp}.md`;
@@ -169,11 +166,11 @@ sidePanelProto.exportFullSession = async function exportFullSession(
   // Subagents
   if (this.subagents?.size > 0) {
     md += '---\n\n## Subagents\n\n';
-    this.subagents.forEach((agent: any) => {
-      md += `- **${agent.name}** (${agent.status})\n`;
-      if (agent.tasks?.length) {
-        for (const task of agent.tasks) md += `  - ${task}\n`;
-      }
+    this.subagents.forEach((agent: unknown) => {
+      const a = agent as { name?: unknown; status?: unknown; tasks?: unknown };
+      md += `- **${String(a.name ?? '')}** (${String(a.status ?? '')})\n`;
+      const tasks = Array.isArray(a.tasks) ? a.tasks : [];
+      for (const task of tasks) md += `  - ${String(task)}\n`;
       md += '\n';
     });
   }
@@ -222,13 +219,11 @@ sidePanelProto.exportLastResponse = async function exportLastResponse(
 
 /* ── Build full actions markdown ──────────────────────────────────────── */
 
-sidePanelProto.buildActionsMarkdown = async function buildActionsMarkdown(
-  scope: 'all' | 'last',
-): Promise<string> {
+sidePanelProto.buildActionsMarkdown = async function buildActionsMarkdown(scope: 'all' | 'last'): Promise<string> {
   let md = '---\n\n## Tool Actions\n\n';
 
   // Try to get full traces from IndexedDB first
-  let traces: any[] = [];
+  let traces: unknown[] = [];
   try {
     traces = await getSessionTraces(this.sessionId);
   } catch {
@@ -254,11 +249,12 @@ sidePanelProto.buildActionsMarkdown = async function buildActionsMarkdown(
 };
 
 /** Get traces belonging to the last turn only. */
-sidePanelProto.getLastTurnTraces = function getLastTurnTraces(traces: any[]): any[] {
+sidePanelProto.getLastTurnTraces = function getLastTurnTraces(traces: unknown[]): unknown[] {
+  const t = traces as Array<{ kind?: unknown }>;
   // Find the last user_message, then return everything from that point on
   let lastUserIdx = -1;
-  for (let i = traces.length - 1; i >= 0; i--) {
-    if (traces[i].kind === 'user_message') {
+  for (let i = t.length - 1; i >= 0; i--) {
+    if (t[i]?.kind === 'user_message') {
       lastUserIdx = i;
       break;
     }
@@ -267,19 +263,20 @@ sidePanelProto.getLastTurnTraces = function getLastTurnTraces(traces: any[]): an
 };
 
 /** Get the last turn entry from historyTurnMap. */
-sidePanelProto.getLastTurnFromMap = function getLastTurnFromMap(): any | null {
+sidePanelProto.getLastTurnFromMap = function getLastTurnFromMap(): unknown | null {
   if (!this.historyTurnMap?.size) return null;
-  let last: any = null;
-  this.historyTurnMap.forEach((turn: any) => {
+  let last: unknown = null;
+  this.historyTurnMap.forEach((turn: unknown) => {
     last = turn;
   });
   return last;
 };
 
 /** Format persisted trace events into markdown — FULL data, no truncation. */
-sidePanelProto.formatTraceEvents = function formatTraceEvents(events: any[]): string {
+sidePanelProto.formatTraceEvents = function formatTraceEvents(events: unknown[]): string {
   let md = '';
-  for (const ev of events) {
+  for (const raw of events) {
+    const ev = raw as any;
     const time = new Date(ev.ts).toLocaleTimeString();
     switch (ev.kind) {
       case 'user_message':
@@ -313,7 +310,7 @@ sidePanelProto.formatTraceEvents = function formatTraceEvents(events: any[]): st
         md += `${ev.content || ''}\n\n`;
         if (ev.model) md += `_Model: ${ev.model}_\n`;
         if (ev.usage) {
-          const u = ev.usage as any;
+          const u = ev.usage as Record<string, unknown>;
           if (u.inputTokens || u.outputTokens) {
             md += `_Tokens: ${u.inputTokens ?? 0} in / ${u.outputTokens ?? 0} out_\n`;
           }
@@ -323,8 +320,9 @@ sidePanelProto.formatTraceEvents = function formatTraceEvents(events: any[]): st
 
       case 'plan_update':
         md += `**Plan updated** \`${time}\`\n\n`;
-        if (ev.plan && (ev.plan as any).steps) {
-          for (const step of (ev.plan as any).steps) {
+        const planSteps = (ev.plan as { steps?: unknown } | null | undefined)?.steps;
+        if (Array.isArray(planSteps)) {
+          for (const step of planSteps as Array<{ status?: unknown; title?: unknown }>) {
             md += `${step.status === 'done' ? '[x]' : '[ ]'} ${step.title}\n`;
           }
         }
@@ -336,23 +334,25 @@ sidePanelProto.formatTraceEvents = function formatTraceEvents(events: any[]): st
 };
 
 /** Format a single in-memory turn into markdown — full data, no truncation. */
-sidePanelProto.formatTurnEvents = function formatTurnEvents(turn: any): string {
+sidePanelProto.formatTurnEvents = function formatTurnEvents(turn: unknown): string {
   let md = '';
 
-  if (turn.userMessage) {
-    md += `### ${turn.userMessage}\n\n`;
+  const t = turn as any;
+
+  if (t.userMessage) {
+    md += `### ${t.userMessage}\n\n`;
   }
 
-  if (turn.plan?.steps) {
+  if (t.plan?.steps) {
     md += '**Plan:**\n';
-    for (const step of turn.plan.steps) {
+    for (const step of t.plan.steps) {
       md += `${step.status === 'done' ? '[x]' : '[ ]'} ${step.title}\n`;
     }
     md += '\n';
   }
 
-  if (turn.toolEvents?.length) {
-    for (const ev of turn.toolEvents) {
+  if (t.toolEvents?.length) {
+    for (const ev of t.toolEvents) {
       if (ev.type === 'tool_execution_start') {
         md += `**\`${ev.tool}\`**`;
         if (ev.stepTitle) md += ` (${ev.stepTitle})`;
@@ -370,11 +370,11 @@ sidePanelProto.formatTurnEvents = function formatTurnEvents(turn: any): string {
     }
   }
 
-  if (turn.assistantFinal) {
-    if (turn.assistantFinal.thinking) {
-      md += `<details>\n<summary>Thinking</summary>\n\n${turn.assistantFinal.thinking}\n\n</details>\n\n`;
+  if (t.assistantFinal) {
+    if (t.assistantFinal.thinking) {
+      md += `<details>\n<summary>Thinking</summary>\n\n${t.assistantFinal.thinking}\n\n</details>\n\n`;
     }
-    md += `${turn.assistantFinal.content || ''}\n\n`;
+    md += `${t.assistantFinal.content || ''}\n\n`;
   }
 
   md += '---\n\n';
@@ -393,26 +393,36 @@ sidePanelProto.getSelectedReportImagesForExport = function getSelectedReportImag
 
   return order
     .map((id: string) => this.reportImages.get(id))
-    .filter((image: any) => image && typeof image.dataUrl === 'string' && selected.has(image.id));
+    .filter((image) => {
+      if (!image || typeof image !== 'object') return false;
+      const obj = image as { id?: unknown; dataUrl?: unknown };
+      return typeof obj.dataUrl === 'string' && selected.has(String(obj.id));
+    });
 };
 
-sidePanelProto.appendSelectedReportImagesMarkdown = function appendSelectedReportImagesMarkdown(
-  markdown: string,
-) {
+sidePanelProto.appendSelectedReportImagesMarkdown = function appendSelectedReportImagesMarkdown(markdown: string) {
   const images = this.getSelectedReportImagesForExport();
   if (!images.length) return markdown;
 
   let next = markdown;
   next += '\n---\n\n## Selected Report Images\n\n';
-  images.forEach((image: any, index: number) => {
-    const label = image.title || image.url || image.id;
+  images.forEach((image: unknown, index: number) => {
+    const img = image as {
+      title?: unknown;
+      url?: unknown;
+      id?: unknown;
+      capturedAt?: unknown;
+      visionDescription?: unknown;
+      dataUrl?: unknown;
+    };
+    const label = String(img.title || img.url || img.id || '');
     next += `### Image ${index + 1}: ${label}\n\n`;
-    next += `- **ID:** ${image.id}\n`;
-    next += `- **Captured:** ${new Date(Number(image.capturedAt || Date.now())).toLocaleString()}\n`;
-    if (image.url) next += `- **Source URL:** ${image.url}\n`;
-    if (image.visionDescription) next += `- **Vision Notes:** ${image.visionDescription}\n`;
+    next += `- **ID:** ${String(img.id || '')}\n`;
+    next += `- **Captured:** ${new Date(Number(img.capturedAt || Date.now())).toLocaleString()}\n`;
+    if (img.url) next += `- **Source URL:** ${String(img.url)}\n`;
+    if (img.visionDescription) next += `- **Vision Notes:** ${String(img.visionDescription)}\n`;
     next += '\n';
-    next += `![Report image ${index + 1}](${image.dataUrl})\n\n`;
+    next += `![Report image ${index + 1}](${String(img.dataUrl || '')})\n\n`;
   });
   return next;
 };
@@ -444,11 +454,7 @@ sidePanelProto.extractTextContent = function extractTextContent(content: unknown
   return String(content);
 };
 
-sidePanelProto.downloadFile = function downloadFile(
-  content: string,
-  filename: string,
-  mimeType: string,
-): void {
+sidePanelProto.downloadFile = function downloadFile(content: string, filename: string, mimeType: string): void {
   const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
   const url = URL.createObjectURL(blob);
 
@@ -500,7 +506,7 @@ sidePanelProto.autoSaveSessionJsonl = async function autoSaveSessionJsonl(): Pro
   lines.push(JSON.stringify(meta));
 
   // Lines 2+: traces from IndexedDB, or fallback to displayHistory
-  let traces: any[] = [];
+  let traces: unknown[] = [];
   try {
     traces = await getSessionTraces(this.sessionId);
   } catch {
@@ -513,7 +519,7 @@ sidePanelProto.autoSaveSessionJsonl = async function autoSaveSessionJsonl(): Pro
     }
   } else {
     for (const msg of this.displayHistory) {
-      const entry: Record<string, any> = {
+      const entry: Record<string, unknown> = {
         kind: 'display_message',
         role: msg.role || '',
         content: typeof msg.content === 'string' ? msg.content : this.extractTextContent(msg.content),

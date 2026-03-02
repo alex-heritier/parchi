@@ -5,6 +5,8 @@ import type { UsageStats } from '../types/panel-types.js';
 import { getSidePanelElements } from './panel-elements.js';
 
 export class SidePanelUI {
+  // Allow prototype augmentation across panel-*.ts modules.
+  [key: string]: any;
   elements: Record<string, any>;
   displayHistory: Message[];
   contextHistory: Message[];
@@ -59,9 +61,20 @@ export class SidePanelUI {
   };
   auxAgentProfiles: string[];
   currentView: 'chat' | 'history';
-  currentSettingsTab: 'setup' | 'oauth' | 'model' | 'profiles' | 'usage' | 'design' | 'advanced';
+  currentSettingsTab: 'setup' | 'oauth' | 'model' | 'profiles' | 'usage' | 'design' | 'advanced' | 'providers';
   profileEditorTarget: string;
-  subagents: Map<string, { name: string; status: string; messages: any[]; tasks?: string[] }>;
+  subagents: Map<
+    string,
+    {
+      name: string;
+      status: string;
+      messages: unknown[];
+      tasks?: string[];
+      startedAt?: number;
+      completedAt?: number;
+      summary?: string;
+    }
+  >;
   activeAgent: string;
   activityPanelOpen: boolean;
   latestThinking: string | null;
@@ -133,6 +146,7 @@ export class SidePanelUI {
       title?: string;
       visionDescription?: string;
       selected: boolean;
+      _blobUrl?: string;
     }
   >;
   reportImageOrder: string[];

@@ -29,9 +29,13 @@ import {
   normalizeOpenRouterModelId,
   resolveLanguageModel,
 } from '../ai/sdk-client.js';
-import { getAccessToken as getOAuthAccessToken, getApiBaseUrl as getOAuthApiBaseUrl, getProviderConfig as getOAuthProviderConfig } from '../oauth/manager.js';
-import type { OAuthProviderKey } from '../oauth/types.js';
 import { refreshRuntimeAuthSession } from '../convex/client.js';
+import {
+  getAccessToken as getOAuthAccessToken,
+  getApiBaseUrl as getOAuthApiBaseUrl,
+  getProviderConfig as getOAuthProviderConfig,
+} from '../oauth/manager.js';
+import type { OAuthProviderKey } from '../oauth/types.js';
 import { RecordingCoordinator } from '../recording/recording-coordinator.js';
 import { RelayBridge } from '../relay/relay-bridge.js';
 import { BrowserTools } from '../tools/browser-tools.js';
@@ -1005,9 +1009,10 @@ export class BackgroundService {
         });
         return;
       }
-      orchestratorProfile = runtimeProfileResolution.route === 'oauth'
-        ? await this.injectOAuthTokens(runtimeProfileResolution.profile)
-        : runtimeProfileResolution.profile;
+      orchestratorProfile =
+        runtimeProfileResolution.route === 'oauth'
+          ? await this.injectOAuthTokens(runtimeProfileResolution.profile)
+          : runtimeProfileResolution.profile;
       latestErrorContext = {
         route: runtimeProfileResolution.route,
         provider: String(orchestratorProfile?.provider || ''),
@@ -1905,9 +1910,10 @@ export class BackgroundService {
         };
       }
 
-      const resolvedProfile = runtimeProfile.route === 'oauth'
-        ? await this.injectOAuthTokens(runtimeProfile.profile)
-        : runtimeProfile.profile;
+      const resolvedProfile =
+        runtimeProfile.route === 'oauth'
+          ? await this.injectOAuthTokens(runtimeProfile.profile)
+          : runtimeProfile.profile;
       const model = resolveLanguageModel(resolvedProfile as any);
 
       const result = streamText({
@@ -1973,9 +1979,10 @@ export class BackgroundService {
       if (!runtimeProfile.allowed) {
         return { prompt: '', error: runtimeProfile.errorMessage || 'No API key configured' };
       }
-      const resolvedProfile2 = runtimeProfile.route === 'oauth'
-        ? await this.injectOAuthTokens(runtimeProfile.profile)
-        : runtimeProfile.profile;
+      const resolvedProfile2 =
+        runtimeProfile.route === 'oauth'
+          ? await this.injectOAuthTokens(runtimeProfile.profile)
+          : runtimeProfile.profile;
       const model = resolveLanguageModel(resolvedProfile2 as any);
 
       const outputLimit = Math.min(maxOutputTokens || 4096, 4096);
@@ -3070,7 +3077,9 @@ When a tool fails:
   }
 
   async injectOAuthTokens(profile: Record<string, any>): Promise<Record<string, any>> {
-    const provider = String(profile?.provider || '').trim().toLowerCase();
+    const provider = String(profile?.provider || '')
+      .trim()
+      .toLowerCase();
     if (!provider.endsWith('-oauth')) return profile;
     const baseKey = provider.replace(/-oauth$/, '') as OAuthProviderKey;
     const accessToken = await getOAuthAccessToken(baseKey);
@@ -3183,7 +3192,9 @@ When a tool fails:
       return { allowed: true, route: 'byok', profile };
     }
     // OAuth subscription providers (e.g. claude-oauth, codex-oauth)
-    const provider = String(profile?.provider || '').trim().toLowerCase();
+    const provider = String(profile?.provider || '')
+      .trim()
+      .toLowerCase();
     if (provider.endsWith('-oauth')) {
       return { allowed: true, route: 'oauth', profile };
     }

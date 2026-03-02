@@ -80,7 +80,7 @@ const rpc = async ({
   port: number;
   token: string;
   method: string;
-  params?: any;
+  params?: unknown;
   includeAuth?: boolean;
 }) => {
   const id = crypto.randomUUID();
@@ -177,8 +177,8 @@ const main = async () => {
       const ws = new WebSocket(`ws://${host}:${port}/v1/extension?token=${token}`);
       const agentId = `agent_${crypto.randomUUID()}`;
 
-      const pending = new Map<string | number, (result: any) => void>();
-      const onMessage = (raw: any) => {
+      const pending = new Map<string | number, (result: unknown) => void>();
+      const onMessage = (raw: unknown) => {
         const msg = JSON.parse(String(raw));
         if (msg && msg.jsonrpc === '2.0' && msg.id && (msg.result || msg.error)) {
           const fn = pending.get(msg.id);
@@ -211,7 +211,7 @@ const main = async () => {
         ws.on('error', reject);
       });
 
-      ws.on('message', (d) => onMessage((d as any).toString()));
+      ws.on('message', (d) => onMessage(String(d)));
       ws.send(
         JSON.stringify({
           jsonrpc: '2.0',
@@ -224,7 +224,9 @@ const main = async () => {
       const deadline = Date.now() + 3000;
       while (Date.now() < deadline) {
         const res = await rpc({ host, port, token, method: 'agents.list' });
-        if (Array.isArray(res.data?.result) && res.data.result.some((a: any) => a.agentId === agentId)) break;
+        const result = (res.data as { result?: unknown } | null | undefined)?.result;
+        if (Array.isArray(result) && result.some((a) => (a as { agentId?: unknown } | null)?.agentId === agentId))
+          break;
         await sleep(60);
       }
 

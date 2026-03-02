@@ -1,5 +1,5 @@
 import { getAuthUserId } from '@convex-dev/auth/server';
-import { type ActionCtx, actionGeneric, anyApi, httpActionGeneric } from 'convex/server';
+import { actionGeneric, anyApi, httpActionGeneric } from 'convex/server';
 import Stripe from 'stripe';
 import type { Id } from './_generated/dataModel.js';
 import {
@@ -742,7 +742,11 @@ const isPaidCheckoutSession = (session: Stripe.Checkout.Session) => {
   return paymentStatus === 'paid' || status === 'complete';
 };
 
-const applyCreditCheckoutSession = async (ctx: ActionCtx, session: Stripe.Checkout.Session, stripeEventId?: string) => {
+const applyCreditCheckoutSession = async (
+  ctx: import('convex/server').GenericActionCtx<any>,
+  session: Stripe.Checkout.Session,
+  stripeEventId?: string,
+) => {
   const metadataUserId = toUserId(session.metadata?.userId);
   const creditAmountCents = Number(session.metadata?.creditAmountCents || 0);
   if (!metadataUserId || creditAmountCents <= 0 || !session.id) {

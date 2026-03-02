@@ -15,6 +15,14 @@ import {
 } from './store.js';
 import type { DeviceCodeResponse, OAuthProviderKey, OAuthProviderState, OAuthTokenSet } from './types.js';
 
+import {
+  fetchAnthropicModels,
+  fetchCopilotModels,
+  fetchOpenAICompatibleModels,
+  fetchOpenAIModels,
+  getStaticOAuthModelIds,
+} from './model-listing.js';
+
 export type { OAuthProviderKey, OAuthProviderState, OAuthTokenSet, DeviceCodeResponse };
 export { OAUTH_PROVIDERS } from './providers.js';
 export { getAllProviderStates, getConnectedProviders } from './store.js';
@@ -152,8 +160,6 @@ export async function getApiBaseUrl(key: OAuthProviderKey): Promise<string | nul
   return config.apiBaseUrl || null;
 }
 
-const MODEL_FETCH_TIMEOUT = 8000;
-
 /**
  * Fetch available models from an OAuth provider's API using the stored access token.
  * Returns model IDs, or falls back to static list on failure.
@@ -163,7 +169,7 @@ export async function fetchProviderModels(key: OAuthProviderKey): Promise<string
   if (!config) return [];
 
   const accessToken = await getAccessToken(key);
-  if (!accessToken) return config.models.map((m) => m.id);
+  if (!accessToken) return getStaticOAuthModelIds(config);
 
   try {
     let models: string[] = [];
@@ -182,154 +188,11 @@ export async function fetchProviderModels(key: OAuthProviderKey): Promise<string
     }
 
     if (models.length === 0) {
-      return config.models.map((m) => m.id);
+      return getStaticOAuthModelIds(config);
     }
     return models;
   } catch (err) {
     console.warn(`[OAuth] Failed to fetch models for ${key}:`, err);
-    return config.models.map((m) => m.id);
+    return getStaticOAuthModelIds(config);
   }
-}
-
-async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), MODEL_FETCH_TIMEOUT);
-  try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/**
- * Anthropic: GET https://api.anthropic.com/v1/models
- * Auth: X-Api-Key header (OAuth token used as API key)
- * Paginated: has_more + last_id, use limit=1000 to minimize pages
- */
-async function fetchAnthropicModels(token: string, baseUrl: string): Promise<string[]> {
-  let base = baseUrl.replace(/\/+$/, '');
-  if (base.endsWith('/v1')) base = base.slice(0, -3);
-  const allIds: string[] = [];
-  let afterId: string | undefined;
-
-  for (let page = 0; page < 5; page++) {
-    const params = new URLSearchParams({ limit: '1000' });
-    if (afterId) params.set('after_id', afterId);
-    const url = `${base}/v1/models?${params.toString()}`;
-
-    const response = await fetchWithTimeout(url, {
-      method: 'GET',
-      headers: {
-        'X-Api-Key': token,
-        'anthropic-version': '2023-06-01',
-        Accept: 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      console.warn(`[OAuth] Anthropic /v1/models returned ${response.status}`);
-      break;
-    }
-
-    const data = await response.json();
-    const ids = extractModelIds(data);
-    allIds.push(...ids);
-
-    if (!data.has_more || !data.last_id) break;
-    afterId = data.last_id;
-  }
-
-  return allIds;
-}
-
-/**
- * OpenAI (Codex OAuth): GET https://api.openai.com/v1/models
- * Auth: Authorization: Bearer {token}
- */
-async function fetchOpenAIModels(token: string): Promise<string[]> {
-  const url = 'https://api.openai.com/v1/models';
-  const response = await fetchWithTimeout(url, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-    },
-  });
-  if (!response.ok) {
-    console.warn(`[OAuth] OpenAI /v1/models returned ${response.status}`);
-    return [];
-  }
-  const data = await response.json();
-  return extractModelIds(data);
-}
-
-/**
- * GitHub Copilot: GET https://api.githubcopilot.com/models
- * Auth: Authorization: Bearer {copilot JWT}
- * Requires Copilot-specific headers (User-Agent, Editor-Version, etc.)
- */
-async function fetchCopilotModels(
-  token: string,
-  baseUrl: string,
-  apiHeaders?: Record<string, string>,
-): Promise<string[]> {
-  const url = `${baseUrl.replace(/\/+$/, '')}/models`;
-  const response = await fetchWithTimeout(url, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-      ...(apiHeaders || {}),
-    },
-  });
-  if (!response.ok) {
-    console.warn(`[OAuth] Copilot /models returned ${response.status}`);
-    return [];
-  }
-  const data = await response.json();
-  return extractModelIds(data);
-}
-
-/**
- * Qwen or other OpenAI-compatible: try /models then /v1/models
- */
-async function fetchOpenAICompatibleModels(token: string, baseUrl: string): Promise<string[]> {
-  const base = baseUrl.replace(/\/+$/, '');
-  const urls = base.endsWith('/v1') ? [`${base}/models`] : [`${base}/models`, `${base}/v1/models`];
-  for (const url of urls) {
-    try {
-      const response = await fetchWithTimeout(url, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-        },
-      });
-      if (!response.ok) continue;
-      const data = await response.json();
-      const ids = extractModelIds(data);
-      if (ids.length > 0) return ids;
-    } catch {}
-  }
-  return [];
-}
-
-function extractModelIds(payload: any): string[] {
-  if (!payload) return [];
-  const source = Array.isArray(payload?.data)
-    ? payload.data
-    : Array.isArray(payload?.models)
-      ? payload.models
-      : Array.isArray(payload)
-        ? payload
-        : [];
-  return source
-    .map((entry: any) => {
-      if (typeof entry === 'string') return entry;
-      if (entry && typeof entry.id === 'string') return entry.id;
-      if (entry && typeof entry.name === 'string') return entry.name;
-      return '';
-    })
-    .map((id: string) => id.trim())
-    .filter((id: string) => id.length > 0);
 }

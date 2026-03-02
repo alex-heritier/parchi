@@ -19,9 +19,10 @@ const setHidden = (element: Element | null | undefined, hidden: boolean) => {
   element.classList.toggle('hidden', hidden);
 };
 
-const toUsageLabel = (usage: any) => {
-  const requestCount = Number(usage?.requestCount || 0);
-  const tokensUsed = Number(usage?.tokensUsed || 0);
+const toUsageLabel = (usage: unknown) => {
+  const u = usage as { requestCount?: unknown; tokensUsed?: unknown };
+  const requestCount = Number(u?.requestCount || 0);
+  const tokensUsed = Number(u?.tokensUsed || 0);
   return `${requestCount} req · ${tokensUsed} tokens`;
 };
 
@@ -719,9 +720,7 @@ sidePanelProto.chooseAccountMode = async function chooseAccountMode(mode: 'byok'
   await this.refreshSetupFlowUi();
 };
 
-sidePanelProto.handleAccountPasswordAuth = async function handleAccountPasswordAuth(
-  mode: 'signIn' | 'signUp',
-) {
+sidePanelProto.handleAccountPasswordAuth = async function handleAccountPasswordAuth(mode: 'signIn' | 'signUp') {
   const email = String(this.elements.accountEmailInput?.value || '').trim();
   const password = String(this.elements.accountPasswordInput?.value || '').trim();
   if (!email || !password) {
@@ -797,9 +796,7 @@ sidePanelProto.startAccountCheckout = async function startAccountCheckout() {
   return this.startCreditCheckout(1500);
 };
 
-sidePanelProto.pollForCreditBalanceIncrease = async function pollForCreditBalanceIncrease(
-  initialCreditCents: number,
-) {
+sidePanelProto.pollForCreditBalanceIncrease = async function pollForCreditBalanceIncrease(initialCreditCents: number) {
   const runId = Number(this._creditRefreshRunId || 0) + 1;
   this._creditRefreshRunId = runId;
 

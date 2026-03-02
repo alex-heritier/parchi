@@ -36,7 +36,7 @@
     "verify:version-sync:fix": "node scripts/verify-version-sync.mjs --fix",
     "audit:production": "node scripts/production-readiness.mjs",
     "ready:production": "npm run clean && npm run audit:production",
-    "lint": "biome check .",
+    "lint": "biome check . --diagnostic-level=error",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "check:all": "npm run lint && npm run typecheck && npm run build && npm run check:repo-standards",

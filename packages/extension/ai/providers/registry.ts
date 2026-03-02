@@ -2,7 +2,8 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { OAUTH_PROVIDERS } from '../../oauth/providers.js';
-import type { ProviderCredentials, ProviderDefinition, ModelEntry } from './types.js';
+import { extractModelEntries, fetchWithTimeout } from './model-listing.js';
+import type { ModelEntry, ProviderCredentials, ProviderDefinition } from './types.js';
 
 function normalizeAnthropicBaseUrl(url: string): string {
   let base = url
@@ -157,10 +158,7 @@ export function getOAuthProviders(): ProviderDefinition[] {
   return getAllProviders().filter((p) => p.type === 'oauth');
 }
 
-export function resolveProviderSdk(
-  def: ProviderDefinition,
-  credentials: ProviderCredentials,
-) {
+export function resolveProviderSdk(def: ProviderDefinition, credentials: ProviderCredentials) {
   const apiKey = credentials.oauthAccessToken || credentials.apiKey || '';
   const baseURL = credentials.customEndpoint || def.defaultBaseUrl;
   const headers = { ...def.defaultHeaders, ...credentials.extraHeaders };
@@ -193,42 +191,6 @@ export function resolveProviderSdk(
     default:
       throw new Error(`Unknown SDK type: ${def.sdkType}`);
   }
-}
-
-const MODEL_FETCH_TIMEOUT = 8000;
-
-async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), MODEL_FETCH_TIMEOUT);
-  try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-function extractModelIds(payload: any): ModelEntry[] {
-  if (!payload) return [];
-  const source = Array.isArray(payload?.data)
-    ? payload.data
-    : Array.isArray(payload?.models)
-      ? payload.models
-      : Array.isArray(payload)
-        ? payload
-        : [];
-  return source
-    .map((entry: any) => {
-      if (typeof entry === 'string') return { id: entry };
-      if (entry && typeof entry.id === 'string') {
-        return {
-          id: entry.id,
-          label: entry.name || entry.id,
-          contextWindow: entry.context_length || entry.contextWindow,
-        };
-      }
-      return null;
-    })
-    .filter((e: ModelEntry | null): e is ModelEntry => e !== null && e.id.trim().length > 0);
 }
 
 export async function fetchModelsForProvider(
@@ -274,7 +236,7 @@ export async function fetchModelsForProvider(
       return def.models || [];
     }
     const data = await response.json();
-    const models = extractModelIds(data);
+    const models = extractModelEntries(data);
     return models.length > 0 ? models : def.models || [];
   } catch (err) {
     console.warn(`[provider-registry] Failed to fetch models for ${def.key}:`, err);

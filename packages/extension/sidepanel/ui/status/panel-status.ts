@@ -1,9 +1,8 @@
-import { getAllProviderStates } from '../../../oauth/store.js';
 import { fetchProviderModels } from '../../../oauth/manager.js';
+import { getAllProviderStates } from '../../../oauth/store.js';
 import type { OAuthProviderKey } from '../../../oauth/types.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
-
 
 const MODEL_CATALOG_TTL_MS = 3 * 60 * 1000;
 const MODEL_FETCH_TIMEOUT_MS = 9000;
@@ -259,9 +258,7 @@ sidePanelProto.collectModelCatalogTargets = async function collectModelCatalogTa
   return targets;
 };
 
-sidePanelProto.fetchModelIdsForTarget = async function fetchModelIdsForTarget(
-  target: ModelCatalogTarget,
-) {
+sidePanelProto.fetchModelIdsForTarget = async function fetchModelIdsForTarget(target: ModelCatalogTarget) {
   const urls = buildModelEndpointCandidates(target.endpointBase);
   for (const url of urls) {
     try {
@@ -446,9 +443,7 @@ sidePanelProto.populateModelSelect = function populateModelSelect() {
     // Format: icon provider/model (e.g., "🅒 anthropic/claude-sonnet")
     const providerIcon = this.getProviderIcon(config.provider);
     const isOAuthProvider = String(config.provider || '').endsWith('-oauth');
-    const providerLabel = isOAuthProvider
-      ? config.provider.replace(/-oauth$/, '')
-      : config.provider || 'unconfigured';
+    const providerLabel = isOAuthProvider ? config.provider.replace(/-oauth$/, '') : config.provider || 'unconfigured';
     const modelShort = this.shortenModelName(config.model || 'no-model');
     option.textContent = `${providerIcon} ${providerLabel}/${modelShort}`;
 
@@ -461,65 +456,27 @@ sidePanelProto.populateModelSelect = function populateModelSelect() {
   this.updateModelSelectorGlow();
 };
 
-sidePanelProto.refreshModelCatalogForProfileEditor =
-  async function refreshModelCatalogForProfileEditor() {
-    const providerEl = this.elements.profileEditorProvider;
-    const apiKeyEl = this.elements.profileEditorApiKey;
-    const endpointEl = this.elements.profileEditorEndpoint;
-    const modelSelect = this.elements.profileEditorModel as HTMLSelectElement | null;
-    if (!providerEl) return;
+sidePanelProto.refreshModelCatalogForProfileEditor = async function refreshModelCatalogForProfileEditor() {
+  const providerEl = this.elements.profileEditorProvider;
+  const apiKeyEl = this.elements.profileEditorApiKey;
+  const endpointEl = this.elements.profileEditorEndpoint;
+  const modelSelect = this.elements.profileEditorModel as HTMLSelectElement | null;
+  if (!providerEl) return;
 
-    const provider = String(providerEl.value || '')
-      .trim()
-      .toLowerCase();
-    const currentModel = String(modelSelect?.value || '').trim();
+  const provider = String(providerEl.value || '')
+    .trim()
+    .toLowerCase();
+  const currentModel = String(modelSelect?.value || '').trim();
 
-    if (!provider) {
-      this._profileEditorModels = [];
-      if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
-      return;
-    }
+  if (!provider) {
+    this._profileEditorModels = [];
+    if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
+    return;
+  }
 
-    // OAuth providers - fetch models from their APIs
-    if (provider.endsWith('-oauth')) {
-      const baseKey = provider.replace(/-oauth$/, '') as OAuthProviderKey;
-      if (modelSelect) {
-        const loadingOpt = document.createElement('option');
-        loadingOpt.value = currentModel;
-        loadingOpt.textContent = 'Fetching models...';
-        modelSelect.innerHTML = '';
-        modelSelect.appendChild(loadingOpt);
-      }
-      try {
-        const modelIds = await fetchProviderModels(baseKey);
-        this._profileEditorModels = modelIds.sort((a: string, b: string) => a.localeCompare(b));
-      } catch {
-        this._profileEditorModels = [];
-      }
-      if (modelSelect) {
-        populateModelSelectElement(modelSelect, this._profileEditorModels, currentModel, 'Select model...');
-      }
-      return;
-    }
-
-    const apiKey = String(apiKeyEl?.value || '').trim();
-    const customEndpoint = String(endpointEl?.value || '').trim();
-
-    const endpointBase = normalizeEndpointBase(provider, customEndpoint);
-    if (!endpointBase) {
-      this._profileEditorModels = [];
-      if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
-      return;
-    }
-
-    const allowsUnauthedList = provider === 'openrouter' || provider === 'parchi';
-    if (!apiKey && !allowsUnauthedList) {
-      this._profileEditorModels = [];
-      if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
-      return;
-    }
-
-    // Show loading state
+  // OAuth providers - fetch models from their APIs
+  if (provider.endsWith('-oauth')) {
+    const baseKey = provider.replace(/-oauth$/, '') as OAuthProviderKey;
     if (modelSelect) {
       const loadingOpt = document.createElement('option');
       loadingOpt.value = currentModel;
@@ -527,32 +484,69 @@ sidePanelProto.refreshModelCatalogForProfileEditor =
       modelSelect.innerHTML = '';
       modelSelect.appendChild(loadingOpt);
     }
-
-    const headers: Record<string, string> = { Accept: 'application/json' };
-    if (provider === 'anthropic' || provider === 'kimi') {
-      if (apiKey) {
-        headers['x-api-key'] = apiKey;
-        headers['anthropic-version'] = '2023-06-01';
-      }
-    } else if (apiKey) {
-      headers.Authorization = `Bearer ${apiKey}`;
-    }
-    if (provider === 'openrouter' || provider === 'parchi') {
-      headers['HTTP-Referer'] = 'https://parchi.ai';
-      headers['X-Title'] = 'Parchi';
-    }
-
-    const target = { key: `editor|${provider}`, provider, endpointBase, headers };
     try {
-      const modelIds = await this.fetchModelIdsForTarget(target);
+      const modelIds = await fetchProviderModels(baseKey);
       this._profileEditorModels = modelIds.sort((a: string, b: string) => a.localeCompare(b));
     } catch {
       this._profileEditorModels = [];
     }
     if (modelSelect) {
-      populateModelSelectElement(modelSelect, this._profileEditorModels, currentModel);
+      populateModelSelectElement(modelSelect, this._profileEditorModels, currentModel, 'Select model...');
     }
-  };
+    return;
+  }
+
+  const apiKey = String(apiKeyEl?.value || '').trim();
+  const customEndpoint = String(endpointEl?.value || '').trim();
+
+  const endpointBase = normalizeEndpointBase(provider, customEndpoint);
+  if (!endpointBase) {
+    this._profileEditorModels = [];
+    if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
+    return;
+  }
+
+  const allowsUnauthedList = provider === 'openrouter' || provider === 'parchi';
+  if (!apiKey && !allowsUnauthedList) {
+    this._profileEditorModels = [];
+    if (modelSelect) populateModelSelectElement(modelSelect, [], currentModel);
+    return;
+  }
+
+  // Show loading state
+  if (modelSelect) {
+    const loadingOpt = document.createElement('option');
+    loadingOpt.value = currentModel;
+    loadingOpt.textContent = 'Fetching models...';
+    modelSelect.innerHTML = '';
+    modelSelect.appendChild(loadingOpt);
+  }
+
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (provider === 'anthropic' || provider === 'kimi') {
+    if (apiKey) {
+      headers['x-api-key'] = apiKey;
+      headers['anthropic-version'] = '2023-06-01';
+    }
+  } else if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+  if (provider === 'openrouter' || provider === 'parchi') {
+    headers['HTTP-Referer'] = 'https://parchi.ai';
+    headers['X-Title'] = 'Parchi';
+  }
+
+  const target = { key: `editor|${provider}`, provider, endpointBase, headers };
+  try {
+    const modelIds = await this.fetchModelIdsForTarget(target);
+    this._profileEditorModels = modelIds.sort((a: string, b: string) => a.localeCompare(b));
+  } catch {
+    this._profileEditorModels = [];
+  }
+  if (modelSelect) {
+    populateModelSelectElement(modelSelect, this._profileEditorModels, currentModel);
+  }
+};
 
 sidePanelProto.updateModelSelectorGlow = function updateModelSelectorGlow() {
   const wrap = this.elements.modelSelectorWrap || document.getElementById('modelSelectorWrap');

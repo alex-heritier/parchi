@@ -15,7 +15,6 @@ const debounce = (fn: (...args: any[]) => void, ms: number) => {
 import { SidePanelUI } from './panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-
 const resolveTextAreaMaxHeight = (textarea: HTMLTextAreaElement, fallbackHeight: number): number => {
   const computedMaxHeight = Number.parseFloat(getComputedStyle(textarea).maxHeight);
   if (Number.isFinite(computedMaxHeight) && computedMaxHeight > 0) {

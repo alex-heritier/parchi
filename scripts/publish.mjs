@@ -97,11 +97,7 @@ const runCapture = (cmd, opts = {}) =>
   execSync(cmd, { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', cwd: root, ...opts }).trim();
 
 const toBase64Url = (value) =>
-  Buffer.from(value)
-    .toString('base64')
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_');
+  Buffer.from(value).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 
 const createServiceAccountToken = (serviceAccount) => {
   const now = Math.floor(Date.now() / 1000);

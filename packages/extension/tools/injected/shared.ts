@@ -8,4 +8,3 @@ export type StructuredError = {
 export type StructuredSuccess<T extends Record<string, unknown> = Record<string, never>> = {
   success: true;
 } & T;
-

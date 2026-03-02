@@ -4,10 +4,7 @@ const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unk
 import { COPY_ICON, highlightCodeBlock } from './markdown-highlighter.js';
 import { renderMarkdownTable as renderMarkdownTableHtml } from './markdown-table.js';
 
-sidePanelProto.highlightCodeBlock = function highlightCodeBlockProto(
-  raw: string,
-  lang: string,
-): string {
+sidePanelProto.highlightCodeBlock = function highlightCodeBlockProto(raw: string, lang: string): string {
   return highlightCodeBlock(raw, lang, (value) => this.escapeHtmlBasic(value));
 };
 

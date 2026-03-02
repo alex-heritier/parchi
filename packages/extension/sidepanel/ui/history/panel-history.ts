@@ -4,7 +4,6 @@ import { dedupeThinking, extractThinking } from '../../../ai/message-utils.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-
 const normalizeStoredSessions = (raw: any): any[] => {
   if (Array.isArray(raw)) {
     return raw.filter(Boolean);

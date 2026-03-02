@@ -2,7 +2,6 @@ import { setSidebarOpen, showRightPanel as showRightPanelContent } from './panel
 import { SidePanelUI } from './panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-
 sidePanelProto.switchView = function switchView(view: 'chat' | 'history') {
   this.currentView = view;
   // History is now a top drawer overlay, not a main view.

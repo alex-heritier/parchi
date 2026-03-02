@@ -2,7 +2,6 @@ import type { RecordingEvent } from '../../../../shared/src/recording.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-
 const formatOffset = (ms: number): string => {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
   const min = Math.floor(totalSec / 60);

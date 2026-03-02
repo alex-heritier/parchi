@@ -64,13 +64,18 @@ export const injectedType = async (selector: string, value: string, waitMs: numb
 
     if (!el) {
       const active = document.activeElement as HTMLElement | null;
-      if (active && (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || active.isContentEditable)) {
+      if (
+        active &&
+        (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || active.isContentEditable)
+      ) {
         el = active;
       }
     }
 
     if (!el) {
-      const candidates = safeQueryAll('input, textarea, [contenteditable="true"], [contenteditable=""], [role="textbox"]');
+      const candidates = safeQueryAll(
+        'input, textarea, [contenteditable="true"], [contenteditable=""], [role="textbox"]',
+      );
       const fallback = candidates.find(isVisible) || candidates[0] || null;
       if (fallback) el = fallback;
     }

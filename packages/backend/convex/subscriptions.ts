@@ -1,6 +1,6 @@
 import { getAuthUserId } from '@convex-dev/auth/server';
-import { mutationGeneric, queryGeneric } from 'convex/server';
 import { v } from 'convex/values';
+import { mutation, query } from './_generated/server.js';
 
 const currentMonthKey = () => {
   const now = new Date();
@@ -28,7 +28,7 @@ const normalizeTokens = (value: number) => {
 const insertCreditTransaction = async (
   ctx: {
     db: {
-      insert: (table: string, value: Record<string, unknown>) => Promise<unknown>;
+      insert: (table: any, value: Record<string, unknown>) => Promise<unknown>;
     };
   },
   args: {
@@ -66,7 +66,7 @@ const insertCreditTransaction = async (
     stripeEventId: args.stripeEventId,
   });
 
-export const getCurrent = queryGeneric({
+export const getCurrent = query({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
@@ -144,7 +144,7 @@ export const getCurrent = queryGeneric({
   },
 });
 
-export const getByUserId = queryGeneric({
+export const getByUserId = query({
   args: {
     userId: v.id('users'),
   },
@@ -160,7 +160,7 @@ export const getByUserId = queryGeneric({
   },
 });
 
-export const getByStripeCustomerId = queryGeneric({
+export const getByStripeCustomerId = query({
   args: {
     stripeCustomerId: v.string(),
   },
@@ -172,7 +172,7 @@ export const getByStripeCustomerId = queryGeneric({
   },
 });
 
-export const getByStripeSubscriptionId = queryGeneric({
+export const getByStripeSubscriptionId = query({
   args: {
     stripeSubscriptionId: v.string(),
   },
@@ -184,7 +184,7 @@ export const getByStripeSubscriptionId = queryGeneric({
   },
 });
 
-export const upsertForUser = mutationGeneric({
+export const upsertForUser = mutation({
   args: {
     userId: v.id('users'),
     plan: v.union(v.literal('free'), v.literal('pro')),
@@ -222,7 +222,7 @@ export const upsertForUser = mutationGeneric({
   },
 });
 
-export const markInactiveForUser = mutationGeneric({
+export const markInactiveForUser = mutation({
   args: {
     userId: v.id('users'),
   },
@@ -242,7 +242,7 @@ export const markInactiveForUser = mutationGeneric({
   },
 });
 
-export const recordUsage = mutationGeneric({
+export const recordUsage = mutation({
   args: {
     userId: v.id('users'),
     requestCountIncrement: v.optional(v.number()),
@@ -276,7 +276,7 @@ export const recordUsage = mutationGeneric({
   },
 });
 
-export const adjustUsageTokens = mutationGeneric({
+export const adjustUsageTokens = mutation({
   args: {
     userId: v.id('users'),
     tokenDelta: v.number(),
@@ -307,7 +307,7 @@ export const adjustUsageTokens = mutationGeneric({
   },
 });
 
-export const addCredits = mutationGeneric({
+export const addCredits = mutation({
   args: {
     userId: v.id('users'),
     amountCents: v.number(),
@@ -359,7 +359,7 @@ export const addCredits = mutationGeneric({
   },
 });
 
-export const applyCreditCheckoutSession = mutationGeneric({
+export const applyCreditCheckoutSession = mutation({
   args: {
     userId: v.id('users'),
     stripeCheckoutSessionId: v.string(),
@@ -452,7 +452,7 @@ export const applyCreditCheckoutSession = mutationGeneric({
   },
 });
 
-export const reserveCredits = mutationGeneric({
+export const reserveCredits = mutation({
   args: {
     userId: v.id('users'),
     amountCents: v.number(),
@@ -496,7 +496,7 @@ export const reserveCredits = mutationGeneric({
   },
 });
 
-export const releaseReservedCredits = mutationGeneric({
+export const releaseReservedCredits = mutation({
   args: {
     userId: v.id('users'),
     requestId: v.string(),
@@ -566,7 +566,7 @@ export const releaseReservedCredits = mutationGeneric({
   },
 });
 
-export const settleReservedCredits = mutationGeneric({
+export const settleReservedCredits = mutation({
   args: {
     userId: v.id('users'),
     requestId: v.string(),
@@ -700,7 +700,7 @@ export const settleReservedCredits = mutationGeneric({
   },
 });
 
-export const deductCredits = mutationGeneric({
+export const deductCredits = mutation({
   args: {
     userId: v.id('users'),
     amountCents: v.number(),
@@ -740,7 +740,7 @@ export const deductCredits = mutationGeneric({
   },
 });
 
-export const getBalance = queryGeneric({
+export const getBalance = query({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);

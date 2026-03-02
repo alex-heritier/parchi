@@ -35,10 +35,11 @@ sidePanelProto.startRecording = async function startRecording() {
     if (response && response.success === false) {
       throw new Error(response.error || 'Recording failed');
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[Parchi] Recording start failed:', err);
     this.cleanupRecordingUI();
-    this.updateStatus('Recording failed: ' + (err.message || err), 'error');
+    const message = err instanceof Error ? err.message : String(err ?? '');
+    this.updateStatus('Recording failed: ' + message, 'error');
     return;
   }
 
@@ -66,9 +67,10 @@ sidePanelProto.stopRecording = async function stopRecording() {
 
   try {
     await chrome.runtime.sendMessage({ type: 'recording_stop' });
-  } catch (err: any) {
+  } catch (err: unknown) {
     this.cleanupRecordingUI();
-    this.updateStatus('Stop failed: ' + (err.message || err), 'error');
+    const message = err instanceof Error ? err.message : String(err ?? '');
+    this.updateStatus('Stop failed: ' + message, 'error');
   }
 };
 
@@ -333,7 +335,12 @@ sidePanelProto.saveRecordingAsSkill = async function saveRecordingAsSkill() {
       prompt:
         skill.description +
         '\n\nSteps:\n' +
-        skill.steps.map((s: any, i: number) => `${i + 1}. ${s.tool}(${JSON.stringify(s.args)})`).join('\n'),
+        skill.steps
+          .map((s: unknown, i: number) => {
+            const step = s as { tool?: unknown; args?: unknown };
+            return `${i + 1}. ${String(step.tool)}(${JSON.stringify(step.args)})`;
+          })
+          .join('\n'),
       createdAt: Date.now(),
     };
     this.workflows.push(workflow);
@@ -347,8 +354,9 @@ sidePanelProto.saveRecordingAsSkill = async function saveRecordingAsSkill() {
     chrome.runtime.sendMessage({ type: 'recording_select_images', selectedIds: ids }).catch(() => {});
 
     this.updateStatus(`Skill "${skill.name}" saved`, 'success');
-  } catch (err: any) {
-    this.updateStatus('Failed to save skill: ' + (err.message || err), 'error');
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err ?? '');
+    this.updateStatus('Failed to save skill: ' + message, 'error');
   }
 };
 
@@ -376,27 +384,28 @@ sidePanelProto.hideRecordedContextBadge = function hideRecordedContextBadge() {
   if (badge) badge.classList.add('hidden');
 };
 
-sidePanelProto.handleRecordingMessage = function handleRecordingMessage(message: any) {
-  switch (message.type) {
+sidePanelProto.handleRecordingMessage = function handleRecordingMessage(message: unknown) {
+  const msg = message as any;
+  switch (msg.type) {
     case 'recording_tick': {
       if (this.recordingState.status === 'recording') {
-        this.recordingState.elapsedMs = message.elapsedMs;
+        this.recordingState.elapsedMs = Number(msg.elapsedMs || 0);
       }
       break;
     }
     case 'recording_complete': {
-      this.showRecordingReview(message.screenshots, message.events || []);
+      this.showRecordingReview(msg.screenshots, msg.events || []);
       break;
     }
     case 'recording_context_ready': {
       this.cleanupRecordingUI();
-      this.attachRecordedContext(message.context);
+      this.attachRecordedContext(msg.context);
       this.updateStatus('Recording attached', 'success');
       break;
     }
     case 'recording_error': {
       this.cleanupRecordingUI();
-      this.updateStatus('Recording error: ' + message.message, 'error');
+      this.updateStatus('Recording error: ' + String(msg.message || ''), 'error');
       break;
     }
   }

@@ -2,7 +2,6 @@ import type { RunPlan } from '../../../../shared/src/plan.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-
 /**
  * Initialize plan drawer event listeners
  */

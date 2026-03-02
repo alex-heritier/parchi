@@ -6,10 +6,7 @@ export type SelectorSpec =
 
 const stripQuotes = (value: string) => {
   const trimmed = value.trim();
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
     return trimmed.slice(1, -1);
   }
   return trimmed;
@@ -32,8 +29,7 @@ export function parseSelectorSpec(rawSelector: string): SelectorSpec {
     return { kind: 'text', text: stripQuotes(textMatch[1]).trim() };
   }
 
-  const containsDotQuoted =
-    /^([a-zA-Z][\w-]*)\s*\.\s*contains\s*\(\s*(['"])([\s\S]*?)\2\s*\)\s*$/.exec(trimmed);
+  const containsDotQuoted = /^([a-zA-Z][\w-]*)\s*\.\s*contains\s*\(\s*(['"])([\s\S]*?)\2\s*\)\s*$/.exec(trimmed);
   if (containsDotQuoted) {
     return { kind: 'contains', base: containsDotQuoted[1], text: containsDotQuoted[3].trim() };
   }

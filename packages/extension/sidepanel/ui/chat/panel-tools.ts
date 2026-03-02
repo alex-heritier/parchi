@@ -2,7 +2,6 @@ import { dedupeThinking } from '../../../ai/message-utils.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-
 // ============================================================================
 // Blob URL helper — converts data: URLs to object URLs to avoid DOM base64 duplication
 // ============================================================================
@@ -680,8 +679,10 @@ sidePanelProto.initMascotBubble = function initMascotBubble() {
         this._typingCheckTimerId = window.setInterval(() => {
           const elapsed = Date.now() - this._lastTypingAt;
           if (elapsed >= 5000) {
-            window.clearInterval(this._typingCheckTimerId);
-            this._typingCheckTimerId = null;
+            if (this._typingCheckTimerId) {
+              window.clearInterval(this._typingCheckTimerId);
+              this._typingCheckTimerId = null;
+            }
             this.updateMascotEyeState();
           }
         }, 1000);
@@ -704,10 +705,7 @@ sidePanelProto.toggleMascotBubble = function toggleMascotBubble() {
   }
 };
 
-sidePanelProto.updateMascotBubbleContent = function updateMascotBubbleContent(
-  verb: string,
-  elapsed: string,
-) {
+sidePanelProto.updateMascotBubbleContent = function updateMascotBubbleContent(verb: string, elapsed: string) {
   const bubbleVerb = document.getElementById('bubbleVerb');
   if (bubbleVerb) {
     bubbleVerb.textContent = `${verb} ${elapsed}`;
@@ -737,10 +735,7 @@ sidePanelProto.updateMascotEyeState = function updateMascotEyeState() {
   }
 };
 
-sidePanelProto.updateThinkingPanel = function updateThinkingPanel(
-  thinking: string | null,
-  isStreaming = false,
-) {
+sidePanelProto.updateThinkingPanel = function updateThinkingPanel(thinking: string | null, isStreaming = false) {
   // Track latest thinking for activity state
   if (thinking) {
     this.latestThinking = dedupeThinking(thinking.trim());

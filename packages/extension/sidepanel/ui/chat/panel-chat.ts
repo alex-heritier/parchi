@@ -3,9 +3,9 @@ import type { Message } from '../../../ai/message-schema.js';
 import { dedupeThinking, extractThinking } from '../../../ai/message-utils.js';
 import { getActiveTab } from '../../../utils/active-tab.js';
 import { SidePanelUI } from '../core/panel-ui.js';
-const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
-
 import type { UsagePayload } from '../types/panel-types.js';
+
+const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 import { appendTrace } from './trace-store.js';
 
 const MAX_DISPLAY_HISTORY = 400;
@@ -18,7 +18,7 @@ const truncate = (value: string, max = 12000) => {
 
 // Chrome runtime messaging can fail on large payloads or non-cloneable values.
 // Keep history compact and remove heavy fields (e.g. screenshots/dataUrls) before sending to background.
-const sanitizeForMessaging = (value: any, depth = 0): any => {
+const sanitizeForMessaging = (value: unknown, depth = 0): unknown => {
   if (value == null) return value;
   if (typeof value === 'string') {
     const s = value;
@@ -33,7 +33,7 @@ const sanitizeForMessaging = (value: any, depth = 0): any => {
   if (depth > 6) return '[truncated]';
 
   if (Array.isArray(value)) {
-    const out: any[] = [];
+    const out: unknown[] = [];
     const limit = Math.min(value.length, 80);
     for (let i = 0; i < limit; i += 1) {
       out.push(sanitizeForMessaging(value[i], depth + 1));
@@ -47,7 +47,7 @@ const sanitizeForMessaging = (value: any, depth = 0): any => {
   }
 
   if (typeof value === 'object') {
-    const out: Record<string, any> = {};
+    const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value)) {
       if (k === 'dataUrl') {
         out[k] = '[omitted dataUrl]';
@@ -138,11 +138,14 @@ sidePanelProto.sendMessage = async function sendMessage() {
         summary: this.pendingRecordedContext.summary,
         events: Array.isArray(this.pendingRecordedContext.events) ? this.pendingRecordedContext.events : [],
         selectedImages: Array.isArray(this.pendingRecordedContext.selectedImages)
-          ? this.pendingRecordedContext.selectedImages.map((img: any) => ({
-              index: Number(img?.index ?? 0),
-              timestamp: Number(img?.timestamp ?? 0),
-              url: String(img?.url || ''),
-            }))
+          ? this.pendingRecordedContext.selectedImages.map((img: unknown) => {
+              const entry = img as { index?: unknown; timestamp?: unknown; url?: unknown };
+              return {
+                index: Number(entry?.index ?? 0),
+                timestamp: Number(entry?.timestamp ?? 0),
+                url: String(entry?.url ?? ''),
+              };
+            })
           : [],
       }
     : null;
@@ -196,23 +199,24 @@ sidePanelProto.sendMessage = async function sendMessage() {
     }
     // Note: persistHistory is called after the assistant response completes
     // in displayAssistantMessage to ensure complete conversation is saved
-  } catch (error: any) {
+  } catch (error: unknown) {
     this.stopThinkingTimer?.();
     this.stopRunTimer?.();
     this.stopWatchdog?.();
     this.pendingTurnDraft = null;
     this.pendingRecordedContext = null;
     this.hideRecordedContextBadge?.();
-    this.updateStatus('Error: ' + error.message, 'error');
+    const message = error instanceof Error ? error.message : String(error ?? '');
+    this.updateStatus('Error: ' + message, 'error');
     this.elements.composer?.classList.remove('running');
-    this.displayAssistantMessage('Sorry, an error occurred: ' + error.message);
+    this.displayAssistantMessage('Sorry, an error occurred: ' + message);
   }
 };
 
 sidePanelProto.displayUserMessage = function displayUserMessage(
   content: string,
-  recordedContext: any = null,
-  mediaAttachments: any[] = [],
+  recordedContext: unknown = null,
+  mediaAttachments: unknown[] = [],
 ) {
   const turn = document.createElement('div');
   turn.className = 'chat-turn';
@@ -220,29 +224,36 @@ sidePanelProto.displayUserMessage = function displayUserMessage(
   messageDiv.className = 'message user';
   const buildRecordingHtml = () => {
     if (!recordedContext) return '';
-    const events = Array.isArray(recordedContext.events)
-      ? recordedContext.events.filter((event: any) => String(event?.type || '') !== 'dom_mutation')
+    const rc = recordedContext as any;
+    const events = Array.isArray(rc.events)
+      ? (rc.events as unknown[]).filter((event: unknown) => {
+          const evt = event as { type?: unknown };
+          return String(evt.type || '') !== 'dom_mutation';
+        })
       : [];
-    const selectedImages = Array.isArray(recordedContext.selectedImages) ? recordedContext.selectedImages : [];
-    const durationMs = Math.max(0, Number(recordedContext.duration || 0));
+    const selectedImages = Array.isArray(rc.selectedImages) ? rc.selectedImages : [];
+    const durationMs = Math.max(0, Number(rc.duration || 0));
     const durationSec = Math.round(durationMs / 1000);
-    const summary = String(recordedContext.summary || '').trim();
-    const origin = String(events[0]?.url || selectedImages[0]?.url || '').trim();
-    const baseTs = Number(events[0]?.timestamp || 0);
+    const summary = String(rc.summary || '').trim();
+    const firstEvent = events[0] as any;
+    const firstImage = selectedImages[0] as any;
+    const origin = String(firstEvent?.url || firstImage?.url || '').trim();
+    const baseTs = Number(firstEvent?.timestamp || 0);
     const stepRows = events
-      .map((event: any, index: number) => {
-        const ts = Number(event?.timestamp || 0);
+      .map((event: unknown, index: number) => {
+        const ev = event as any;
+        const ts = Number(ev?.timestamp || 0);
         const deltaSec = baseTs > 0 && ts >= baseTs ? Math.round((ts - baseTs) / 1000) : null;
-        const type = String(event?.type || 'event');
+        const type = String(ev?.type || 'event');
         const line =
           type === 'click'
-            ? `Click ${event?.selector || event?.tagName || 'element'}`
+            ? `Click ${ev?.selector || ev?.tagName || 'element'}`
             : type === 'input'
-              ? `Input ${event?.selector || event?.placeholder || ''}`.trim()
+              ? `Input ${ev?.selector || ev?.placeholder || ''}`.trim()
               : type === 'navigation'
-                ? `Navigate to ${event?.toUrl || event?.url || ''}`.trim()
+                ? `Navigate to ${ev?.toUrl || ev?.url || ''}`.trim()
                 : type === 'scroll'
-                  ? `Scroll ${event?.direction || ''}`.trim()
+                  ? `Scroll ${ev?.direction || ''}`.trim()
                   : `${type}`;
         const suffix = deltaSec === null ? '' : ` (+${deltaSec}s)`;
         return `<li>${this.escapeHtml(`${index + 1}. ${line}${suffix}`)}</li>`;
@@ -264,11 +275,12 @@ sidePanelProto.displayUserMessage = function displayUserMessage(
     const attachments = Array.isArray(mediaAttachments) ? mediaAttachments : [];
     if (!attachments.length) return '';
     const rows = attachments
-      .map((attachment: any) => {
-        const kind = String(attachment?.kind || 'file');
-        const name = String(attachment?.name || `${kind}-attachment`);
-        const mimeType = String(attachment?.mimeType || '');
-        const size = Number(attachment?.size || 0);
+      .map((attachment: unknown) => {
+        const a = attachment as any;
+        const kind = String(a?.kind || 'file');
+        const name = String(a?.name || `${kind}-attachment`);
+        const mimeType = String(a?.mimeType || '');
+        const size = Number(a?.size || 0);
         const kb = Math.max(1, Math.round(size / 1024));
         return `<li>${this.escapeHtml(`${kind.toUpperCase()}: ${name} (${mimeType || 'unknown'}, ${kb} KB)`)}</li>`;
       })
@@ -293,9 +305,7 @@ sidePanelProto.displayUserMessage = function displayUserMessage(
   this.updateChatEmptyState();
 };
 
-sidePanelProto.displaySummaryMessage = function displaySummaryMessage(
-  messageOrEntry: Message | string,
-) {
+sidePanelProto.displaySummaryMessage = function displaySummaryMessage(messageOrEntry: Message | string) {
   const content = typeof messageOrEntry === 'string' ? messageOrEntry : String(messageOrEntry.content || '');
   const container = document.createElement('div');
   container.className = 'message summary';
@@ -409,9 +419,10 @@ sidePanelProto.displayAssistantMessage = function displayAssistantMessage(
   const buildReportImagesHtml = () => {
     if (!Array.isArray(selectedReportImages) || selectedReportImages.length === 0) return '';
     const cards = selectedReportImages
-      .map((image: any, index: number) => {
-        const label = this.escapeHtml(image.title || image.url || image.id || `Image ${index + 1}`);
-        const src = String(image.dataUrl || '');
+      .map((image: unknown, index: number) => {
+        const img = image as { title?: unknown; url?: unknown; id?: unknown; dataUrl?: unknown };
+        const label = this.escapeHtml(String(img.title || img.url || img.id || `Image ${index + 1}`));
+        const src = String(img.dataUrl || '');
         if (!src) return '';
         return `
           <figure class="report-image-card">

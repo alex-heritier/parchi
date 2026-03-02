@@ -56,10 +56,7 @@ sidePanelProto.buildUsageLabel = function buildUsageLabel(usage: UsageStats | nu
   return parts.length ? `Tokens ${parts.join(' / ')}` : '';
 };
 
-sidePanelProto.buildMessageMeta = function buildMessageMeta(
-  usage: UsageStats | null,
-  modelLabel?: string | null,
-) {
+sidePanelProto.buildMessageMeta = function buildMessageMeta(usage: UsageStats | null, modelLabel?: string | null) {
   const segments: string[] = [];
   const model = modelLabel?.trim();
   if (model) {

@@ -1,7 +1,6 @@
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-
 // ============================================================================
 // Session Tabs Orb — Circle button that expands to show active browser tabs
 // ============================================================================

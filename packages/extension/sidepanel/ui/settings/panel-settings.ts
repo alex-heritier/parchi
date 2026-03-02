@@ -42,11 +42,7 @@ sidePanelProto.applyUiZoom = function applyUiZoom(value: number, { persist = tru
   }
 };
 
-sidePanelProto.applyTypography = function applyTypography(
-  preset: string,
-  style: string,
-  { persist = true } = {},
-) {
+sidePanelProto.applyTypography = function applyTypography(preset: string, style: string, { persist = true } = {}) {
   const nextPreset = FONT_PRESET_STACKS[preset] ? preset : 'default';
   const nextStyle = FONT_STYLE_WEIGHTS[style] ? style : 'normal';
   this.fontPreset = nextPreset;

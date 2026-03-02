@@ -1,8 +1,10 @@
 import type { ToolDefinition } from '../../shared/src/tools.js';
 import { getActiveTab } from '../utils/active-tab.js';
-import { parseSelectorSpec } from './selector-spec.js';
 import { injectedClick } from './injected/click.js';
 import { injectedType } from './injected/type.js';
+import { injectedCaptureVideoFrame } from './injected/video-frame.js';
+import { injectedVideoCheck } from './injected/video.js';
+import { parseSelectorSpec } from './selector-spec.js';
 
 type SessionTabSummary = {
   id: number;
@@ -554,7 +556,7 @@ export class BrowserTools {
 
   private async runInTab<TArgs extends unknown[], TResult>(
     tabId: number,
-    func: (...args: TArgs) => TResult,
+    func: (...args: TArgs) => TResult | Promise<TResult>,
     args: TArgs,
   ): Promise<TResult | { success: false; error: string; details: string }> {
     try {
@@ -575,7 +577,7 @@ export class BrowserTools {
 
   private async runInAllFrames<TArgs extends unknown[], TResult>(
     tabId: number,
-    func: (...args: TArgs) => TResult,
+    func: (...args: TArgs) => TResult | Promise<TResult>,
     args: TArgs,
   ): Promise<TResult | { success: false; error: string; details: string }> {
     try {
@@ -812,9 +814,12 @@ export class BrowserTools {
 
     const spec = parseSelectorSpec(rawSelector);
 
-    let result = await this.runInTab(tabId, injectedClick, [spec, timeoutMs]);
-    if (result?.error === 'Element not found.') {
-      result = await this.runInAllFrames(tabId, injectedClick, [spec, timeoutMs]);
+    const isNotFound = (value: unknown): value is { success: false; error: string } =>
+      Boolean(value && typeof value === 'object' && (value as any).success === false && (value as any).error);
+
+    let result = await this.runInTab(tabId, injectedClick, [spec, timeoutMs] as const);
+    if (isNotFound(result) && result.error === 'Element not found.') {
+      result = await this.runInAllFrames(tabId, injectedClick, [spec, timeoutMs] as const);
     }
 
     if (timeout.wasClamped && result && typeof result === 'object') {
@@ -944,7 +949,7 @@ export class BrowserTools {
       };
     };
 
-    const result = await this.runInTab(tabId, clickAtScript, [x, y, button, doubleClick]);
+    const result = await this.runInTab(tabId, clickAtScript, [x, y, button, doubleClick] as const);
     return result || { success: false, error: 'Script execution failed.' };
   }
 
@@ -972,9 +977,12 @@ export class BrowserTools {
       durationMs: 2200,
     });
 
-    let result = await this.runInTab(tabId, injectedType, [selector, text, timeoutMs]);
-    if (result?.error === 'Element not found.') {
-      result = await this.runInAllFrames(tabId, injectedType, [selector, text, timeoutMs]);
+    const isNotFound = (value: unknown): value is { success: false; error: string } =>
+      Boolean(value && typeof value === 'object' && (value as any).success === false && (value as any).error);
+
+    let result = await this.runInTab(tabId, injectedType, [selector, text, timeoutMs] as const);
+    if (isNotFound(result) && result.error === 'Element not found.') {
+      result = await this.runInAllFrames(tabId, injectedType, [selector, text, timeoutMs] as const);
     }
 
     if (timeout.wasClamped && result && typeof result === 'object') {
@@ -1009,7 +1017,7 @@ export class BrowserTools {
     });
     const result = await this.runInTab(
       tabId,
-      (k, sel) => {
+      (k: string, sel: string) => {
         const target = sel ? document.querySelector<HTMLElement>(sel) : document.body;
         if (!target) return { success: false, error: 'Target not found.' };
         target.focus?.();
@@ -1017,7 +1025,7 @@ export class BrowserTools {
         target.dispatchEvent(new KeyboardEvent('keyup', { key: k, bubbles: true }));
         return { success: true };
       },
-      [key, selector],
+      [key, selector] as const,
     );
     return result || { success: false, error: 'Script execution failed.' };
   }
@@ -1041,7 +1049,7 @@ export class BrowserTools {
     });
     const result = await this.runInTab(
       tabId,
-      (dir, amt, sel) => {
+      (dir: string, amt: number, sel: string) => {
         const resolveScroller = () => {
           if (sel) {
             const el = document.querySelector(sel);
@@ -1110,7 +1118,7 @@ export class BrowserTools {
           moved: after !== before,
         };
       },
-      [direction, amount, selector],
+      [direction, amount, selector] as const,
     );
     return result || { success: false, error: 'Script execution failed.' };
   }
@@ -1134,7 +1142,7 @@ export class BrowserTools {
     });
     const result = await this.runInTab(
       tabId,
-      (t, sel, limit) => {
+      (t: string, sel: string, limit: number) => {
         const base = sel ? document.querySelector<HTMLElement>(sel) : document.body;
         if (!base) return { success: false, error: 'Target not found.' };
         const normalizedType = ['text', 'html', 'title', 'url', 'links'].includes(t) ? t : 'text';
@@ -1170,7 +1178,7 @@ export class BrowserTools {
         const result = truncate(base.innerText || '');
         return { success: true, ...result };
       },
-      [type, selector, maxChars],
+      [type, selector, maxChars] as const,
     );
     return result || { success: false, error: 'Script execution failed.' };
   }
@@ -1204,7 +1212,7 @@ export class BrowserTools {
 
     const result = await this.runInTab(
       tabId,
-      (scopeSelector, needle, normalizeWs, matchLimit) => {
+      (scopeSelector: string, needle: string, normalizeWs: boolean, matchLimit: number) => {
         const normalize = (value: string) => {
           if (!normalizeWs) return value;
           return value.replace(/\s+/g, ' ').trim();
@@ -1272,7 +1280,7 @@ export class BrowserTools {
           matches,
         };
       },
-      [selector, htmlSnippet, normalizeWhitespace, maxMatches],
+      [selector, htmlSnippet, normalizeWhitespace, maxMatches] as const,
     );
 
     return result || { success: false, error: 'Script execution failed.' };
@@ -1391,7 +1399,7 @@ export class BrowserTools {
           videos: info,
         };
       },
-      [selector],
+      [selector] as const,
     );
 
     return result || { success: false, error: 'Script execution failed.' };
@@ -1431,44 +1439,7 @@ export class BrowserTools {
     );
 
     // First check video exists and get basic info
-    const videoCheck = await this.runInTab(
-      tabId,
-      (sel: string) => {
-        const video = sel
-          ? document.querySelector<HTMLVideoElement>(sel)
-          : document.querySelector<HTMLVideoElement>('video');
-
-        if (!video) {
-          return {
-            success: false,
-            error: 'No video element found on the page.',
-            hint: 'Make sure the page has a <video> element, or provide a specific selector.',
-          };
-        }
-
-        if (video.readyState < 2) {
-          return {
-            success: false,
-            error: 'Video has not loaded enough data.',
-            readyState: video.readyState,
-            hint: 'Wait for the video to load before analyzing.',
-          };
-        }
-
-        return {
-          success: true,
-          video: {
-            src: video.currentSrc || video.src || null,
-            duration: video.duration || 0,
-            currentTime: video.currentTime || 0,
-            paused: video.paused,
-            videoWidth: video.videoWidth || 640,
-            videoHeight: video.videoHeight || 480,
-          },
-        };
-      },
-      [selector],
-    );
+    const videoCheck = await this.runInTab(tabId, injectedVideoCheck, [selector] as const);
 
     if (!videoCheck?.success) {
       return videoCheck || { success: false, error: 'Failed to check video.' };
@@ -1484,128 +1455,22 @@ export class BrowserTools {
       currentTime <= endTime && frames.length < maxFrames;
       currentTime += effectiveInterval
     ) {
-      // Use a script that returns a promise to properly wait for seek
-      const frameResult = await new Promise<{
-        success: boolean;
-        time?: number;
-        timeFormatted?: string;
-        dataUrl?: string;
-        error?: string;
-      }>((resolve) => {
-        chrome.scripting.executeScript(
-          {
-            target: { tabId },
-            func: (sel: string, targetTime: number, seekTimeoutMs: number) => {
-              return new Promise((res) => {
-                const video = sel
-                  ? document.querySelector<HTMLVideoElement>(sel)
-                  : document.querySelector<HTMLVideoElement>('video');
+      const frameResult = await this.runInTab(tabId, injectedCaptureVideoFrame, [selector, currentTime, 2000] as const);
 
-                if (!video) {
-                  res({ success: false, error: 'Video element not found.' });
-                  return;
-                }
-
-                // Check for cross-origin (tainted) video
-                try {
-                  const testCanvas = document.createElement('canvas');
-                  testCanvas.width = 1;
-                  testCanvas.height = 1;
-                  const testCtx = testCanvas.getContext('2d');
-                  testCtx?.drawImage(video, 0, 0, 1, 1);
-                  testCtx?.getImageData(0, 0, 1, 1);
-                } catch (corsError) {
-                  res({
-                    success: false,
-                    error:
-                      'Video is cross-origin and cannot be captured. The video source must be same-origin or have CORS headers.',
-                  });
-                  return;
-                }
-
-                const captureFrame = () => {
-                  const canvas = document.createElement('canvas');
-                  const maxDim = 512;
-                  let width = video.videoWidth || 640;
-                  let height = video.videoHeight || 480;
-
-                  if (width > maxDim || height > maxDim) {
-                    const scale = maxDim / Math.max(width, height);
-                    width = Math.round(width * scale);
-                    height = Math.round(height * scale);
-                  }
-
-                  canvas.width = width;
-                  canvas.height = height;
-
-                  const ctx = canvas.getContext('2d');
-                  if (!ctx) {
-                    res({ success: false, error: 'Failed to create canvas.' });
-                    return;
-                  }
-
-                  try {
-                    ctx.drawImage(video, 0, 0, width, height);
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                    const mins = Math.floor(targetTime / 60);
-                    const secs = Math.floor(targetTime % 60);
-                    const timeFormatted = `${mins}:${secs.toString().padStart(2, '0')}`;
-                    res({ success: true, time: targetTime, timeFormatted, dataUrl });
-                  } catch (e: any) {
-                    res({ success: false, error: e?.message || 'Failed to capture frame.' });
-                  }
-                };
-
-                // If already at the right time, capture immediately
-                if (Math.abs(video.currentTime - targetTime) < 0.1) {
-                  captureFrame();
-                  return;
-                }
-
-                // Set up seek listener
-                const onSeeked = () => {
-                  video.removeEventListener('seeked', onSeeked);
-                  clearTimeout(timeout);
-                  // Small delay to ensure frame is rendered
-                  setTimeout(captureFrame, 50);
-                };
-
-                const timeout = setTimeout(() => {
-                  video.removeEventListener('seeked', onSeeked);
-                  res({ success: false, error: 'Seek timed out.' });
-                }, seekTimeoutMs);
-
-                video.addEventListener('seeked', onSeeked);
-
-                try {
-                  video.currentTime = targetTime;
-                } catch (seekError: any) {
-                  video.removeEventListener('seeked', onSeeked);
-                  clearTimeout(timeout);
-                  res({ success: false, error: `Seek failed: ${seekError?.message || 'Unknown error'}` });
-                }
-              });
-            },
-            args: [selector, currentTime, 2000],
-          },
-          (results) => {
-            if (results?.[0]?.result) {
-              resolve(results[0].result as any);
-            } else {
-              resolve({ success: false, error: 'Script execution failed.' });
-            }
-          },
-        );
-      });
-
-      if (frameResult?.success && frameResult.dataUrl) {
+      if (frameResult && typeof frameResult === 'object' && 'success' in frameResult && frameResult.success === true) {
         frames.push({
-          time: frameResult.time!,
-          timeFormatted: frameResult.timeFormatted!,
+          time: frameResult.time,
+          timeFormatted: frameResult.timeFormatted,
           dataUrl: frameResult.dataUrl,
         });
-      } else if (frameResult?.error) {
-        console.warn(`Frame capture at ${currentTime}s failed:`, frameResult.error);
+      } else if (
+        frameResult &&
+        typeof frameResult === 'object' &&
+        'success' in frameResult &&
+        frameResult.success === false &&
+        'error' in frameResult
+      ) {
+        console.warn(`Frame capture at ${currentTime}s failed:`, (frameResult as any).error);
       }
 
       // Small delay between frames

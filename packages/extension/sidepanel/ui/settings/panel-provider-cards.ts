@@ -1,5 +1,4 @@
-import { PROVIDER_REGISTRY, getApiKeyProviders, getAllProviders } from '../../../ai/providers/registry.js';
-import type { ProviderDefinition } from '../../../ai/providers/types.js';
+import { PROVIDER_REGISTRY, getAllProviders, getApiKeyProviders } from '../../../ai/providers/registry.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
@@ -62,10 +61,7 @@ sidePanelProto.renderApiProviderGrid = function renderApiProviderGrid() {
   }
 };
 
-sidePanelProto.providerHasApiKey = function providerHasApiKey(
-  providerKey: string,
-  configs: Record<string, any>,
-) {
+sidePanelProto.providerHasApiKey = function providerHasApiKey(providerKey: string, configs: Record<string, any>) {
   for (const name of Object.keys(configs)) {
     const cfg = configs[name];
     if (cfg?.provider === providerKey && String(cfg.apiKey || '').trim()) {

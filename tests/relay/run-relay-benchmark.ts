@@ -2,55 +2,15 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-type RunOutcome = {
-  runId: string;
-  prompt: string;
-  status: 'completed' | 'failed' | 'stopped' | 'rpc_error';
-  success: boolean;
-  validation: {
-    ok: boolean;
-    issues: string[];
-  };
-  latency: {
-    totalMs: number | null;
-    ttfbMs: number | null;
-    firstTokenMs: number | null;
-  };
-  model?: string;
-  provider?: string;
-  route?: string;
-  errorCategory?: string;
-  startedAt: number;
-  finishedAt: number;
-};
-const parseArgs = (argv: string[]) => {
-  const flags: Record<string, string> = {};
-  for (const arg of argv) {
-    if (!arg.startsWith('--')) continue;
-    const [k, v] = arg.slice(2).split('=');
-    flags[k] = v ?? 'true';
-  }
-  return flags;
-};
-const quantile = (values: number[], p: number) => {
-  if (!values.length) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor((sorted.length - 1) * p)));
-  return sorted[idx];
-};
-const summarize = (values: Array<number | null>) => {
-  const nums = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0);
-  if (!nums.length) return null;
-  const sum = nums.reduce((acc, v) => acc + v, 0);
-  return {
-    count: nums.length,
-    min: Math.min(...nums),
-    p50: quantile(nums, 0.5),
-    p95: quantile(nums, 0.95),
-    max: Math.max(...nums),
-    mean: Number((sum / nums.length).toFixed(2)),
-  };
-};
+import {
+  type RunDonePayload,
+  type RunOutcome,
+  extractLatency,
+  parseArgs,
+  summarize,
+  toMarkdown,
+  validateRunEvents,
+} from './relay-benchmark-utils.js';
 const fetchRpc = async ({
   host,
   port,
@@ -83,80 +43,6 @@ const defaultPrompts = [
   'List 3 quick actions you can do right now.',
   'What is one likely risk and one mitigation?',
 ];
-const extractLatency = (events: any[], donePayload: any, startedAt: number, finishedAt: number) => {
-  const terminal = donePayload?.status === 'completed' ? donePayload?.final : donePayload?.error;
-  const explicit = terminal?.latency;
-  if (explicit && typeof explicit === 'object') {
-    return {
-      totalMs: Number.isFinite(Number(explicit.totalMs)) ? Number(explicit.totalMs) : null,
-      ttfbMs: Number.isFinite(Number(explicit.ttfbMs)) ? Number(explicit.ttfbMs) : null,
-      firstTokenMs: Number.isFinite(Number(explicit.firstTokenMs)) ? Number(explicit.firstTokenMs) : null,
-    };
-  }
-  const firstEventTs = events.find((evt) => typeof evt?.timestamp === 'number')?.timestamp;
-  const firstDeltaTs = events.find(
-    (evt) => evt?.type === 'assistant_stream_delta' && evt?.channel === 'text' && typeof evt?.timestamp === 'number',
-  )?.timestamp;
-  const firstChunkTs = events.find(
-    (evt) =>
-      (evt?.type === 'assistant_stream_delta' || evt?.type === 'assistant_stream_start') &&
-      typeof evt?.timestamp === 'number',
-  )?.timestamp;
-  const terminalTs =
-    (typeof terminal?.timestamp === 'number' ? terminal.timestamp : null) ||
-    events.filter((evt) => typeof evt?.timestamp === 'number').at(-1)?.timestamp ||
-    finishedAt;
-  const anchor = typeof firstEventTs === 'number' ? firstEventTs : startedAt;
-  return {
-    totalMs: Math.max(0, terminalTs - anchor),
-    ttfbMs: typeof firstChunkTs === 'number' ? Math.max(0, firstChunkTs - anchor) : null,
-    firstTokenMs: typeof firstDeltaTs === 'number' ? Math.max(0, firstDeltaTs - anchor) : null,
-  };
-};
-const validateRunEvents = (events: any[], donePayload: any) => {
-  const issues: string[] = [];
-  const hasStart = events.some((evt) => evt?.type === 'user_run_start');
-  if (!hasStart) issues.push('Missing user_run_start event');
-  const hasFinal = events.some((evt) => evt?.type === 'assistant_final');
-  const hasError = events.some((evt) => evt?.type === 'run_error');
-  if (donePayload?.status === 'completed' && !hasFinal) issues.push('run.done=completed without assistant_final event');
-  if (donePayload?.status === 'failed' && !hasError) issues.push('run.done=failed without run_error event');
-  const starts = events.filter((evt) => evt?.type === 'assistant_stream_start').length;
-  const stops = events.filter((evt) => evt?.type === 'assistant_stream_stop').length;
-  if (starts > stops) issues.push(`Stream not balanced (start=${starts}, stop=${stops})`);
-  return { ok: issues.length === 0, issues };
-};
-const toMarkdown = (payload: any) => {
-  const s = payload.summary;
-  const m = s.metrics;
-  return [
-    '# Relay Benchmark Report',
-    '',
-    `- label: ${payload.meta.label}`,
-    `- generatedAt: ${payload.meta.generatedAt}`,
-    `- host: ${payload.meta.host}:${payload.meta.port}`,
-    `- rounds: ${payload.meta.rounds}`,
-    `- timeoutMs: ${payload.meta.timeoutMs}`,
-    '',
-    '## Results',
-    '',
-    `- successRate: ${s.successRatePct}% (${s.successCount}/${s.totalRuns})`,
-    `- validationPassRate: ${s.validationPassRatePct}% (${s.validationPassCount}/${s.totalRuns})`,
-    '',
-    '## Latency (ms)',
-    '',
-    `- total: ${JSON.stringify(m.totalMs)}`,
-    `- ttfb: ${JSON.stringify(m.ttfbMs)}`,
-    `- firstToken: ${JSON.stringify(m.firstTokenMs)}`,
-    '',
-    '## Error categories',
-    '',
-    '```json',
-    JSON.stringify(s.errorCategories, null, 2),
-    '```',
-    '',
-  ].join('\n');
-};
 const main = async () => {
   const flags = parseArgs(process.argv.slice(2));
   const host = flags.host || process.env.PARCHI_RELAY_HOST || '127.0.0.1';
@@ -197,7 +83,9 @@ const main = async () => {
     try {
       const startParams: Record<string, unknown> = { prompt };
       if (agentId) startParams.agentId = agentId;
-      const started = (await fetchRpc({ host, port, token, method: 'agent.run', params: startParams })) as any;
+      const started = (await fetchRpc({ host, port, token, method: 'agent.run', params: startParams })) as {
+        runId?: unknown;
+      };
       const runId = String(started?.runId || '');
       if (!runId) throw new Error('agent.run did not return runId');
       const waited = (await fetchRpc({
@@ -206,31 +94,43 @@ const main = async () => {
         token,
         method: 'run.wait',
         params: { runId, timeoutMs },
-      })) as any;
-      const eventsResult = (await fetchRpc({ host, port, token, method: 'run.events', params: { runId } })) as any;
-      const events = Array.isArray(eventsResult?.events) ? eventsResult.events : [];
-      const done = waited?.done || eventsResult?.done || {};
+      })) as { done?: unknown };
+      const eventsResult = (await fetchRpc({ host, port, token, method: 'run.events', params: { runId } })) as {
+        events?: unknown;
+        done?: unknown;
+      };
+      const events = Array.isArray(eventsResult?.events) ? (eventsResult.events as unknown[]) : [];
+      const done = (waited?.done || eventsResult?.done || {}) as RunDonePayload;
       const finishedAt = Date.now();
       const validation = validateRunEvents(events, done);
       const latency = extractLatency(events, done, startedAt, finishedAt);
-      const terminal = done?.status === 'completed' ? done?.final : done?.error;
-      const benchmark = terminal?.benchmark && typeof terminal.benchmark === 'object' ? terminal.benchmark : {};
+      const terminal = done.status === 'completed' ? done.final : done.error;
+      const benchmark =
+        terminal &&
+        typeof terminal === 'object' &&
+        (terminal as any).benchmark &&
+        typeof (terminal as any).benchmark === 'object'
+          ? (terminal as any).benchmark
+          : {};
       outcomes.push({
         runId,
         prompt,
-        status: done?.status || 'failed',
-        success: done?.status === 'completed',
+        status: (typeof done.status === 'string' ? (done.status as any) : 'failed') as any,
+        success: done.status === 'completed',
         validation,
         latency,
         model: typeof benchmark?.model === 'string' ? benchmark.model : undefined,
         provider: typeof benchmark?.provider === 'string' ? benchmark.provider : undefined,
         route: typeof benchmark?.route === 'string' ? benchmark.route : undefined,
-        errorCategory: typeof terminal?.errorCategory === 'string' ? terminal.errorCategory : undefined,
+        errorCategory:
+          terminal && typeof terminal === 'object' && typeof (terminal as any).errorCategory === 'string'
+            ? String((terminal as any).errorCategory)
+            : undefined,
         startedAt,
         finishedAt,
       });
       console.log(
-        `[${i + 1}/${rounds}] ${runId} status=${done?.status || 'failed'} totalMs=${latency.totalMs ?? 'n/a'} ttfbMs=${latency.ttfbMs ?? 'n/a'}`,
+        `[${i + 1}/${rounds}] ${runId} status=${(done.status as any) || 'failed'} totalMs=${latency.totalMs ?? 'n/a'} ttfbMs=${latency.ttfbMs ?? 'n/a'}`,
       );
     } catch (error) {
       const finishedAt = Date.now();
