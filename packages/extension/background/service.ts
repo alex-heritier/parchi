@@ -1061,6 +1061,21 @@ export class BackgroundService {
             .toLowerCase()
         ] || null;
       let oauthFallbackCandidatesLoaded = false;
+      const inferModelFamily = (modelId: string) => {
+        const lower = String(modelId || '')
+          .trim()
+          .toLowerCase();
+        if (!lower) return '';
+        if (lower.startsWith('claude')) return 'claude';
+        if (lower.startsWith('gpt') || /^o\d/.test(lower)) return 'openai';
+        if (lower.startsWith('gemini')) return 'gemini';
+        if (lower.startsWith('qwen')) return 'qwen';
+        if (lower.startsWith('deepseek')) return 'deepseek';
+        if (lower.startsWith('grok')) return 'grok';
+        return lower.split(/[-_/]/)[0] || '';
+      };
+      const requestedModelFamily = inferModelFamily(activeModelId);
+      const enforceSameFamilyOAuthFallback = oauthProviderKey === 'copilot' && requestedModelFamily.length > 0;
       if (openRouterLikeProvider) {
         if (!modelRetryOrder.includes('openrouter/auto')) modelRetryOrder.push('openrouter/auto');
         if (!modelRetryOrder.includes('openai/gpt-4o-mini')) modelRetryOrder.push('openai/gpt-4o-mini');
@@ -1093,7 +1108,10 @@ export class BackgroundService {
       };
 
       const persistRecoveredModelSelection = async (nextModelId: string) => {
-        if (!openRouterLikeProvider && !oauthProviderKey) return;
+        // Persist automatic fallback selection only for OpenRouter-like providers.
+        // For OAuth providers (e.g. Copilot/Codex/Claude), keep the user's chosen
+        // model sticky and apply fallback per-run without mutating profile state.
+        if (!openRouterLikeProvider) return;
         const trimmed = String(nextModelId || '').trim();
         if (!trimmed) return;
         try {
@@ -1421,10 +1439,24 @@ export class BackgroundService {
                   .toLowerCase(),
               ),
             );
-            const nextCandidates = providerModelIds
+            let nextCandidates = providerModelIds
               .map((id) => String(id || '').trim())
-              .filter((id) => id.length > 0 && !currentRetrySet.has(id.toLowerCase()))
-              .slice(0, 16);
+              .filter((id) => id.length > 0 && !currentRetrySet.has(id.toLowerCase()));
+
+            if (enforceSameFamilyOAuthFallback) {
+              const sameFamilyCandidates = nextCandidates.filter((id) => inferModelFamily(id) === requestedModelFamily);
+              if (sameFamilyCandidates.length > 0) {
+                nextCandidates = sameFamilyCandidates;
+              } else {
+                this.sendRuntime(runMeta, {
+                  type: 'run_warning',
+                  message: `Copilot OAuth rejected "${failedModelId}". No additional ${requestedModelFamily} fallback models are available for this account.`,
+                });
+                return 0;
+              }
+            }
+
+            nextCandidates = nextCandidates.slice(0, 16);
             if (nextCandidates.length > 0) {
               modelRetryOrder.push(...nextCandidates);
               this.sendRuntime(runMeta, {
@@ -1464,7 +1496,7 @@ export class BackgroundService {
                 !hasTextOutput && !hasToolOutput && usageInputTokens === 0 && usageOutputTokens === 0;
 
               if (looksLikeSilentModelFailure && oauthProviderKey) {
-                await loadOAuthFallbackCandidates(activeModelId);
+                const loadedFallbackCount = await loadOAuthFallbackCandidates(activeModelId);
                 if (idx < modelRetryOrder.length - 1) {
                   this.sendRuntime(runMeta, {
                     type: 'run_warning',
@@ -1472,6 +1504,9 @@ export class BackgroundService {
                   });
                   lastModelError = new Error(`Model "${activeModelId}" produced no output.`);
                   break;
+                }
+                if (loadedFallbackCount === 0) {
+                  throw new Error(`Model "${activeModelId}" is unavailable for this OAuth account.`);
                 }
               }
 
