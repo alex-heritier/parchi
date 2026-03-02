@@ -1,4 +1,4 @@
-import type { SessionState, ReportImage } from './service-types.js';
+import type { ReportImage, SessionState } from './service-types.js';
 
 const MAX_REPORT_IMAGES_PER_SESSION = 50;
 const MAX_REPORT_IMAGE_BYTES_PER_IMAGE = 4 * 1024 * 1024;

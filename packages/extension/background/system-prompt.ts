@@ -6,7 +6,7 @@ export function enhanceSystemPrompt(
     currentUrl: string;
     currentTitle: string;
     tabId: number | null;
-    availableTabs: Array<{ id: number; title: string; url: string }>;
+    availableTabs: Array<{ id: number; title?: string; url?: string }>;
     orchestratorEnabled: boolean;
     teamProfiles: Array<{ name: string; provider?: string; model?: string }>;
     provider: string;

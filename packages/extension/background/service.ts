@@ -22,11 +22,7 @@ import type { Message, ToolCall } from '../ai/message-schema.js';
 import { extractTextFromResponseMessages, extractThinking } from '../ai/message-utils.js';
 import { toModelMessages } from '../ai/model-convert.js';
 import { isValidFinalResponse } from '../ai/retry-engine.js';
-import {
-  buildToolSet,
-  describeImageWithModel,
-  resolveLanguageModel,
-} from '../ai/sdk-client.js';
+import { buildToolSet, describeImageWithModel, resolveLanguageModel } from '../ai/sdk-client.js';
 import { RecordingCoordinator } from '../recording/recording-coordinator.js';
 import { RelayBridge } from '../relay/relay-bridge.js';
 import { BrowserTools } from '../tools/browser-tools.js';
@@ -56,14 +52,8 @@ import {
 } from './report-images.js';
 import type { RunMeta, SessionState } from './service-types.js';
 import { enhanceSystemPrompt } from './system-prompt.js';
-import {
-  checkToolPermission,
-} from './tool-permissions.js';
-import {
-  buildPlanFromArgs,
-  extractXmlToolCalls,
-  stripXmlToolCalls,
-} from './xml-tool-parser.js';
+import { checkToolPermission } from './tool-permissions.js';
+import { buildPlanFromArgs, extractXmlToolCalls, stripXmlToolCalls } from './xml-tool-parser.js';
 
 export class BackgroundService {
   browserTools: BrowserTools;
@@ -492,7 +482,15 @@ export class BackgroundService {
         if (!tool) throw new Error('tool.call: missing tool');
         const safeArgs = args && typeof args === 'object' && !Array.isArray(args) ? (args as Record<string, any>) : {};
         const settings = await chrome.storage.local.get(['toolPermissions', 'allowedDomains']);
-        const perm = await checkToolPermission(tool, safeArgs, settings, this.currentSettings, sessionId, this.currentSessionId, (id) => this.getBrowserTools(id));
+        const perm = await checkToolPermission(
+          tool,
+          safeArgs,
+          settings,
+          this.currentSettings,
+          sessionId,
+          this.currentSessionId,
+          (id) => this.getBrowserTools(id),
+        );
         if (!perm.allowed) {
           throw new Error(perm.reason || 'Tool blocked by policy');
         }
@@ -887,9 +885,7 @@ export class BackgroundService {
       const teamProfiles = resolveTeamProfiles(settings);
 
       const activeProfile = resolveProfile(settings, activeProfileName);
-      let orchestratorProfile = orchestratorEnabled
-        ? resolveProfile(settings, orchestratorProfileName)
-        : activeProfile;
+      let orchestratorProfile = orchestratorEnabled ? resolveProfile(settings, orchestratorProfileName) : activeProfile;
       let visionProfile =
         settings.visionBridge !== false ? resolveProfile(settings, visionProfileName || activeProfileName) : null;
 
@@ -1236,12 +1232,7 @@ export class BackgroundService {
 
         const result = streamText({
           model,
-          system: enhanceSystemPrompt(
-            orchestratorProfile.systemPrompt || '',
-            context,
-            sessionState,
-            matchedSkills,
-          ),
+          system: enhanceSystemPrompt(orchestratorProfile.systemPrompt || '', context, sessionState, matchedSkills),
           messages: modelMessages,
           tools: toolSet,
           abortSignal,
@@ -1544,12 +1535,7 @@ export class BackgroundService {
 
             const finalizeResult = await generateText({
               model,
-              system: enhanceSystemPrompt(
-                orchestratorProfile.systemPrompt || '',
-                context,
-                sessionState,
-                matchedSkills,
-              ),
+              system: enhanceSystemPrompt(orchestratorProfile.systemPrompt || '', context, sessionState, matchedSkills),
               messages: [
                 ...toModelMessages(currentHistory),
                 {
@@ -1814,9 +1800,7 @@ export class BackgroundService {
       }
 
       const resolvedProfile =
-        runtimeProfile.route === 'oauth'
-          ? await injectOAuthTokens(runtimeProfile.profile)
-          : runtimeProfile.profile;
+        runtimeProfile.route === 'oauth' ? await injectOAuthTokens(runtimeProfile.profile) : runtimeProfile.profile;
       const model = resolveLanguageModel(resolvedProfile as any);
 
       const result = streamText({
@@ -1883,9 +1867,7 @@ export class BackgroundService {
         return { prompt: '', error: runtimeProfile.errorMessage || 'No API key configured' };
       }
       const resolvedProfile2 =
-        runtimeProfile.route === 'oauth'
-          ? await injectOAuthTokens(runtimeProfile.profile)
-          : runtimeProfile.profile;
+        runtimeProfile.route === 'oauth' ? await injectOAuthTokens(runtimeProfile.profile) : runtimeProfile.profile;
       const model = resolveLanguageModel(resolvedProfile2 as any);
 
       const outputLimit = Math.min(maxOutputTokens || 4096, 4096);
@@ -2102,7 +2084,15 @@ Rules:
     }
 
     // Use the run's settings snapshot so parallel runs can't trample each other.
-    const permissionCheck = await checkToolPermission(toolName, args, options.settings, this.currentSettings, sessionId, this.currentSessionId, (id) => this.getBrowserTools(id));
+    const permissionCheck = await checkToolPermission(
+      toolName,
+      args,
+      options.settings,
+      this.currentSettings,
+      sessionId,
+      this.currentSessionId,
+      (id) => this.getBrowserTools(id),
+    );
     if (!permissionCheck.allowed) {
       const blocked = {
         success: false,
