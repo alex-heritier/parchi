@@ -1,7 +1,7 @@
 // On-demand content script for recording user interactions.
 // Injected via chrome.scripting.executeScript, NOT in the manifest.
 
-import type { RecordingEvent, RecordingEventType } from '../shared/src/recording.js';
+import type { RecordingEvent, RecordingEventType } from '@parchi/shared';
 
 declare global {
   interface Window {

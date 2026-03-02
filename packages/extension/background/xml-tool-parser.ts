@@ -1,5 +1,5 @@
-import { buildRunPlan } from '../../shared/src/plan.js';
-import type { RunPlan } from '../../shared/src/plan.js';
+import { buildRunPlan } from '@parchi/shared';
+import type { RunPlan } from '@parchi/shared';
 
 export function extractXmlToolCalls(text: string): Array<{ name: string; args: Record<string, unknown>; raw: string }> {
   if (!text || typeof text !== 'string') return [];

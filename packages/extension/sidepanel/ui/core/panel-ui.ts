@@ -1,5 +1,5 @@
-import type { RunPlan } from '../../../../shared/src/plan.js';
-import type { RecordedContext } from '../../../../shared/src/recording.js';
+import type { RunPlan } from '@parchi/shared';
+import type { RecordedContext } from '@parchi/shared';
 import type { Message } from '../../../ai/message-schema.js';
 import type { UsageStats } from '../types/panel-types.js';
 import { getSidePanelElements } from './panel-elements.js';
@@ -128,8 +128,8 @@ export class SidePanelUI {
   recordingState: { status: 'idle' | 'recording' | 'selecting'; elapsedMs: number; timerId: number | null };
   pendingRecordedContext: RecordedContext | null;
   reviewState: {
-    events: import('../../../../shared/src/recording.js').RecordingEvent[];
-    screenshots: import('../../../../shared/src/recording.js').RecordingScreenshot[];
+    events: import('@parchi/shared').RecordingEvent[];
+    screenshots: import('@parchi/shared').RecordingScreenshot[];
     excludedEventIndices: Set<number>;
     selectedScreenshotIds: Set<string>;
     activeTab: 'actions' | 'screenshots';

@@ -1,7 +1,7 @@
 import type http from 'node:http';
 import type { IncomingMessage } from 'node:http';
+import type { JsonRpcId } from '@parchi/shared';
 import type { WebSocket } from 'ws';
-import type { JsonRpcId } from '../../shared/src/json-rpc.js';
 
 export type AgentHello = {
   agentId: string;

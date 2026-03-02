@@ -111,6 +111,39 @@ const shouldCheckLineCount = (filePath) => {
   return true;
 };
 
+const DEEP_SHARED_IMPORT_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs']);
+const DEEP_SHARED_IMPORT_PATTERNS = [/from\s+['"][^'"]*shared\/src\//, /import\(\s*['"][^'"]*shared\/src\//];
+const DEEP_SHARED_IMPORT_IGNORE_SEGMENTS = [
+  'dist/',
+  'dist-firefox/',
+  'dist-relay/',
+  'dist-cli/',
+  'dist-electron-agent/',
+  'node_modules/',
+  'packages/shared/',
+];
+
+const findDeepSharedImports = (filePath) => {
+  if (!filePath) return [];
+  const normalized = filePath.replaceAll('\\', '/');
+  if (!DEEP_SHARED_IMPORT_EXTENSIONS.has(path.extname(normalized))) return [];
+  if (DEEP_SHARED_IMPORT_IGNORE_SEGMENTS.some((seg) => normalized.includes(seg))) return [];
+  if (!fs.existsSync(filePath)) return [];
+
+  const content = fs.readFileSync(filePath, 'utf8');
+  const lines = content.split(/\r?\n/);
+  const violations = [];
+  for (let i = 0; i < lines.length; i++) {
+    for (const pattern of DEEP_SHARED_IMPORT_PATTERNS) {
+      if (pattern.test(lines[i])) {
+        violations.push({ line: i + 1, text: lines[i].trim() });
+        break;
+      }
+    }
+  }
+  return violations;
+};
+
 const countLines = (filePath) => {
   if (!fs.existsSync(filePath)) return 0;
   const content = fs.readFileSync(filePath, 'utf8');
@@ -131,10 +164,19 @@ const runChecks = () => {
   const entries = parseDiffEntries(baseRef);
 
   const lineViolations = [];
+  const sharedImportViolations = [];
 
   for (const entry of entries) {
     const currentPath = entry.path;
     if (!currentPath) continue;
+
+    // Check for deep shared imports in new or modified files
+    if (entry.status === 'A' || entry.status === 'M' || entry.status === 'R') {
+      const deepImports = findDeepSharedImports(currentPath);
+      for (const v of deepImports) {
+        sharedImportViolations.push({ path: currentPath, line: v.line, text: v.text });
+      }
+    }
 
     if (!shouldCheckLineCount(currentPath)) continue;
     if (!fs.existsSync(currentPath)) continue;
@@ -163,7 +205,7 @@ const runChecks = () => {
     }
   }
 
-  if (lineViolations.length === 0) {
+  if (lineViolations.length === 0 && sharedImportViolations.length === 0) {
     console.log(
       `repo-standards: pass (base=${baseRef.slice(0, 12)}, maxLines=${options.maxLines}, filesChecked=${entries.length})`,
     );
@@ -178,8 +220,19 @@ const runChecks = () => {
     }
   }
 
+  if (sharedImportViolations.length > 0) {
+    console.error('\n[Deep shared import violations]');
+    for (const v of sharedImportViolations) {
+      console.error(`- ${v.path}:${v.line}: ${v.text}`);
+    }
+    console.error('\n  Use `@parchi/shared` instead of deep imports from `packages/shared/src/`.');
+  }
+
   console.error('\nFixes:');
   console.error(`1. Split files so newly added files stay at <= ${options.maxLines} lines.`);
+  if (sharedImportViolations.length > 0) {
+    console.error('2. Replace deep shared imports with `@parchi/shared` entrypoint imports.');
+  }
   process.exit(1);
 };
 

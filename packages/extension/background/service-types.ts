@@ -1,4 +1,4 @@
-import type { RunPlan } from '../../shared/src/plan.js';
+import type { RunPlan } from '@parchi/shared';
 
 export type RunMeta = {
   runId: string;

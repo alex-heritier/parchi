@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import http, { type IncomingMessage } from 'node:http';
+import { type JsonRpcRequest, isJsonRpcNotification, isJsonRpcResponse } from '@parchi/shared';
 import { type WebSocket, WebSocketServer } from 'ws';
-import { type JsonRpcRequest, isJsonRpcNotification, isJsonRpcResponse } from '../../shared/src/json-rpc.js';
 import { readAuth, removePid, writePid } from './auth.js';
 import { handleDaemonHttpRequest } from './daemon-http.js';
 import { handleDaemonRpc } from './daemon-rpc.js';

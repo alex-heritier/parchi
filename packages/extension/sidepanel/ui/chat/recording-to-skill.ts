@@ -1,4 +1,4 @@
-import type { AtomicSkill, ComposedSkill, RecordingEvent } from '../../../../shared/src/recording.js';
+import type { AtomicSkill, ComposedSkill, RecordingEvent } from '@parchi/shared';
 
 /**
  * Map a single RecordingEvent to an AtomicSkill (or null if not actionable).

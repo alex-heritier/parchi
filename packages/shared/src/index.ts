@@ -5,5 +5,6 @@ export * from './usage.js';
 export * from './settings.js';
 export * from './prompts.js';
 export * from './json-rpc.js';
+export * from './recording.js';
 export * from './utils/json.js';
 export * from './utils/html.js';

@@ -1,4 +1,4 @@
-import type { ToolDefinition } from '../../shared/src/tools.js';
+import type { ToolDefinition } from '@parchi/shared';
 import { getActiveTab } from '../utils/active-tab.js';
 import { injectedClick } from './injected/click.js';
 import { injectedType } from './injected/type.js';

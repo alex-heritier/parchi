@@ -1,4 +1,4 @@
-import type { JsonRpcRequest } from '../../shared/src/json-rpc.js';
+import type { JsonRpcRequest } from '@parchi/shared';
 
 export interface RelayTransport {
   send(payload: unknown): void;

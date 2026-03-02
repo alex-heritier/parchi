@@ -1,5 +1,5 @@
 // Message schema utilities for extension <-> provider payloads
-import type { Usage as SharedUsage } from '../../shared/src/usage.js';
+import type { Usage as SharedUsage } from '@parchi/shared';
 type Role = 'system' | 'user' | 'assistant' | 'tool';
 export type ContentPart =
   | string

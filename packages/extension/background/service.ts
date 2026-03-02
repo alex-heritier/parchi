@@ -1,9 +1,7 @@
 import { APICallError } from '@ai-sdk/provider';
+import type { ComposedSkill, RunPlan } from '@parchi/shared';
+import { PARCHI_STORAGE_KEYS, RUNTIME_MESSAGE_SCHEMA_VERSION } from '@parchi/shared';
 import { generateText, stepCountIs, streamText } from 'ai';
-import type { RunPlan } from '../../shared/src/plan.js';
-import type { ComposedSkill } from '../../shared/src/recording.js';
-import { RUNTIME_MESSAGE_SCHEMA_VERSION } from '../../shared/src/runtime-messages.js';
-import { PARCHI_STORAGE_KEYS } from '../../shared/src/settings.js';
 import {
   DEFAULT_COMPACTION_SETTINGS,
   SUMMARIZATION_PROMPT,

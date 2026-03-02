@@ -21,6 +21,10 @@ const relayDistDir = path.join(rootDir, 'dist-relay');
 const cliDistDir = path.join(rootDir, 'dist-cli');
 const electronAgentDistDir = path.join(rootDir, 'dist-electron-agent');
 const extensionRoot = path.join(rootDir, 'packages', 'extension');
+// Alias workspace packages so esbuild inlines them instead of treating as external
+const workspaceAlias = {
+  '@parchi/shared': path.join(rootDir, 'packages', 'shared', 'src', 'index.ts'),
+};
 const parseEnvText = (text) => {
   const parsed = {};
   for (const rawLine of String(text || '').split(/\r?\n/g)) {
@@ -160,6 +164,7 @@ const run = async () => {
     sourcemap: true,
     logLevel: 'info',
     define: buildDefines,
+    alias: workspaceAlias,
     packages: 'external',
     external: ['chromium-bidi/lib/cjs/bidiMapper/BidiMapper', 'chromium-bidi/lib/cjs/cdp/CdpConnection'],
   });
@@ -178,6 +183,7 @@ const run = async () => {
     sourcemap: true,
     logLevel: 'info',
     define: buildDefines,
+    alias: workspaceAlias,
     packages: 'external',
     banner: {
       js: '#!/usr/bin/env node',
@@ -197,6 +203,7 @@ const run = async () => {
     sourcemap: true,
     logLevel: 'info',
     define: buildDefines,
+    alias: workspaceAlias,
     packages: 'external',
     banner: {
       js: '#!/usr/bin/env node',
@@ -216,6 +223,7 @@ const run = async () => {
     sourcemap: true,
     logLevel: 'info',
     define: buildDefines,
+    alias: workspaceAlias,
     packages: 'external',
     banner: {
       js: '#!/usr/bin/env node',

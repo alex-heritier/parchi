@@ -8,6 +8,7 @@
     "typecheck": "tsc -p ../../tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@parchi/shared": "*",
     "ws": "8.18.3"
   }
 }

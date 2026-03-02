@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { URL } from 'node:url';
-import { type JsonRpcResponse, isJsonRpcRequest } from '../../shared/src/json-rpc.js';
+import { type JsonRpcResponse, isJsonRpcRequest } from '@parchi/shared';
 import { asRecord, json, readBody } from './daemon-shared.js';
 
 type HandleDaemonHttpRequestArgs = {

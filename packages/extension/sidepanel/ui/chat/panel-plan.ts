@@ -1,4 +1,4 @@
-import type { RunPlan } from '../../../../shared/src/plan.js';
+import type { RunPlan } from '@parchi/shared';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 

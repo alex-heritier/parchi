@@ -8,4 +8,4 @@ export {
   isJsonRpcRequest,
   isJsonRpcNotification,
   isJsonRpcResponse,
-} from '../../shared/src/json-rpc.js';
+} from '@parchi/shared';

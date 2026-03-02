@@ -1,9 +1,4 @@
-import {
-  type JsonRpcNotification,
-  type JsonRpcRequest,
-  type JsonRpcResponse,
-  isJsonRpcRequest,
-} from '../../shared/src/json-rpc.js';
+import { type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, isJsonRpcRequest } from '@parchi/shared';
 
 export type { JsonRpcRequest, JsonRpcResponse, JsonRpcNotification };
 

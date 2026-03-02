@@ -23,10 +23,10 @@ import { extractThinking } from '../../packages/extension/ai/message-utils.js';
 import { createExponentialBackoff, isValidFinalResponse } from '../../packages/extension/ai/retry-engine.js';
 import { normalizeOAuthModelIdForProvider } from '../../packages/extension/oauth/model-normalization.js';
 
-import { buildRunPlan, normalizePlanStatus, normalizePlanSteps } from '../../packages/shared/src/plan.js';
-import type { RunPlan } from '../../packages/shared/src/plan.js';
-import { RUNTIME_MESSAGE_SCHEMA_VERSION, isRuntimeMessage } from '../../packages/shared/src/runtime-messages.js';
-import type { RuntimeMessage } from '../../packages/shared/src/runtime-messages.js';
+import { buildRunPlan, normalizePlanStatus, normalizePlanSteps } from '@parchi/shared';
+import type { RunPlan } from '@parchi/shared';
+import { RUNTIME_MESSAGE_SCHEMA_VERSION, isRuntimeMessage } from '@parchi/shared';
+import type { RuntimeMessage } from '@parchi/shared';
 
 const colors = {
   info: '\x1b[36m',

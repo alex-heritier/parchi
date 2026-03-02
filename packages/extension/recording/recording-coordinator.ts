@@ -1,9 +1,4 @@
-import type {
-  RecordedContext,
-  RecordingEvent,
-  RecordingScreenshot,
-  RecordingState,
-} from '../../shared/src/recording.js';
+import type { RecordedContext, RecordingEvent, RecordingScreenshot, RecordingState } from '@parchi/shared';
 
 const MAX_DURATION_MS = 60_000;
 const SCREENSHOT_INTERVAL_MS = 3_000;

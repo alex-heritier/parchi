@@ -1,10 +1,5 @@
+import { type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, isJsonRpcRequest } from '@parchi/shared';
 import { WebSocket } from 'ws';
-import {
-  type JsonRpcNotification,
-  type JsonRpcRequest,
-  type JsonRpcResponse,
-  isJsonRpcRequest,
-} from '../../shared/src/json-rpc.js';
 import { loadElectronAgentConfig } from './configs.js';
 import type { RelayTransport } from './interfaces.js';
 import { executeElectronTool, getElectronToolDefinitions } from './logic/tools.js';

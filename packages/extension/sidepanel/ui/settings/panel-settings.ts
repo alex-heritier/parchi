@@ -1,5 +1,5 @@
-import { DEFAULT_AGENT_SYSTEM_PROMPT } from '../../../../shared/src/prompts.js';
-import { PARCHI_STORAGE_KEYS } from '../../../../shared/src/settings.js';
+import { DEFAULT_AGENT_SYSTEM_PROMPT } from '@parchi/shared';
+import { PARCHI_STORAGE_KEYS } from '@parchi/shared';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 

@@ -13,6 +13,7 @@
     "@ai-sdk/openai": "3.0.13",
     "@ai-sdk/openai-compatible": "2.0.16",
     "@ai-sdk/provider": "3.0.4",
+    "@parchi/shared": "*",
     "ai": "6.0.42",
     "convex": "1.31.7"
   }

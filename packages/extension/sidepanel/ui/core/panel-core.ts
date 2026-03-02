@@ -1,4 +1,4 @@
-import { isRuntimeMessage } from '../../../../shared/src/runtime-messages.js';
+import { isRuntimeMessage } from '@parchi/shared';
 import { createMessage, normalizeConversationHistory } from '../../../ai/message-schema.js';
 import type { Message } from '../../../ai/message-schema.js';
 import { appendTrace, pruneOldTraces } from '../chat/trace-store.js';

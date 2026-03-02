@@ -1,5 +1,5 @@
-import { escapeAttribute, escapeHtml, escapeHtmlBasic } from '../../../../shared/src/utils/html.js';
-import { safeJsonStringify as safeJsonStringifyFn } from '../../../../shared/src/utils/json.js';
+import { escapeAttribute, escapeHtml, escapeHtmlBasic } from '@parchi/shared';
+import { safeJsonStringify as safeJsonStringifyFn } from '@parchi/shared';
 import { SidePanelUI } from './panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 

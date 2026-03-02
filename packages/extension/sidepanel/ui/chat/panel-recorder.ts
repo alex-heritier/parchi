@@ -1,4 +1,4 @@
-import type { RecordedContext, RecordingEvent, RecordingScreenshot } from '../../../../shared/src/recording.js';
+import type { RecordedContext, RecordingEvent, RecordingScreenshot } from '@parchi/shared';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 

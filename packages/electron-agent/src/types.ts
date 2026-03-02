@@ -1,4 +1,4 @@
-import type { ToolDefinition } from '../../shared/src/tools.js';
+import type { ToolDefinition } from '@parchi/shared';
 
 export type RelayConnectionConfig = {
   relayUrl: string;

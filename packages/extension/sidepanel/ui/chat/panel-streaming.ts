@@ -1,4 +1,4 @@
-import type { RunPlan } from '../../../../shared/src/plan.js';
+import type { RunPlan } from '@parchi/shared';
 import { dedupeThinking, extractThinking } from '../../../ai/message-utils.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 

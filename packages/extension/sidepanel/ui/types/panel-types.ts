@@ -1,1 +1,1 @@
-export type { UsagePayload, Usage as UsageStats } from '../../../../shared/src/usage.js';
+export type { UsagePayload, Usage as UsageStats } from '@parchi/shared';

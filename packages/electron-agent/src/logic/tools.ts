@@ -1,4 +1,4 @@
-import type { ToolDefinition } from '../../../shared/src/tools.js';
+import type { ToolDefinition } from '@parchi/shared';
 import { runAgentBrowserCommand } from '../helpers/agent-browser.js';
 import { launchElectronApp } from '../helpers/launch.js';
 import type { ElectronToolContext, JsonRecord } from '../types.js';
