@@ -15,6 +15,7 @@ import {
 } from './store.js';
 import type { DeviceCodeResponse, OAuthProviderKey, OAuthProviderState, OAuthTokenSet } from './types.js';
 
+import { prioritizeOAuthModelCandidates } from './model-candidates.js';
 import {
   fetchAnthropicModels,
   fetchCopilotModels,
@@ -191,7 +192,10 @@ export async function fetchProviderModels(key: OAuthProviderKey): Promise<string
 
     const discoveredModels = normalizeOAuthModelIdsForProvider(key, models);
     if (discoveredModels.length > 0) {
-      return discoveredModels;
+      const prioritizedModels = prioritizeOAuthModelCandidates(key, discoveredModels, staticModels);
+      if (prioritizedModels.length > 0) {
+        return prioritizedModels;
+      }
     }
     return staticModels;
   } catch (err) {

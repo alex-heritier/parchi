@@ -69,6 +69,10 @@ export async function syncOAuthProfiles(ui: SidePanelUI): Promise<void> {
       const currentModel = String(existing?.model || '').trim();
       const normalizedModel = normalizeOAuthModelIdForProvider(config.key, currentModel);
       const nextModel = normalizedModel || defaultModel;
+      if (String(existing?.apiKey || '').trim()) {
+        existing.apiKey = '';
+        changed = true;
+      }
       if (nextModel && nextModel !== currentModel) {
         existing.model = nextModel;
         const matchedContextWindow = config.models.find((model) => model.id === nextModel)?.contextWindow;

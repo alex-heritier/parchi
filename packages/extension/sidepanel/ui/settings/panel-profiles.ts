@@ -305,6 +305,9 @@ sidePanelProto.editProfile = function editProfile(name: string, silent = false) 
   if (this.elements.profileEditorApiKey && !isOAuth) {
     this.elements.profileEditorApiKey.value = config.apiKey || '';
   }
+  if (this.elements.profileEditorApiKey && isOAuth) {
+    this.elements.profileEditorApiKey.value = '';
+  }
   if (this.elements.profileEditorModelInput) {
     this.elements.profileEditorModelInput.value = config.model || '';
   }
@@ -369,9 +372,10 @@ sidePanelProto.collectProfileEditorData = function collectProfileEditorData() {
     ''
   ).trim();
   const model = provider.endsWith('-oauth') ? normalizeOAuthModelIdForProvider(provider, rawModel) : rawModel;
+  const isOAuth = provider.endsWith('-oauth');
   return {
     provider,
-    apiKey: this.elements.profileEditorApiKey.value,
+    apiKey: isOAuth ? '' : this.elements.profileEditorApiKey.value,
     model,
     customEndpoint: this.elements.profileEditorEndpoint.value,
     extraHeaders: (() => {

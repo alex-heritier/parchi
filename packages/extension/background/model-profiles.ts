@@ -127,15 +127,15 @@ export function resolveRuntimeModelProfile(profile: Record<string, any>, setting
       errorMessage: 'No model configured. Open Settings and choose a model to continue.',
     };
   }
-  if (hasOwnApiKey(profile)) {
-    return { allowed: true, route: 'byok', profile };
-  }
   // OAuth subscription providers (e.g. claude-oauth, codex-oauth)
   const provider = String(profile?.provider || '')
     .trim()
     .toLowerCase();
   if (provider.endsWith('-oauth')) {
     return { allowed: true, route: 'oauth', profile };
+  }
+  if (hasOwnApiKey(profile)) {
+    return { allowed: true, route: 'byok', profile };
   }
   if (!hasActivePaidSubscription(settings)) {
     return {

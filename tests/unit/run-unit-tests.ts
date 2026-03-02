@@ -21,6 +21,11 @@ import {
 import type { Message } from '../../packages/extension/ai/message-schema.js';
 import { extractThinking } from '../../packages/extension/ai/message-utils.js';
 import { createExponentialBackoff, isValidFinalResponse } from '../../packages/extension/ai/retry-engine.js';
+import { resolveRuntimeModelProfile } from '../../packages/extension/background/model-profiles.js';
+import {
+  isLikelyTextGenerationModelId,
+  prioritizeOAuthModelCandidates,
+} from '../../packages/extension/oauth/model-candidates.js';
 import { normalizeOAuthModelIdForProvider } from '../../packages/extension/oauth/model-normalization.js';
 
 import { buildRunPlan, normalizePlanStatus, normalizePlanSteps } from '@parchi/shared';
@@ -530,6 +535,58 @@ function testOAuthModelNormalization(runner: TestRunner) {
   });
 }
 
+function testOAuthModelCandidates(runner: TestRunner) {
+  log('\n=== Testing OAuth Model Candidate Prioritization ===', 'info');
+
+  runner.test('Non-text model IDs are filtered out', () => {
+    runner.assertFalse(isLikelyTextGenerationModelId('codex', 'text-embedding-3-large'));
+    runner.assertFalse(isLikelyTextGenerationModelId('codex', 'gpt-image-1'));
+    runner.assertTrue(isLikelyTextGenerationModelId('codex', 'gpt-4o'));
+    runner.assertTrue(isLikelyTextGenerationModelId('copilot', 'claude-sonnet-4'));
+  });
+
+  runner.test('Known supported OAuth models are prioritized when discovered list is noisy', () => {
+    const prioritized = prioritizeOAuthModelCandidates(
+      'codex',
+      ['babbage-002', 'text-embedding-3-small', 'gpt-4o-mini', 'gpt-4o'],
+      ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
+    );
+    runner.assertEqual(prioritized[0], 'gpt-4o');
+    runner.assertTrue(prioritized.includes('gpt-4o-mini'));
+    runner.assertFalse(prioritized.includes('text-embedding-3-small'));
+  });
+}
+
+function testRuntimeModelProfileRouting(runner: TestRunner) {
+  log('\n=== Testing Runtime Model Profile Routing ===', 'info');
+
+  runner.test('OAuth profiles route to oauth even when stale apiKey exists', () => {
+    const result = resolveRuntimeModelProfile(
+      {
+        provider: 'copilot-oauth',
+        apiKey: 'stale-key-should-not-force-byok',
+        model: 'claude-sonnet-4',
+      },
+      {},
+    );
+    runner.assertTrue(result.allowed);
+    runner.assertEqual(result.route, 'oauth');
+  });
+
+  runner.test('BYOK profiles still route to byok', () => {
+    const result = resolveRuntimeModelProfile(
+      {
+        provider: 'openai',
+        apiKey: 'sk-test',
+        model: 'gpt-4o-mini',
+      },
+      {},
+    );
+    runner.assertTrue(result.allowed);
+    runner.assertEqual(result.route, 'byok');
+  });
+}
+
 // Test Message Schema
 function testMessageSchema(runner: TestRunner) {
   log('\n=== Testing Message Schema ===', 'info');
@@ -847,6 +904,8 @@ function main() {
   testErrorHandling(runner);
   testApiErrorClassification(runner);
   testOAuthModelNormalization(runner);
+  testOAuthModelCandidates(runner);
+  testRuntimeModelProfileRouting(runner);
   testMessageSchema(runner);
 
   testConversationCompaction(runner);
