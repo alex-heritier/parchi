@@ -140,6 +140,14 @@ PARCHI_RELAY_TOKEN=<TOKEN> npm run relay:daemon
 PARCHI_RELAY_TOKEN=<TOKEN> npm run electron:agent
 ```
 
+Managed helper (recommended):
+
+```bash
+npm run electron:secure -- start
+npm run electron:secure -- status
+npm run electron:secure -- stop
+```
+
 Then select the Electron agent with:
 
 ```bash

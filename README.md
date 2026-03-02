@@ -297,6 +297,15 @@ npm run relay -- tool electron.connect --args='{\"cdpEndpoint\":\"9222\"}'
 npm run relay -- tool electron.snapshot --args='{\"interactive\":true}'
 ```
 
+Managed mode (recommended once relay secure is configured):
+
+```bash
+# Reads relay token/url from ~/.parchi/relay-secure.json
+npm run electron:secure -- start
+npm run electron:secure -- status
+npm run electron:secure -- stop
+```
+
 Direct mode:
 
 ```bash
