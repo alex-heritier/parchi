@@ -1409,6 +1409,35 @@ export class BackgroundService {
         let lastModelError: unknown = null;
         let refreshedProxyAuthOnce = false;
         const maxEmptyBodyRetriesPerModel = 2;
+        const loadOAuthFallbackCandidates = async (failedModelId: string) => {
+          if (!oauthProviderKey || oauthFallbackCandidatesLoaded) return 0;
+          oauthFallbackCandidatesLoaded = true;
+          try {
+            const providerModelIds = await fetchProviderModels(oauthProviderKey);
+            const currentRetrySet = new Set(
+              modelRetryOrder.map((id) =>
+                String(id || '')
+                  .trim()
+                  .toLowerCase(),
+              ),
+            );
+            const nextCandidates = providerModelIds
+              .map((id) => String(id || '').trim())
+              .filter((id) => id.length > 0 && !currentRetrySet.has(id.toLowerCase()))
+              .slice(0, 16);
+            if (nextCandidates.length > 0) {
+              modelRetryOrder.push(...nextCandidates);
+              this.sendRuntime(runMeta, {
+                type: 'run_warning',
+                message: `Model "${failedModelId}" unavailable. Loaded ${nextCandidates.length} fallback model candidate(s) from ${oauthProviderKey} OAuth.`,
+              });
+            }
+            return nextCandidates.length;
+          } catch (oauthModelError) {
+            console.warn('[oauth-fallback] Failed to load OAuth fallback model candidates:', oauthModelError);
+            return 0;
+          }
+        };
 
         for (let idx = 0; idx < modelRetryOrder.length; idx += 1) {
           modelAttempts += 1;
@@ -1427,6 +1456,25 @@ export class BackgroundService {
           while (true) {
             try {
               const pass = await runModelPass(messages);
+              const hasTextOutput = String(pass.text || '').trim().length > 0;
+              const hasToolOutput = Array.isArray(pass.toolResults) && pass.toolResults.length > 0;
+              const usageInputTokens = Number(pass.totalUsage?.inputTokens || 0);
+              const usageOutputTokens = Number(pass.totalUsage?.outputTokens || 0);
+              const looksLikeSilentModelFailure =
+                !hasTextOutput && !hasToolOutput && usageInputTokens === 0 && usageOutputTokens === 0;
+
+              if (looksLikeSilentModelFailure && oauthProviderKey) {
+                await loadOAuthFallbackCandidates(activeModelId);
+                if (idx < modelRetryOrder.length - 1) {
+                  this.sendRuntime(runMeta, {
+                    type: 'run_warning',
+                    message: `Model "${activeModelId}" produced no output. Retrying with another ${oauthProviderKey} model.`,
+                  });
+                  lastModelError = new Error(`Model "${activeModelId}" produced no output.`);
+                  break;
+                }
+              }
+
               if (idx > 0) {
                 await persistRecoveredModelSelection(candidateModelId);
               }
@@ -1467,31 +1515,8 @@ export class BackgroundService {
                 continue;
               }
 
-              if (classified.category === 'model' && oauthProviderKey && !oauthFallbackCandidatesLoaded) {
-                oauthFallbackCandidatesLoaded = true;
-                try {
-                  const providerModelIds = await fetchProviderModels(oauthProviderKey);
-                  const currentRetrySet = new Set(
-                    modelRetryOrder.map((id) =>
-                      String(id || '')
-                        .trim()
-                        .toLowerCase(),
-                    ),
-                  );
-                  const nextCandidates = providerModelIds
-                    .map((id) => String(id || '').trim())
-                    .filter((id) => id.length > 0 && !currentRetrySet.has(id.toLowerCase()))
-                    .slice(0, 16);
-                  if (nextCandidates.length > 0) {
-                    modelRetryOrder.push(...nextCandidates);
-                    this.sendRuntime(runMeta, {
-                      type: 'run_warning',
-                      message: `Model "${activeModelId}" unavailable. Loaded ${nextCandidates.length} fallback model candidate(s) from ${oauthProviderKey} OAuth.`,
-                    });
-                  }
-                } catch (oauthModelError) {
-                  console.warn('[oauth-fallback] Failed to load OAuth fallback model candidates:', oauthModelError);
-                }
+              if (classified.category === 'model' && oauthProviderKey) {
+                await loadOAuthFallbackCandidates(activeModelId);
               }
 
               if (classified.category !== 'model') {
