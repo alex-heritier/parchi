@@ -28,6 +28,118 @@ const resizeProfilePromptInput = (textarea: HTMLTextAreaElement | null) => {
   textarea.style.overflowY = textarea.scrollHeight > 500 ? 'auto' : 'hidden';
 };
 
+type BooleanBinding = {
+  elementKey: string;
+  configKey: string;
+  defaultTrue: boolean;
+};
+
+type NumberBinding = {
+  elementKey: string;
+  configKey: string;
+  fallback: number;
+  parseMode: 'int' | 'float';
+};
+
+const PROFILE_EDITOR_BOOLEAN_BINDINGS: BooleanBinding[] = [
+  { elementKey: 'profileEditorEnableScreenshots', configKey: 'enableScreenshots', defaultTrue: false },
+  { elementKey: 'profileEditorSendScreenshots', configKey: 'sendScreenshotsAsImages', defaultTrue: false },
+  { elementKey: 'profileEditorShowThinking', configKey: 'showThinking', defaultTrue: true },
+  { elementKey: 'profileEditorStreamResponses', configKey: 'streamResponses', defaultTrue: true },
+  { elementKey: 'profileEditorAutoScroll', configKey: 'autoScroll', defaultTrue: true },
+  { elementKey: 'profileEditorConfirmActions', configKey: 'confirmActions', defaultTrue: true },
+  { elementKey: 'profileEditorSaveHistory', configKey: 'saveHistory', defaultTrue: true },
+];
+
+const PROFILE_EDITOR_NUMBER_BINDINGS: NumberBinding[] = [
+  { elementKey: 'profileEditorTemperature', configKey: 'temperature', fallback: 0.7, parseMode: 'float' },
+  { elementKey: 'profileEditorMaxTokens', configKey: 'maxTokens', fallback: 2048, parseMode: 'int' },
+  { elementKey: 'profileEditorContextLimit', configKey: 'contextLimit', fallback: 200000, parseMode: 'int' },
+  { elementKey: 'profileEditorTimeout', configKey: 'timeout', fallback: 30000, parseMode: 'int' },
+];
+
+const SETTINGS_FORM_BOOLEAN_BINDINGS: BooleanBinding[] = [
+  { elementKey: 'enableScreenshots', configKey: 'enableScreenshots', defaultTrue: false },
+  { elementKey: 'sendScreenshotsAsImages', configKey: 'sendScreenshotsAsImages', defaultTrue: false },
+  { elementKey: 'streamResponses', configKey: 'streamResponses', defaultTrue: true },
+  { elementKey: 'showThinking', configKey: 'showThinking', defaultTrue: true },
+  { elementKey: 'autoScroll', configKey: 'autoScroll', defaultTrue: true },
+  { elementKey: 'confirmActions', configKey: 'confirmActions', defaultTrue: true },
+  { elementKey: 'saveHistory', configKey: 'saveHistory', defaultTrue: true },
+];
+
+const SETTINGS_FORM_NUMBER_BINDINGS: NumberBinding[] = [
+  { elementKey: 'temperature', configKey: 'temperature', fallback: 0.7, parseMode: 'float' },
+  { elementKey: 'maxTokens', configKey: 'maxTokens', fallback: 4096, parseMode: 'int' },
+  { elementKey: 'contextLimit', configKey: 'contextLimit', fallback: 200000, parseMode: 'int' },
+  { elementKey: 'timeout', configKey: 'timeout', fallback: 30000, parseMode: 'int' },
+];
+
+const readControlValue = (elements: Record<string, any>, elementKey: string) => {
+  const control = elements[elementKey];
+  return typeof control?.value === 'string' ? control.value : '';
+};
+
+const setControlValue = (elements: Record<string, any>, elementKey: string, value: string | number) => {
+  const control = elements[elementKey];
+  if (!control || typeof control !== 'object' || !('value' in control)) return;
+  control.value = String(value);
+};
+
+const parseNumeric = (raw: string, fallback: number, parseMode: 'int' | 'float') => {
+  const parsed = parseMode === 'float' ? Number.parseFloat(raw) : Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const toBooleanWithDefault = (value: unknown, defaultTrue: boolean) => (defaultTrue ? value !== false : value === true);
+
+const applyBooleanBindings = (
+  elements: Record<string, any>,
+  config: Record<string, any>,
+  bindings: BooleanBinding[],
+) => {
+  bindings.forEach(({ elementKey, configKey, defaultTrue }) => {
+    setControlValue(elements, elementKey, toBooleanWithDefault(config[configKey], defaultTrue) ? 'true' : 'false');
+  });
+};
+
+const readBooleanBindings = (elements: Record<string, any>, bindings: BooleanBinding[]) => {
+  const result: Record<string, boolean> = {};
+  bindings.forEach(({ elementKey, configKey, defaultTrue }) => {
+    const raw = readControlValue(elements, elementKey);
+    result[configKey] = raw ? raw === 'true' : defaultTrue;
+  });
+  return result;
+};
+
+const applyNumberBindings = (elements: Record<string, any>, config: Record<string, any>, bindings: NumberBinding[]) => {
+  bindings.forEach(({ elementKey, configKey, fallback, parseMode }) => {
+    const rawValue = config[configKey];
+    const rawString =
+      typeof rawValue === 'number' ? String(rawValue) : typeof rawValue === 'string' && rawValue.trim() ? rawValue : '';
+    const numeric = parseNumeric(rawString, fallback, parseMode);
+    setControlValue(elements, elementKey, numeric);
+  });
+};
+
+const readNumberBindings = (elements: Record<string, any>, bindings: NumberBinding[]) => {
+  const result: Record<string, number> = {};
+  bindings.forEach(({ elementKey, configKey, fallback, parseMode }) => {
+    result[configKey] = parseNumeric(readControlValue(elements, elementKey), fallback, parseMode);
+  });
+  return result;
+};
+
+const renameProfileReferences = (ui: SidePanelUI, sourceName: string, targetName: string) => {
+  if (ui.currentConfig === sourceName) ui.currentConfig = targetName;
+  ui.profileEditorTarget = targetName;
+  if (ui.elements.visionProfile?.value === sourceName) ui.elements.visionProfile.value = targetName;
+  if (ui.elements.orchestratorProfile?.value === sourceName) ui.elements.orchestratorProfile.value = targetName;
+  ui.auxAgentProfiles = Array.from(
+    new Set(ui.auxAgentProfiles.map((profileName) => (profileName === sourceName ? targetName : profileName))),
+  );
+};
+
 sidePanelProto.createNewConfig = async function createNewConfig(name?: string) {
   // Read from whichever input has a value
   const inputA = this.elements.newProfileInput;
@@ -351,32 +463,16 @@ sidePanelProto.editProfile = function editProfile(name: string, silent = false) 
   if (this.elements.profileEditorEndpoint) this.elements.profileEditorEndpoint.value = config.customEndpoint || '';
   if (this.elements.profileEditorHeaders)
     this.elements.profileEditorHeaders.value = formatHeadersJson(config.extraHeaders) || '';
-  if (this.elements.profileEditorTemperature) {
-    this.elements.profileEditorTemperature.value = config.temperature ?? 0.7;
-    if (this.elements.profileEditorTemperatureValue) {
-      this.elements.profileEditorTemperatureValue.textContent = this.elements.profileEditorTemperature.value;
-    }
+  applyNumberBindings(this.elements, config, PROFILE_EDITOR_NUMBER_BINDINGS);
+  if (this.elements.profileEditorTemperatureValue) {
+    this.elements.profileEditorTemperatureValue.textContent = readControlValue(
+      this.elements,
+      'profileEditorTemperature',
+    );
   }
-  if (this.elements.profileEditorMaxTokens) this.elements.profileEditorMaxTokens.value = config.maxTokens || 2048;
-  if (this.elements.profileEditorContextLimit)
-    this.elements.profileEditorContextLimit.value = config.contextLimit || 200000;
-  if (this.elements.profileEditorTimeout) this.elements.profileEditorTimeout.value = config.timeout || 30000;
-  if (this.elements.profileEditorEnableScreenshots)
-    this.elements.profileEditorEnableScreenshots.value = config.enableScreenshots ? 'true' : 'false';
-  if (this.elements.profileEditorSendScreenshots)
-    this.elements.profileEditorSendScreenshots.value = config.sendScreenshotsAsImages ? 'true' : 'false';
+  applyBooleanBindings(this.elements, config, PROFILE_EDITOR_BOOLEAN_BINDINGS);
   if (this.elements.profileEditorScreenshotQuality)
     this.elements.profileEditorScreenshotQuality.value = config.screenshotQuality || 'high';
-  if (this.elements.profileEditorShowThinking)
-    this.elements.profileEditorShowThinking.value = config.showThinking !== false ? 'true' : 'false';
-  if (this.elements.profileEditorStreamResponses)
-    this.elements.profileEditorStreamResponses.value = config.streamResponses !== false ? 'true' : 'false';
-  if (this.elements.profileEditorAutoScroll)
-    this.elements.profileEditorAutoScroll.value = config.autoScroll !== false ? 'true' : 'false';
-  if (this.elements.profileEditorConfirmActions)
-    this.elements.profileEditorConfirmActions.value = config.confirmActions !== false ? 'true' : 'false';
-  if (this.elements.profileEditorSaveHistory)
-    this.elements.profileEditorSaveHistory.value = config.saveHistory !== false ? 'true' : 'false';
   if (this.elements.profileEditorPrompt)
     this.elements.profileEditorPrompt.value = config.systemPrompt || this.getDefaultSystemPrompt();
   resizeProfilePromptInput(this.elements.profileEditorPrompt);
@@ -399,6 +495,8 @@ sidePanelProto.collectProfileEditorData = function collectProfileEditorData() {
   ).trim();
   const model = provider.endsWith('-oauth') ? normalizeOAuthModelIdForProvider(provider, rawModel) : rawModel;
   const isOAuth = provider.endsWith('-oauth');
+  const numericValues = readNumberBindings(this.elements, PROFILE_EDITOR_NUMBER_BINDINGS);
+  const booleanValues = readBooleanBindings(this.elements, PROFILE_EDITOR_BOOLEAN_BINDINGS);
   return {
     provider,
     apiKey: isOAuth ? '' : this.elements.profileEditorApiKey.value,
@@ -413,18 +511,9 @@ sidePanelProto.collectProfileEditorData = function collectProfileEditorData() {
         return {};
       }
     })(),
-    temperature: Number.parseFloat(this.elements.profileEditorTemperature.value) || 0.7,
-    maxTokens: Number.parseInt(this.elements.profileEditorMaxTokens.value) || 2048,
-    contextLimit: Number.parseInt(this.elements.profileEditorContextLimit?.value || '') || 200000,
-    timeout: Number.parseInt(this.elements.profileEditorTimeout.value) || 30000,
-    enableScreenshots: this.elements.profileEditorEnableScreenshots.value === 'true',
-    sendScreenshotsAsImages: this.elements.profileEditorSendScreenshots.value === 'true',
+    ...numericValues,
+    ...booleanValues,
     screenshotQuality: this.elements.profileEditorScreenshotQuality.value || 'high',
-    showThinking: this.elements.profileEditorShowThinking?.value !== 'false',
-    streamResponses: this.elements.profileEditorStreamResponses?.value !== 'false',
-    autoScroll: this.elements.profileEditorAutoScroll?.value !== 'false',
-    confirmActions: this.elements.profileEditorConfirmActions?.value !== 'false',
-    saveHistory: this.elements.profileEditorSaveHistory?.value !== 'false',
     systemPrompt: this.elements.profileEditorPrompt.value || this.getDefaultSystemPrompt(),
   };
 };
@@ -466,15 +555,7 @@ sidePanelProto.saveProfileEdits = async function saveProfileEdits() {
     this.configs[newName] = updated;
     delete this.configs[target];
 
-    // Update references
-    if (this.currentConfig === target) this.currentConfig = newName;
-    this.profileEditorTarget = newName;
-
-    // Update role selectors if they referenced the old name
-    if (this.elements.visionProfile?.value === target) this.elements.visionProfile.value = newName;
-    if (this.elements.orchestratorProfile?.value === target) this.elements.orchestratorProfile.value = newName;
-    const auxIdx = this.auxAgentProfiles.indexOf(target);
-    if (auxIdx !== -1) this.auxAgentProfiles[auxIdx] = newName;
+    renameProfileReferences(this, target, newName);
 
     if (this.elements.profileEditorTitle) this.elements.profileEditorTitle.textContent = `Editing: ${newName}`;
     this.refreshConfigDropdown();
@@ -506,27 +587,12 @@ sidePanelProto.populateFormFromConfig = function populateFormFromConfig(config: 
   if (this.elements.customHeaders) this.elements.customHeaders.value = formatHeadersJson(config.extraHeaders) || '';
   if (this.elements.systemPrompt)
     this.elements.systemPrompt.value = config.systemPrompt || this.getDefaultSystemPrompt();
-  if (this.elements.temperature) {
-    this.elements.temperature.value = config.temperature !== undefined ? config.temperature : 0.7;
-    if (this.elements.temperatureValue) {
-      this.elements.temperatureValue.textContent = this.elements.temperature.value;
-    }
+  applyNumberBindings(this.elements, config, SETTINGS_FORM_NUMBER_BINDINGS);
+  if (this.elements.temperatureValue) {
+    this.elements.temperatureValue.textContent = readControlValue(this.elements, 'temperature');
   }
-  if (this.elements.maxTokens) this.elements.maxTokens.value = config.maxTokens || 4096;
-  if (this.elements.contextLimit) this.elements.contextLimit.value = config.contextLimit || 200000;
-  if (this.elements.timeout) this.elements.timeout.value = config.timeout || 30000;
-  if (this.elements.enableScreenshots)
-    this.elements.enableScreenshots.value = config.enableScreenshots ? 'true' : 'false';
-  if (this.elements.sendScreenshotsAsImages)
-    this.elements.sendScreenshotsAsImages.value = config.sendScreenshotsAsImages ? 'true' : 'false';
+  applyBooleanBindings(this.elements, config, SETTINGS_FORM_BOOLEAN_BINDINGS);
   if (this.elements.screenshotQuality) this.elements.screenshotQuality.value = config.screenshotQuality || 'high';
-  if (this.elements.streamResponses)
-    this.elements.streamResponses.value = config.streamResponses !== false ? 'true' : 'false';
-  if (this.elements.showThinking) this.elements.showThinking.value = config.showThinking !== false ? 'true' : 'false';
-  if (this.elements.autoScroll) this.elements.autoScroll.value = config.autoScroll !== false ? 'true' : 'false';
-  if (this.elements.confirmActions)
-    this.elements.confirmActions.value = config.confirmActions !== false ? 'true' : 'false';
-  if (this.elements.saveHistory) this.elements.saveHistory.value = config.saveHistory !== false ? 'true' : 'false';
 };
 
 sidePanelProto.setActiveConfig = function setActiveConfig(name: string, quiet = false) {
