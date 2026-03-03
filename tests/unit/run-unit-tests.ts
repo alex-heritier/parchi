@@ -13,6 +13,7 @@ import { runConversationCompactionSuite } from './suites/conversation-compaction
 import { runErrorHandlingSuite } from './suites/error-handling.test.js';
 import { runInputValidationSuite } from './suites/input-validation.test.js';
 import { runMessageSchemaSuite } from './suites/message-schema.test.js';
+import { runModelMessageConvertSuite } from './suites/model-message-convert.test.js';
 import { runOauthCandidatesSuite } from './suites/oauth-candidates.test.js';
 import { runOauthModelNormalizationSuite } from './suites/oauth-model-normalization.test.js';
 import { runPlanNormalizationSuite } from './suites/plan-normalization.test.js';
@@ -41,6 +42,7 @@ function main() {
   runRuntimeProfileRoutingSuite(runner);
   runCodexOauthConfigSuite(runner);
   runMessageSchemaSuite(runner);
+  runModelMessageConvertSuite(runner);
   runConversationCompactionSuite(runner);
   runThinkingExtractionSuite(runner);
   runPlanNormalizationSuite(runner);

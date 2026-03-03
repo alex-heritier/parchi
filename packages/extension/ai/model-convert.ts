@@ -23,7 +23,12 @@ export function toModelMessages(history: Message[] = []): ModelMessage[] {
     }
   }
 
-  return normalized
+  const expanded = normalized.flatMap((msg) => {
+    if (msg.role !== 'tool') return [msg];
+    return expandToolMessage(msg);
+  });
+
+  return expanded
     .filter((msg) => {
       if (!msg || !msg.role) return false;
       // Drop tool result messages whose toolCallId doesn't match any known tool call
@@ -110,6 +115,41 @@ function normalizeUserContent(content: MessageContent): UserContent {
   if (typeof content === 'string') return content;
   if (content && typeof content === 'object') return JSON.stringify(content);
   return '';
+}
+
+function expandToolMessage(message: Message): Message[] {
+  const directToolCallId = message.toolCallId || message.tool_call_id;
+  if (directToolCallId) return [message];
+
+  const entries: Message[] = [];
+  const fromPart = (part: unknown) => {
+    if (!part || typeof part !== 'object') return;
+    const rawPart = part as Record<string, unknown>;
+    const toolCallId = rawPart.toolCallId || rawPart.tool_call_id || rawPart.tool_use_id || rawPart.id;
+    if (typeof toolCallId !== 'string' || !toolCallId.trim()) return;
+    const toolName =
+      typeof rawPart.toolName === 'string'
+        ? rawPart.toolName
+        : typeof rawPart.name === 'string'
+          ? rawPart.name
+          : message.toolName || message.name || 'tool';
+    const output = rawPart.output ?? rawPart.result ?? rawPart.content ?? rawPart;
+    entries.push({
+      role: 'tool',
+      toolCallId: toolCallId.trim(),
+      toolName,
+      name: toolName,
+      content: output as MessageContent,
+    });
+  };
+
+  if (Array.isArray(message.content)) {
+    message.content.forEach((part) => fromPart(part));
+  } else {
+    fromPart(message.content);
+  }
+
+  return entries.length > 0 ? entries : [message];
 }
 
 function normalizeAssistantContent(message: Message): AssistantContent {
