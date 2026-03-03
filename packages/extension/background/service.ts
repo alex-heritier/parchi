@@ -1756,27 +1756,45 @@ export class BackgroundService {
           content: finalText,
           thinking: reasoningText || null,
         };
-        if (toolResults.length > 0) {
-          assistantMsg.toolCalls = toolResults.map((r) => ({
-            id: r.toolCallId || `tc_${Date.now()}`,
-            name: r.toolName || 'tool',
+        const normalizedToolResults: Array<Record<string, any> & { toolCallId: string; toolName: string }> =
+          toolResults.length > 0
+            ? toolResults.map((resultItem, index) => ({
+                ...resultItem,
+                toolCallId:
+                  typeof resultItem?.toolCallId === 'string' && resultItem.toolCallId.trim()
+                    ? resultItem.toolCallId
+                    : `tc_${Date.now()}_${index}`,
+                toolName:
+                  typeof resultItem?.toolName === 'string' && resultItem.toolName.trim() ? resultItem.toolName : 'tool',
+              }))
+            : [];
+        if (normalizedToolResults.length > 0) {
+          assistantMsg.toolCalls = normalizedToolResults.map((r) => ({
+            id: r.toolCallId,
+            name: r.toolName,
             args: r.input || r.args || {},
           }));
         }
         responseMessages = [assistantMsg];
-        if (toolResults.length > 0) {
-          responseMessages.push({
-            role: 'tool',
-            content: toolResults.map((resultItem) => ({
-              type: 'tool-result',
+        if (normalizedToolResults.length > 0) {
+          responseMessages.push(
+            ...normalizedToolResults.map((resultItem) => ({
+              role: 'tool' as const,
               toolCallId: resultItem.toolCallId,
               toolName: resultItem.toolName,
-              output:
-                resultItem.output && typeof resultItem.output === 'object'
-                  ? { type: 'json', value: resultItem.output }
-                  : { type: 'text', value: String(resultItem.output ?? '') },
+              content: [
+                {
+                  type: 'tool-result',
+                  toolCallId: resultItem.toolCallId,
+                  toolName: resultItem.toolName,
+                  output:
+                    resultItem.output && typeof resultItem.output === 'object'
+                      ? { type: 'json', value: resultItem.output }
+                      : { type: 'text', value: String(resultItem.output ?? '') },
+                },
+              ],
             })),
-          });
+          );
         }
 
         break;
