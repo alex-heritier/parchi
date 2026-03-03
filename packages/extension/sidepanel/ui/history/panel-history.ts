@@ -42,6 +42,10 @@ sidePanelProto.persistHistory = async function persistHistory() {
   const turns = Array.from(this.historyTurnMap.values())
     .filter((turn: any) => turn && typeof turn === 'object')
     .sort((a: any, b: any) => Number(a.startedAt || 0) - Number(b.startedAt || 0));
+  const contextTranscript = normalizeConversationHistory(
+    Array.isArray(this.contextHistory) ? (this.contextHistory.slice(-240) as Message[]) : [],
+    { addIds: false, addTimestamps: false },
+  );
 
   const entry = {
     id: this.sessionId,
@@ -50,6 +54,7 @@ sidePanelProto.persistHistory = async function persistHistory() {
     title: this.firstUserMessage || 'Session',
     messageCount: this.displayHistory.length,
     transcript: this.displayHistory.slice(-200),
+    contextTranscript,
     turns,
   };
 
@@ -181,9 +186,11 @@ sidePanelProto.loadSession = function loadSession(session: any) {
   this.recordScrollPosition();
 
   const transcript = normalizeTranscript(session.transcript);
+  const contextTranscriptRaw = normalizeTranscript(session.contextTranscript);
+  const normalizedContextTranscript = normalizeConversationHistory(contextTranscriptRaw as unknown as Message[]);
+  const normalizedTranscript = normalizeConversationHistory(transcript as unknown as Message[]);
   let turns = normalizeTranscript(session.turns);
   if (turns.length > 0 && transcript.length > 0) {
-    const normalizedTranscript = normalizeConversationHistory(transcript as unknown as Message[]);
     const userQueue = normalizedTranscript.filter((msg) => msg.role === 'user');
     const assistantQueue = normalizedTranscript.filter((msg) => msg.role === 'assistant');
     const takeUser = () => userQueue.shift();
@@ -235,7 +242,6 @@ sidePanelProto.loadSession = function loadSession(session: any) {
           const entry = createMessage({ role: 'user', content: userText });
           if (entry) {
             this.displayHistory.push(entry);
-            this.contextHistory.push(entry);
           }
         }
 
@@ -288,6 +294,11 @@ sidePanelProto.loadSession = function loadSession(session: any) {
         }
       });
 
+      if (normalizedContextTranscript.length > 0) {
+        this.contextHistory = normalizedContextTranscript;
+      } else {
+        this.contextHistory = normalizedTranscript;
+      }
       this.updateContextUsage();
       this.updateChatEmptyState();
       this.scrollToBottom({ force: true });
@@ -298,9 +309,8 @@ sidePanelProto.loadSession = function loadSession(session: any) {
   }
 
   if (transcript.length > 0) {
-    const normalized = normalizeConversationHistory(transcript || []);
-    this.displayHistory = normalized;
-    this.contextHistory = normalized;
+    this.displayHistory = normalizedTranscript;
+    this.contextHistory = normalizedContextTranscript.length > 0 ? normalizedContextTranscript : normalizedTranscript;
     const suffix = typeof crypto?.randomUUID === 'function' ? crypto.randomUUID() : String(Date.now());
     this.sessionId = session.id || `session-${suffix}`;
     this.firstUserMessage = session.title || '';
