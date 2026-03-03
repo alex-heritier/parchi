@@ -1,0 +1,62 @@
+import {
+  createMessage,
+  normalizeConversationHistory,
+  toProviderMessages,
+} from '../../../packages/extension/ai/message-schema.js';
+import type { Message } from '../../../packages/extension/ai/message-schema.js';
+import { type TestRunner, log } from '../shared/runner.js';
+
+export function runMessageSchemaSuite(runner: TestRunner) {
+  log('\n=== Testing Message Schema ===', 'info');
+
+  runner.test('createMessage builds canonical message', () => {
+    const msg = createMessage({ role: 'user', content: 'hello' });
+    if (!msg) {
+      throw new Error('Message should not be null');
+    }
+    runner.assertTrue(typeof msg.id === 'string', 'Message should have id');
+    runner.assertTrue(typeof msg.createdAt === 'string', 'Message should have createdAt');
+    runner.assertEqual(msg.role, 'user');
+    runner.assertEqual(msg.content, 'hello');
+  });
+
+  runner.test('normalizeConversationHistory filters invalid messages', () => {
+    const normalized = normalizeConversationHistory([
+      { role: 'user', content: 'ok' },
+      { role: 'invalid', content: 'skip' },
+      null,
+    ] as unknown as Message[]);
+    runner.assertEqual(normalized.length, 1);
+    runner.assertEqual(normalized[0].role, 'user');
+  });
+
+  runner.test('toProviderMessages serializes tool calls and results', () => {
+    const history: Message[] = [
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [{ id: 'call_1', name: 'click', args: { selector: '#a' } }],
+      },
+      {
+        role: 'tool',
+        content: { success: true },
+        toolCallId: 'call_1',
+      },
+    ];
+    const provider = toProviderMessages(history);
+    runner.assertTrue(Array.isArray(provider[0].tool_calls), 'tool_calls should be an array');
+    runner.assertTrue(typeof provider[0].tool_calls?.[0]?.function?.arguments === 'string', 'tool args serialized');
+    runner.assertEqual(provider[1].role, 'tool');
+    const toolContent =
+      typeof provider[1].content === 'string' ? provider[1].content : JSON.stringify(provider[1].content);
+    runner.assertTrue(toolContent.includes('success'));
+  });
+
+  runner.test('thinking metadata is preserved and not sent to provider', () => {
+    const history: Message[] = [{ role: 'assistant', content: 'Hello', thinking: 'Drafting response' }];
+    const normalized = normalizeConversationHistory(history);
+    runner.assertEqual(normalized[0]?.thinking, 'Drafting response');
+    const provider = toProviderMessages(normalized);
+    runner.assertFalse('thinking' in provider[0], 'Provider messages should not include thinking');
+  });
+}
