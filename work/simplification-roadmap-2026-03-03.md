@@ -129,3 +129,17 @@ Reduce complexity in the highest-churn/highest-risk modules while preserving beh
 - Prefer map-based dispatch with fallback behavior identical to current implementation.
 - Keep first patch as no-behavior-change extraction before deeper cleanup.
 - Add parity tests as each dispatcher/runner split lands.
+
+## Execution status (2026-03-03)
+
+### Completed
+- ✅ P5 unit test monolith split into shared runner + suites
+  - Commit: `ac7ecce`
+- ✅ P0 Phase A relay RPC switch extraction into handler map
+  - Commit: `0fd7c3c`
+
+### Next queued
+- ⏭️ P1 panel-core event/runtime split
+- ⏭️ P2 browser-tools registry extraction
+- ⏭️ P3 shared settings schema normalization
+- ⏭️ P0 Phase B runtime message dispatch extraction
