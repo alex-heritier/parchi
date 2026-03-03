@@ -397,15 +397,15 @@
 .agent-grid {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   margin-bottom: 10px;
 }
 
 .agent-card {
-  padding: 12px;
+  padding: 11px 12px;
   background: var(--card);
   border: 1px solid var(--ink-1);
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   cursor: pointer;
   transition: all 150ms ease;
   overflow: hidden;
@@ -417,7 +417,8 @@
 }
 
 .agent-card.editing {
-  border-color: rgb(var(--accent-rgb) / 0.3);
+  border-color: rgb(var(--accent-rgb) / 0.4);
+  box-shadow: 0 0 0 1px rgb(var(--accent-rgb) / 0.12);
 }
 
 .agent-card-header {
@@ -440,6 +441,12 @@
 .agent-card-header span {
   font-size: 12px;
   color: var(--muted);
+}
+
+.agent-card-editor-slot {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgb(var(--accent-rgb) / 0.18);
 }
 
 .agent-card-delete {
@@ -478,7 +485,7 @@
 
 .role-pill {
   display: inline-flex;
-  padding: 3px 10px;
+  padding: 3px 9px;
   font-size: 11px;
   background: var(--background);
   border: 1px solid var(--ink-1);
@@ -500,10 +507,16 @@
 }
 
 .role-pill.active {
-  background: transparent;
+  background: rgb(var(--accent-rgb) / 0.1);
   border-color: rgb(var(--accent-rgb) / 0.45);
   color: var(--accent);
-  box-shadow: 0 0 8px rgb(var(--accent-rgb) / 0.08);
+  box-shadow: 0 0 10px rgb(var(--accent-rgb) / 0.1);
+}
+
+.role-pill.main-pill.active {
+  border-color: rgb(var(--accent-rgb) / 0.62);
+  background: rgb(var(--accent-rgb) / 0.16);
+  color: var(--accent-light);
 }
 
 .profile-editor {
@@ -512,6 +525,12 @@
   border-radius: var(--radius-sm);
   padding: 12px;
   margin-top: 12px;
+}
+
+.profile-editor.profile-editor-inline {
+  margin-top: 0;
+  border-color: rgb(var(--accent-rgb) / 0.24);
+  background: var(--background);
 }
 
 .profile-editor .panel-header {
@@ -531,6 +550,17 @@
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin: 10px 0;
+}
+
+.profile-editor-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.profile-editor-actions .btn {
+  min-width: 88px;
 }
 
 .profile-system-prompt {

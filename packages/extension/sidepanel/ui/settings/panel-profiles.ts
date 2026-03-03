@@ -169,7 +169,8 @@ sidePanelProto.renderProfileGrid = function renderProfileGrid() {
   configs.forEach((name) => {
     const card = document.createElement('div');
     card.className = 'agent-card';
-    if (name === this.profileEditorTarget) {
+    const isEditing = name === this.profileEditorTarget;
+    if (isEditing) {
       card.classList.add('editing');
     }
     card.dataset.profile = name;
@@ -198,9 +199,34 @@ sidePanelProto.renderProfileGrid = function renderProfileGrid() {
           ${deleteBtn}
         </div>
         <div class="role-pills">${rolePills}</div>
+        ${isEditing ? '<div class="agent-card-editor-slot"></div>' : ''}
       `;
     this.elements.agentGrid.appendChild(card);
   });
+
+  this.mountProfileEditorInGrid?.();
+};
+
+sidePanelProto.mountProfileEditorInGrid = function mountProfileEditorInGrid() {
+  const editor = this.elements.profileEditor as HTMLElement | null;
+  const grid = this.elements.agentGrid as HTMLElement | null;
+  if (!editor || !grid) return;
+
+  const targetName = this.profileEditorTarget || this.currentConfig;
+  const cards = Array.from(grid.querySelectorAll<HTMLElement>('.agent-card'));
+  const targetCard = cards.find((card) => card.dataset.profile === targetName);
+  const targetSlot = targetCard?.querySelector<HTMLElement>('.agent-card-editor-slot');
+
+  if (!targetSlot) {
+    if (grid.nextElementSibling !== editor) {
+      grid.insertAdjacentElement('afterend', editor);
+    }
+    editor.classList.remove('profile-editor-inline');
+    return;
+  }
+
+  targetSlot.appendChild(editor);
+  editor.classList.add('profile-editor-inline');
 };
 
 sidePanelProto.getRoleLabel = function getRoleLabel(role: string) {

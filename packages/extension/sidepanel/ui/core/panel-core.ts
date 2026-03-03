@@ -282,6 +282,9 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
   document.getElementById('usageClearBtn')?.addEventListener('click', () => this.clearUsageData?.());
   this.elements.createProfileBtn?.addEventListener('click', () => this.createProfileFromInput());
   this.elements.agentGrid?.addEventListener('click', (event) => {
+    if ((event.target as HTMLElement | null)?.closest('.profile-editor')) {
+      return;
+    }
     const deleteBtn = (event.target as HTMLElement | null)?.closest('.agent-card-delete') as HTMLElement | null;
     if (deleteBtn) {
       event.stopPropagation();
@@ -592,6 +595,9 @@ export PARCHI_RELAY_PORT="${port}"`;
     }
   });
   this.elements.saveProfileBtn?.addEventListener('click', () => this.saveProfileEdits());
+  this.elements.profileEditorCancelBtn?.addEventListener('click', () =>
+    this.editProfile(this.profileEditorTarget || this.currentConfig, true),
+  );
   this.elements.refreshProfileJsonBtn?.addEventListener('click', () => this.refreshProfileJsonEditor());
   this.elements.copyProfileJsonBtn?.addEventListener('click', () => this.copyProfileJsonEditor());
   this.elements.applyProfileJsonBtn?.addEventListener('click', () => this.applyProfileJsonEditor());

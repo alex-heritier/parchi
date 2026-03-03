@@ -106,6 +106,7 @@ export const getSidePanelElements = (): SidePanelElements => ({
   profileEditorSaveHistory: byId<HTMLSelectElement>('profileEditorSaveHistory'),
   profileEditorPrompt: byId<HTMLTextAreaElement>('profileEditorPrompt'),
   saveProfileBtn: byId<HTMLButtonElement>('saveProfileBtn'),
+  profileEditorCancelBtn: byId<HTMLButtonElement>('profileEditorCancelBtn'),
   profileJsonEditor: byId<HTMLTextAreaElement>('profileJsonEditor'),
   refreshProfileJsonBtn: byId<HTMLButtonElement>('refreshProfileJsonBtn'),
   copyProfileJsonBtn: byId<HTMLButtonElement>('copyProfileJsonBtn'),
