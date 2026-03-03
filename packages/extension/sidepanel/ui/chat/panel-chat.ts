@@ -33,6 +33,23 @@ const sanitizeForMessaging = (value: unknown, depth = 0): unknown => {
   if (depth > 6) return '[truncated]';
 
   if (Array.isArray(value)) {
+    const looksLikeMessageHistory = value.every(
+      (entry) =>
+        entry &&
+        typeof entry === 'object' &&
+        !Array.isArray(entry) &&
+        ('role' in (entry as any) || 'content' in (entry as any)),
+    );
+    if (looksLikeMessageHistory) {
+      const historyLimit = 240;
+      const start = Math.max(0, value.length - historyLimit);
+      const out: unknown[] = [];
+      for (let i = start; i < value.length; i += 1) {
+        out.push(sanitizeForMessaging(value[i], depth + 1));
+      }
+      return out;
+    }
+
     const out: unknown[] = [];
     const limit = Math.min(value.length, 80);
     for (let i = 0; i < limit; i += 1) {

@@ -68,4 +68,33 @@ export function runModelMessageConvertSuite(runner: TestRunner) {
     const toolMessages = messages.filter((msg) => msg.role === 'tool');
     runner.assertEqual(toolMessages.length, 0, 'Unknown tool_call_id entries should be dropped');
   });
+
+  runner.test('Assistant tool calls without matching tool results are excluded', () => {
+    const history: Message[] = [
+      {
+        role: 'assistant',
+        content: 'Calling tools',
+        toolCalls: [
+          { id: 'present:1', name: 'getContent', args: {} },
+          { id: 'missing:2', name: 'scroll', args: { direction: 'down' } },
+        ],
+      },
+      {
+        role: 'tool',
+        toolCallId: 'present:1',
+        toolName: 'getContent',
+        content: { success: true },
+      },
+    ];
+
+    const messages = toModelMessages(history);
+    const assistant = messages.find((msg) => msg.role === 'assistant') as any;
+    const assistantContent = Array.isArray(assistant?.content) ? assistant.content : [];
+    const toolCallIds = assistantContent
+      .filter((part: any) => part?.type === 'tool-call')
+      .map((part: any) => String(part.toolCallId || ''));
+
+    runner.assertTrue(toolCallIds.includes('present:1'), 'Expected matched tool call to remain');
+    runner.assertFalse(toolCallIds.includes('missing:2'), 'Expected orphan tool call to be removed');
+  });
 }

@@ -13,12 +13,12 @@ import type { Message, MessageContent } from './message-schema.js';
 export function toModelMessages(history: Message[] = []): ModelMessage[] {
   const normalized = Array.isArray(history) ? history : [];
 
-  // Collect all tool call IDs from assistant messages so we can validate tool results
-  const validToolCallIds = new Set<string>();
+  // Collect all tool call IDs declared by assistant messages.
+  const assistantToolCallIds = new Set<string>();
   for (const msg of normalized) {
     if (msg.role === 'assistant' && Array.isArray(msg.toolCalls)) {
       for (const call of msg.toolCalls) {
-        if (call.id) validToolCallIds.add(call.id);
+        if (call.id) assistantToolCallIds.add(call.id);
       }
     }
   }
@@ -28,13 +28,22 @@ export function toModelMessages(history: Message[] = []): ModelMessage[] {
     return expandToolMessage(msg);
   });
 
+  // Only keep tool result IDs that map to assistant-declared tool calls.
+  const validToolResultIds = new Set<string>();
+  for (const msg of expanded) {
+    if (msg.role !== 'tool') continue;
+    const id = msg.toolCallId || msg.tool_call_id;
+    if (!id || !assistantToolCallIds.has(id)) continue;
+    validToolResultIds.add(id);
+  }
+
   return expanded
     .filter((msg) => {
       if (!msg || !msg.role) return false;
-      // Drop tool result messages whose toolCallId doesn't match any known tool call
+      // Drop tool result messages whose toolCallId doesn't match a declared assistant tool call.
       if (msg.role === 'tool') {
         const id = msg.toolCallId || msg.tool_call_id;
-        if (!id || !validToolCallIds.has(id)) return false;
+        if (!id || !validToolResultIds.has(id)) return false;
       }
       return true;
     })
@@ -48,7 +57,7 @@ export function toModelMessages(history: Message[] = []): ModelMessage[] {
       if (msg.role === 'assistant') {
         return {
           role: 'assistant',
-          content: normalizeAssistantContent(msg),
+          content: normalizeAssistantContent(msg, validToolResultIds),
         } as ModelMessage;
       }
       if (msg.role === 'system') {
@@ -152,15 +161,19 @@ function expandToolMessage(message: Message): Message[] {
   return entries.length > 0 ? entries : [message];
 }
 
-function normalizeAssistantContent(message: Message): AssistantContent {
-  const toolCallParts = Array.isArray(message.toolCalls)
-    ? message.toolCalls.map((call) => ({
-        type: 'tool-call' as const,
-        toolCallId: call.id,
-        toolName: call.name,
-        input: call.args || {},
-      }))
-    : [];
+function normalizeAssistantContent(message: Message, validToolResultIds?: Set<string>): AssistantContent {
+  const rawToolCalls = Array.isArray(message.toolCalls) ? message.toolCalls : [];
+  const filteredToolCalls =
+    validToolResultIds && rawToolCalls.length > 0
+      ? rawToolCalls.filter((call) => call.id && validToolResultIds.has(call.id))
+      : rawToolCalls;
+
+  const toolCallParts = filteredToolCalls.map((call) => ({
+    type: 'tool-call' as const,
+    toolCallId: call.id,
+    toolName: call.name,
+    input: call.args || {},
+  }));
 
   // If there are tool calls, we must return an array (not a plain string)
   // so the SDK sees both text and tool-call parts.
