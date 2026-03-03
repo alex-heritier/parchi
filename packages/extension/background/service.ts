@@ -64,6 +64,8 @@ import { buildPlanFromArgs, extractXmlToolCalls, stripXmlToolCalls } from './xml
 const profileUsesCodexOAuth = (profile: Record<string, any> | null | undefined) =>
   isCodexOAuthProvider(String(profile?.provider || ''));
 
+type RelayRpcHandler = (params: unknown) => Promise<unknown>;
+
 export class BackgroundService {
   browserTools: BrowserTools;
   currentSettings: Record<string, any> | null;
@@ -77,6 +79,7 @@ export class BackgroundService {
   private _applyingRelayConfig = false;
   private _relayStatusTimer: ReturnType<typeof setTimeout> | undefined;
   private _relayAutoPairTimer: ReturnType<typeof setTimeout> | undefined;
+  private relayRpcHandlers: Record<string, RelayRpcHandler>;
   private relayKeepalivePorts: Set<chrome.runtime.Port>;
   private sidepanelLifecyclePorts: Set<chrome.runtime.Port>;
   // State tracking for enforcement
@@ -112,6 +115,7 @@ export class BackgroundService {
     this.subAgentCount = 0;
     this.subAgentProfileCursor = 0;
     this.relayActiveRunIds = new Set();
+    this.relayRpcHandlers = this.buildRelayRpcHandlers();
     this.relayKeepalivePorts = new Set();
     this.sidepanelLifecyclePorts = new Set();
     this.activeRuns = new Map();
@@ -447,127 +451,141 @@ export class BackgroundService {
   }
 
   async handleRelayRpc(method: string, params: unknown) {
-    switch (method) {
-      case 'tools.list':
-        const settings = await chrome.storage.local.get([
-          'activeConfig',
-          'provider',
-          'apiKey',
-          'model',
-          'customEndpoint',
-          'extraHeaders',
-          'systemPrompt',
-          'configs',
-          'useOrchestrator',
-          'orchestratorProfile',
-          'visionBridge',
-          'visionProfile',
-          'enableScreenshots',
-          'sendScreenshotsAsImages',
-          'screenshotQuality',
-          'showThinking',
-          'streamResponses',
-          'temperature',
-          'maxTokens',
-          'timeout',
-          'contextLimit',
-          'toolPermissions',
-          'allowedDomains',
-        ]);
-        const activeProfileName = (settings as any).activeConfig || 'default';
-        const activeProfile = resolveProfile(settings as any, activeProfileName);
-        const orchestratorEnabled = (settings as any).useOrchestrator === true;
-        const teamProfiles = resolveTeamProfiles(settings as any);
-        const visionToolsEnabled = isVisionModelProfile(activeProfile);
-        return this.getToolsForSession(settings as any, orchestratorEnabled, teamProfiles, visionToolsEnabled);
-
-      case 'tool.call': {
-        const tool = typeof (params as any)?.tool === 'string' ? (params as any).tool : '';
-        const sessionId =
-          typeof (params as any)?.sessionId === 'string'
-            ? String((params as any).sessionId)
-            : this.currentSessionId || 'relay';
-        const args = (params as any)?.args;
-        if (!tool) throw new Error('tool.call: missing tool');
-        const safeArgs = args && typeof args === 'object' && !Array.isArray(args) ? (args as Record<string, any>) : {};
-        const settings = await chrome.storage.local.get(['toolPermissions', 'allowedDomains']);
-        const perm = await checkToolPermission(
-          tool,
-          safeArgs,
-          settings,
-          this.currentSettings,
-          sessionId,
-          this.currentSessionId,
-          (id) => this.getBrowserTools(id),
-        );
-        if (!perm.allowed) {
-          throw new Error(perm.reason || 'Tool blocked by policy');
-        }
-        return await this.getBrowserTools(sessionId).executeTool(tool, safeArgs);
-      }
-
-      case 'session.setTabs': {
-        const sessionId =
-          typeof (params as any)?.sessionId === 'string'
-            ? String((params as any).sessionId)
-            : this.currentSessionId || 'relay';
-        const ids = Array.isArray((params as any)?.tabIds) ? (params as any).tabIds : [];
-        const tabIds = ids.map((n: any) => Number(n)).filter((n: any) => Number.isFinite(n) && n > 0);
-        const tabs: chrome.tabs.Tab[] = [];
-        for (const tabId of tabIds) {
-          try {
-            const tab = await chrome.tabs.get(tabId);
-            if (tab) tabs.push(tab);
-          } catch {}
-        }
-        await this.getBrowserTools(sessionId).configureSessionTabs(tabs, { title: 'Parchi', color: 'blue' });
-        return { ok: true, tabIds: tabs.map((t) => t.id).filter((id): id is number => typeof id === 'number') };
-      }
-
-      case 'settings.get': {
-        const keys = (params as any)?.keys;
-        if (!Array.isArray(keys)) throw new Error('settings.get: keys must be an array');
-        return await chrome.storage.local.get(keys);
-      }
-
-      case 'settings.set': {
-        const data = (params as any)?.data;
-        if (!data || typeof data !== 'object' || Array.isArray(data))
-          throw new Error('settings.set: data must be an object');
-        await chrome.storage.local.set(data);
-        return { ok: true };
-      }
-
-      case 'agent.run': {
-        const { prompt, sessionId, selectedTabIds } = this.validateRelayRunParams(params);
-        const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const turnId = `turn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-
-        const selectedTabs: chrome.tabs.Tab[] = [];
-        if (Array.isArray(selectedTabIds) && selectedTabIds.length) {
-          for (const rawId of selectedTabIds) {
-            const tabId = Number(rawId);
-            if (!Number.isFinite(tabId) || tabId <= 0) continue;
-            try {
-              const tab = await chrome.tabs.get(tabId);
-              if (tab) selectedTabs.push(tab);
-            } catch {}
-          }
-        }
-        if (selectedTabs.length === 0) {
-          const activeTab = await getActiveTab();
-          if (activeTab) selectedTabs.push(activeTab);
-        }
-
-        // Fire-and-forget; relay will receive runtime events and run.done.
-        void this.processUserMessage(prompt, [], selectedTabs, sessionId, { runId, turnId, origin: 'relay' });
-
-        return { runId, sessionId };
-      }
-
-      default:
-        throw new Error(`Unknown method: ${method}`);
+    const handler = this.relayRpcHandlers[method];
+    if (!handler) {
+      throw new Error(`Unknown method: ${method}`);
     }
+    return await handler(params);
+  }
+
+  private buildRelayRpcHandlers(): Record<string, RelayRpcHandler> {
+    return {
+      'tools.list': (params) => this.handleRelayToolsList(params),
+      'tool.call': (params) => this.handleRelayToolCall(params),
+      'session.setTabs': (params) => this.handleRelaySessionSetTabs(params),
+      'settings.get': (params) => this.handleRelaySettingsGet(params),
+      'settings.set': (params) => this.handleRelaySettingsSet(params),
+      'agent.run': (params) => this.handleRelayAgentRun(params),
+    };
+  }
+
+  private async handleRelayToolsList(_params: unknown) {
+    const settings = await chrome.storage.local.get([
+      'activeConfig',
+      'provider',
+      'apiKey',
+      'model',
+      'customEndpoint',
+      'extraHeaders',
+      'systemPrompt',
+      'configs',
+      'useOrchestrator',
+      'orchestratorProfile',
+      'visionBridge',
+      'visionProfile',
+      'enableScreenshots',
+      'sendScreenshotsAsImages',
+      'screenshotQuality',
+      'showThinking',
+      'streamResponses',
+      'temperature',
+      'maxTokens',
+      'timeout',
+      'contextLimit',
+      'toolPermissions',
+      'allowedDomains',
+    ]);
+    const activeProfileName = (settings as any).activeConfig || 'default';
+    const activeProfile = resolveProfile(settings as any, activeProfileName);
+    const orchestratorEnabled = (settings as any).useOrchestrator === true;
+    const teamProfiles = resolveTeamProfiles(settings as any);
+    const visionToolsEnabled = isVisionModelProfile(activeProfile);
+    return this.getToolsForSession(settings as any, orchestratorEnabled, teamProfiles, visionToolsEnabled);
+  }
+
+  private async handleRelayToolCall(params: unknown) {
+    const tool = typeof (params as any)?.tool === 'string' ? (params as any).tool : '';
+    const sessionId =
+      typeof (params as any)?.sessionId === 'string'
+        ? String((params as any).sessionId)
+        : this.currentSessionId || 'relay';
+    const args = (params as any)?.args;
+    if (!tool) throw new Error('tool.call: missing tool');
+    const safeArgs = args && typeof args === 'object' && !Array.isArray(args) ? (args as Record<string, any>) : {};
+    const settings = await chrome.storage.local.get(['toolPermissions', 'allowedDomains']);
+    const perm = await checkToolPermission(
+      tool,
+      safeArgs,
+      settings,
+      this.currentSettings,
+      sessionId,
+      this.currentSessionId,
+      (id) => this.getBrowserTools(id),
+    );
+    if (!perm.allowed) {
+      throw new Error(perm.reason || 'Tool blocked by policy');
+    }
+    return await this.getBrowserTools(sessionId).executeTool(tool, safeArgs);
+  }
+
+  private async handleRelaySessionSetTabs(params: unknown) {
+    const sessionId =
+      typeof (params as any)?.sessionId === 'string'
+        ? String((params as any).sessionId)
+        : this.currentSessionId || 'relay';
+    const ids = Array.isArray((params as any)?.tabIds) ? (params as any).tabIds : [];
+    const tabIds = ids.map((n: any) => Number(n)).filter((n: any) => Number.isFinite(n) && n > 0);
+    const tabs: chrome.tabs.Tab[] = [];
+    for (const tabId of tabIds) {
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        if (tab) tabs.push(tab);
+      } catch {}
+    }
+    await this.getBrowserTools(sessionId).configureSessionTabs(tabs, { title: 'Parchi', color: 'blue' });
+    return { ok: true, tabIds: tabs.map((t) => t.id).filter((id): id is number => typeof id === 'number') };
+  }
+
+  private async handleRelaySettingsGet(params: unknown) {
+    const keys = (params as any)?.keys;
+    if (!Array.isArray(keys)) throw new Error('settings.get: keys must be an array');
+    return await chrome.storage.local.get(keys);
+  }
+
+  private async handleRelaySettingsSet(params: unknown) {
+    const data = (params as any)?.data;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new Error('settings.set: data must be an object');
+    }
+    await chrome.storage.local.set(data);
+    return { ok: true };
+  }
+
+  private async handleRelayAgentRun(params: unknown) {
+    const { prompt, sessionId, selectedTabIds } = this.validateRelayRunParams(params);
+    const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const turnId = `turn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+    const selectedTabs: chrome.tabs.Tab[] = [];
+    if (Array.isArray(selectedTabIds) && selectedTabIds.length) {
+      for (const rawId of selectedTabIds) {
+        const tabId = Number(rawId);
+        if (!Number.isFinite(tabId) || tabId <= 0) continue;
+        try {
+          const tab = await chrome.tabs.get(tabId);
+          if (tab) selectedTabs.push(tab);
+        } catch {}
+      }
+    }
+    if (selectedTabs.length === 0) {
+      const activeTab = await getActiveTab();
+      if (activeTab) selectedTabs.push(activeTab);
+    }
+
+    // Fire-and-forget; relay will receive runtime events and run.done.
+    void this.processUserMessage(prompt, [], selectedTabs, sessionId, { runId, turnId, origin: 'relay' });
+
+    return { runId, sessionId };
   }
 
   private validateRelayRunParams(params: unknown) {
