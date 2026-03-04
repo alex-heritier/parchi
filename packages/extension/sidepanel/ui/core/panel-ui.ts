@@ -58,6 +58,14 @@ export class SidePanelUI {
     lastSource?: string;
     lastBeforePercent?: number | null;
     lastAfterPercent?: number | null;
+    lastMetrics?: Record<string, unknown> | null;
+    lastEvent?: {
+      stage?: string;
+      note?: string;
+      source?: string;
+      details?: Record<string, unknown>;
+      timestamp?: number;
+    } | null;
   };
   sessionTokensUsed: number;
   lastUsage: UsageStats | null;
@@ -210,6 +218,8 @@ export class SidePanelUI {
       lastMessage: null,
       lastCompactedAt: 0,
       lastCompletedAt: 0,
+      lastMetrics: null,
+      lastEvent: null,
     };
     this.sessionTokensUsed = 0;
     this.lastUsage = null;

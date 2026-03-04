@@ -1,5 +1,5 @@
 import { APICallError } from '@ai-sdk/provider';
-import type { ComposedSkill, RunPlan } from '@parchi/shared';
+import type { ComposedSkill, RunPlan, Usage } from '@parchi/shared';
 import { PARCHI_STORAGE_KEYS, RUNTIME_MESSAGE_SCHEMA_VERSION } from '@parchi/shared';
 import { generateText, stepCountIs, streamText } from 'ai';
 import {
@@ -922,12 +922,81 @@ export class BackgroundService {
       ? Math.max(320, Math.floor(options.contextLimit * 0.02))
       : compactionSettings.keepRecentTokens;
 
+    const compactionMetrics: Record<string, any> = {
+      runId: options.runMeta.runId,
+      turnId: options.runMeta.turnId,
+      sessionId: options.runMeta.sessionId,
+      source: options.source || 'auto',
+      forced: forceCompaction,
+      contextLimit: options.contextLimit,
+      decision: {
+        shouldCompact: compactionCheck.shouldCompact,
+        percent: currentPercent,
+        approxTokens: compactionCheck.approxTokens,
+        reserveTokens: compactionSettings.reserveTokens,
+        keepRecentTokens,
+      },
+      summary: {
+        provider: String(options.orchestratorProfile?.provider || ''),
+        model: String(options.orchestratorProfile?.model || ''),
+      },
+      compaction: {
+        beforeApproxTokens: compactionCheck.approxTokens,
+        beforePercent: currentPercent,
+      },
+    };
+
+    this.sendRuntime(options.runMeta, {
+      type: 'compaction_event',
+      stage: 'decision',
+      source: options.source || 'auto',
+      note: forceCompaction
+        ? 'Compaction forced by user request.'
+        : `Compaction decision evaluated at ${currentPercent}% context usage.`,
+      details: {
+        shouldCompact: compactionCheck.shouldCompact,
+        forced: forceCompaction,
+        contextLimit: options.contextLimit,
+        approxTokens: compactionCheck.approxTokens,
+        reserveTokens: compactionSettings.reserveTokens,
+        keepRecentTokens,
+      },
+    });
+
     if (!forceCompaction && !compactionCheck.shouldCompact) {
+      const skipReason = `${options.statusPrefix || 'Context'} is at ${currentPercent}% (${compactionCheck.approxTokens}/${options.contextLimit} tokens).`;
+      this.sendRuntime(options.runMeta, {
+        type: 'compaction_event',
+        stage: 'skipped',
+        source: options.source || 'auto',
+        note: skipReason,
+        details: {
+          reason: 'below_threshold',
+          shouldCompact: false,
+          forced: false,
+          contextLimit: options.contextLimit,
+          approxTokens: compactionCheck.approxTokens,
+          percent: currentPercent,
+        },
+      });
       return {
         compacted: false,
-        reason: `${options.statusPrefix || 'Context'} is at ${currentPercent}% (${compactionCheck.approxTokens}/${options.contextLimit} tokens).`,
+        reason: skipReason,
       };
     }
+
+    this.sendRuntime(options.runMeta, {
+      type: 'compaction_event',
+      stage: 'start',
+      source: options.source || 'auto',
+      note: 'Compaction started.',
+      details: {
+        forced: forceCompaction,
+        contextLimit: options.contextLimit,
+        approxTokens: compactionCheck.approxTokens,
+        percent: currentPercent,
+      },
+    });
 
     this.sendRuntime(options.runMeta, {
       type: 'run_status',
@@ -978,7 +1047,18 @@ export class BackgroundService {
     }
 
     if (messagesToSummarize.length === 0) {
-      return { compacted: false, reason: 'Compaction skipped: nothing to summarize yet.' };
+      const skipReason = 'Compaction skipped: nothing to summarize yet.';
+      this.sendRuntime(options.runMeta, {
+        type: 'compaction_event',
+        stage: 'skipped',
+        source: options.source || 'auto',
+        note: skipReason,
+        details: {
+          reason: 'no_messages_to_summarize',
+          forced: forceCompaction,
+        },
+      });
+      return { compacted: false, reason: skipReason };
     }
 
     const conversationText = serializeConversation(messagesToSummarize);
@@ -989,6 +1069,22 @@ export class BackgroundService {
     promptText += previousSummary ? UPDATE_SUMMARIZATION_PROMPT : SUMMARIZATION_PROMPT;
 
     const summaryUsesCodexOAuth = profileUsesCodexOAuth(options.orchestratorProfile as any);
+
+    this.sendRuntime(options.runMeta, {
+      type: 'compaction_event',
+      stage: 'summary_request',
+      source: options.source || 'auto',
+      note: 'Requesting compaction summary from model.',
+      details: {
+        messagesToSummarizeCount: messagesToSummarize.length,
+        preservedCandidateCount: preserved.length,
+        hasPreviousSummary: Boolean(previousSummary),
+        promptLength: promptText.length,
+        maxOutputTokens: summaryUsesCodexOAuth ? undefined : Math.floor(0.8 * compactionSettings.reserveTokens),
+      },
+    });
+
+    const summaryStartedAt = Date.now();
     const summaryResult = await generateText({
       model: options.model,
       system: SUMMARIZATION_SYSTEM_PROMPT,
@@ -1003,9 +1099,37 @@ export class BackgroundService {
       maxOutputTokens: summaryUsesCodexOAuth ? undefined : Math.floor(0.8 * compactionSettings.reserveTokens),
       providerOptions: summaryUsesCodexOAuth ? buildCodexOAuthProviderOptions(SUMMARIZATION_SYSTEM_PROMPT) : undefined,
     });
+    const summaryGenerationMs = Date.now() - summaryStartedAt;
 
     const parsedSummary = extractThinking(summaryResult.text || '', null);
     const summaryText = parsedSummary.content || String(summaryResult.text || '').trim();
+    const summaryUsageRaw = (summaryResult as any)?.usage || {};
+    const summaryUsage: Usage = {
+      inputTokens: Number(summaryUsageRaw?.inputTokens || 0),
+      outputTokens: Number(summaryUsageRaw?.outputTokens || 0),
+      totalTokens: Number(summaryUsageRaw?.totalTokens || 0),
+    };
+
+    compactionMetrics.summary = {
+      ...(compactionMetrics.summary || {}),
+      usage: summaryUsage,
+      textLength: summaryText.length,
+      generationMs: summaryGenerationMs,
+    };
+
+    this.sendRuntime(options.runMeta, {
+      type: 'compaction_event',
+      stage: 'summary_result',
+      source: options.source || 'auto',
+      note: 'Summary generated.',
+      details: {
+        usage: summaryUsage,
+        textLength: summaryText.length,
+        generationMs: summaryGenerationMs,
+        hasThinking: Boolean(parsedSummary.thinking),
+      },
+    });
+
     const compactedInfo = `Compaction result: summarized ${messagesToSummarize.length} messages, kept ${preserved.length} recent messages.`;
     const compactedSummary = `${compactedInfo}\n\n${summaryText}`;
 
@@ -1073,6 +1197,39 @@ export class BackgroundService {
       0,
       Math.min(100, Math.round((afterEstimate.tokens / Math.max(1, options.contextLimit)) * 100)),
     );
+    const removedApproxTokensLowerBound = Math.max(
+      0,
+      Number(compactionCheck.approxTokens || 0) - Number(afterEstimate.tokens || 0),
+    );
+
+    compactionMetrics.reason = 'compacted';
+    compactionMetrics.compaction = {
+      ...(compactionMetrics.compaction || {}),
+      trimmedCount: messagesToSummarize.length,
+      preservedCount,
+      removedApproxTokensLowerBound,
+      afterApproxTokens: afterEstimate.tokens,
+      afterPercent,
+    };
+
+    this.sendRuntime(options.runMeta, {
+      type: 'compaction_event',
+      stage: 'applied',
+      source: options.source || 'auto',
+      note: 'Compaction applied to context.',
+      details: {
+        trimmedCount: messagesToSummarize.length,
+        preservedCount,
+        removedApproxTokensLowerBound,
+        beforeContextUsage: beforeUsage,
+        contextUsage: {
+          approxTokens: afterEstimate.tokens,
+          contextLimit: options.contextLimit,
+          percent: afterPercent,
+        },
+        summaryUsage,
+      },
+    });
 
     this.sendRuntime(options.runMeta, {
       type: 'context_compacted',
@@ -1089,6 +1246,7 @@ export class BackgroundService {
         contextLimit: options.contextLimit,
         percent: afterPercent,
       },
+      compactionMetrics,
     });
 
     this.sendRuntime(options.runMeta, {
@@ -1118,6 +1276,15 @@ export class BackgroundService {
     const statusPrefix = source === 'manual' ? 'Manual context' : 'Context';
 
     if (this.activeRunIdBySessionId.has(sessionId)) {
+      this.sendRuntime(runMeta, {
+        type: 'compaction_event',
+        stage: 'skipped',
+        source,
+        note: 'Compaction skipped because a run is still active.',
+        details: {
+          reason: 'run_active',
+        },
+      });
       this.sendRuntime(runMeta, {
         type: 'run_warning',
         message: 'Compaction skipped because a run is still active.',
@@ -1149,7 +1316,7 @@ export class BackgroundService {
         await refreshConvexProxyAuthSession(settings);
       }
 
-      let runtimeProfileResolution = resolveRuntimeModelProfile(orchestratorProfile, settings);
+      const runtimeProfileResolution = resolveRuntimeModelProfile(orchestratorProfile, settings);
       if (!runtimeProfileResolution.allowed) {
         this.sendRuntime(runMeta, {
           type: 'run_error',
@@ -1216,6 +1383,15 @@ export class BackgroundService {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error || 'Compaction failed');
+      this.sendRuntime(runMeta, {
+        type: 'compaction_event',
+        stage: 'failed',
+        source,
+        note: `Compaction failed: ${message}`,
+        details: {
+          error: message,
+        },
+      });
       this.sendRuntime(runMeta, {
         type: 'run_error',
         message,

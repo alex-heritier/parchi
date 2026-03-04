@@ -1,5 +1,4 @@
 import type { RunPlan } from './plan.js';
-
 export const RUNTIME_MESSAGE_SCHEMA_VERSION = 2 as const;
 
 export type RuntimeMessageBase = {
@@ -97,6 +96,8 @@ export type RunStatus = RuntimeMessageBase & {
   maxRetries: RetryCounts;
   lastError?: string;
   note?: string;
+  stage?: string;
+  source?: string;
 };
 
 export type AssistantResponse = RuntimeMessageBase & {
@@ -129,6 +130,7 @@ export type AssistantFinal = RuntimeMessageBase & {
 export type RunError = RuntimeMessageBase & {
   type: 'run_error';
   message: string;
+  stage?: string;
   errorCategory?: string;
   action?: string;
   recoverable?: boolean;
@@ -139,20 +141,35 @@ export type RunError = RuntimeMessageBase & {
 export type RunWarning = RuntimeMessageBase & {
   type: 'run_warning';
   message: string;
+  stage?: string;
+};
+
+export type CompactionEvent = RuntimeMessageBase & {
+  type: 'compaction_event';
+  stage: 'decision' | 'start' | 'summary_request' | 'summary_result' | 'applied' | 'skipped' | 'failed' | string;
+  source?: string;
+  note?: string;
+  details?: Record<string, unknown>;
+};
+
+type ContextUsageSnapshot = {
+  approxTokens?: number;
+  contextLimit?: number;
+  percent?: number;
 };
 
 export type ContextCompacted = RuntimeMessageBase & {
   type: 'context_compacted';
+  source?: string;
+  startFreshSession?: boolean;
   summary: string;
   trimmedCount: number;
   preservedCount: number;
   newSessionId: string;
   contextMessages: Array<Record<string, unknown>>;
-  contextUsage?: {
-    approxTokens?: number;
-    contextLimit?: number;
-    percent?: number;
-  };
+  beforeContextUsage?: ContextUsageSnapshot;
+  contextUsage?: ContextUsageSnapshot;
+  compactionMetrics?: Record<string, unknown>;
 };
 
 export type SubagentStart = RuntimeMessageBase & {
@@ -230,6 +247,7 @@ export type RuntimeMessage =
   | AssistantFinal
   | RunError
   | RunWarning
+  | CompactionEvent
   | ContextCompacted
   | SubagentStart
   | ReportImageCaptured
@@ -251,6 +269,7 @@ export const runtimeMessageTypes = [
   'assistant_final',
   'run_error',
   'run_warning',
+  'compaction_event',
   'context_compacted',
   'subagent_start',
   'report_image_captured',

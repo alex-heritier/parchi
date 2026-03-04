@@ -812,6 +812,65 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
     return;
   }
 
+  if (message.type === 'compaction_event') {
+    const stage = typeof message.stage === 'string' ? message.stage : '';
+    const note = typeof message.note === 'string' ? message.note : '';
+    const source = typeof message.source === 'string' ? message.source : 'auto';
+    const details =
+      message.details && typeof message.details === 'object'
+        ? (sanitizeTracePayload(message.details) as Record<string, unknown>)
+        : {};
+
+    this.setContextCompactionState?.({
+      lastEvent: {
+        stage,
+        note: note || null,
+        source,
+        details,
+        timestamp: Date.now(),
+      },
+    });
+
+    if (stage === 'start' || stage === 'summary_request') {
+      this.setContextCompactionState?.({
+        inProgress: true,
+        lastResult: null,
+        lastMessage: note || 'Compaction in progress…',
+      });
+      this.updateStatus(note || 'Compacting context…', 'active');
+    } else if (stage === 'summary_result') {
+      this.updateStatus(note || 'Compaction summary generated.', 'active');
+    } else if (stage === 'skipped') {
+      this.setContextCompactionState?.({
+        inProgress: false,
+        lastResult: 'skipped',
+        lastMessage: note || 'Compaction skipped',
+        lastCompletedAt: Date.now(),
+      });
+      this.updateStatus(note || 'Compaction skipped', 'warning');
+    } else if (stage === 'failed') {
+      this.setContextCompactionState?.({
+        inProgress: false,
+        lastResult: 'error',
+        lastMessage: note || 'Compaction failed',
+        lastCompletedAt: Date.now(),
+      });
+      this.updateStatus(note || 'Compaction failed', 'error');
+    }
+
+    appendTrace({
+      sessionId: this.sessionId,
+      ts: Date.now(),
+      kind: 'compaction_event',
+      stage,
+      source,
+      note,
+      details,
+    });
+
+    return;
+  }
+
   if (message.type === 'plan_update') {
     this.applyPlanUpdate(message.plan);
 
@@ -1239,6 +1298,26 @@ sidePanelProto.handleContextCompaction = function handleContextCompaction(messag
     lastCompletedAt: Date.now(),
     lastBeforePercent: beforePercent,
     lastAfterPercent: percent,
+    lastMetrics:
+      message.compactionMetrics && typeof message.compactionMetrics === 'object'
+        ? (sanitizeTracePayload(message.compactionMetrics) as Record<string, unknown>)
+        : null,
+  });
+
+  appendTrace({
+    sessionId: this.sessionId,
+    ts: Date.now(),
+    kind: 'compaction_event',
+    stage: 'applied',
+    source,
+    note: parts.join(', '),
+    details: sanitizeTracePayload({
+      trimmedCount,
+      preservedCount,
+      beforeContextUsage: message.beforeContextUsage,
+      contextUsage: message.contextUsage,
+      metrics: message.compactionMetrics,
+    }),
   });
 
   // Trigger compaction sweep animation on the context bar
@@ -1255,7 +1334,8 @@ sidePanelProto.handleContextCompaction = function handleContextCompaction(messag
   // send a continuation prompt so the model resumes with the compacted context.
   if (source === 'auto' && !this.elements.composer?.classList.contains('running')) {
     setTimeout(() => {
-      this.elements.userInput.value = 'Continue where you left off. The context was compacted — use the summary above as your source of truth.';
+      this.elements.userInput.value =
+        'Continue where you left off. The context was compacted — use the summary above as your source of truth.';
       this.sendMessage();
     }, 400);
   }

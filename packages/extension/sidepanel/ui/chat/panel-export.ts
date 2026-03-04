@@ -328,6 +328,17 @@ sidePanelProto.formatTraceEvents = function formatTraceEvents(events: unknown[])
         }
         md += '\n';
         break;
+
+      case 'compaction_event':
+        md += `### Compaction event${ev.stage ? `: ${ev.stage}` : ''} \`${time}\`\n\n`;
+        if (ev.note) {
+          md += `${ev.note}\n\n`;
+        }
+        if (ev.details != null) {
+          const detailsStr = typeof ev.details === 'string' ? ev.details : JSON.stringify(ev.details, null, 2);
+          md += `<details>\n<summary>Details</summary>\n\n\`\`\`json\n${detailsStr}\n\`\`\`\n\n</details>\n\n`;
+        }
+        break;
     }
   }
   return md;
