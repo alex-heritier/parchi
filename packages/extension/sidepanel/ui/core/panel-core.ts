@@ -820,8 +820,6 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
     const after = sanitizeTracePayload((message as any).after || null);
     const details = sanitizeTracePayload((message as any).details || null);
 
-    this.displayTokenTraceMessage?.({ action, reason, note, before, after, details });
-
     appendTrace({
       sessionId: this.sessionId,
       ts: Date.now(),
