@@ -8,6 +8,27 @@ import type { UsagePayload } from '../types/panel-types.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 import { appendTrace } from './trace-store.js';
 
+const formatTraceNumber = (value: unknown) => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0) return '—';
+  const rounded = Math.round(num);
+  return rounded >= 1000 ? rounded.toLocaleString() : String(rounded);
+};
+
+const formatTraceSignedDelta = (value: unknown) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '—';
+  const rounded = Math.round(num);
+  if (rounded === 0) return '0';
+  return `${rounded > 0 ? '+' : ''}${rounded.toLocaleString()}`;
+};
+
+const formatTracePercent = (value: unknown) => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0) return '—';
+  return `${Math.round(num)}%`;
+};
+
 const MAX_DISPLAY_HISTORY = 400;
 
 const truncate = (value: string, max = 12000) => {

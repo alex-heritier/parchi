@@ -144,6 +144,33 @@ export type RunWarning = RuntimeMessageBase & {
   stage?: string;
 };
 
+type ContextUsageSnapshot = {
+  approxTokens?: number;
+  contextLimit?: number;
+  percent?: number;
+};
+
+export type TokenTraceSnapshot = {
+  providerInputTokens?: number | null;
+  providerOutputTokens?: number | null;
+  contextApproxTokens?: number | null;
+  contextLimit?: number | null;
+  contextPercent?: number | null;
+  sessionInputTokens?: number;
+  sessionOutputTokens?: number;
+  sessionTotalTokens?: number;
+};
+
+export type TokenTraceEvent = RuntimeMessageBase & {
+  type: 'token_trace';
+  action: string;
+  reason: string;
+  note?: string;
+  before?: TokenTraceSnapshot;
+  after?: TokenTraceSnapshot;
+  details?: Record<string, unknown>;
+};
+
 export type CompactionEvent = RuntimeMessageBase & {
   type: 'compaction_event';
   stage: 'decision' | 'start' | 'summary_request' | 'summary_result' | 'applied' | 'skipped' | 'failed' | string;
@@ -152,11 +179,6 @@ export type CompactionEvent = RuntimeMessageBase & {
   details?: Record<string, unknown>;
 };
 
-type ContextUsageSnapshot = {
-  approxTokens?: number;
-  contextLimit?: number;
-  percent?: number;
-};
 
 export type ContextCompacted = RuntimeMessageBase & {
   type: 'context_compacted';
@@ -247,6 +269,7 @@ export type RuntimeMessage =
   | AssistantFinal
   | RunError
   | RunWarning
+  | TokenTraceEvent
   | CompactionEvent
   | ContextCompacted
   | SubagentStart
@@ -269,6 +292,7 @@ export const runtimeMessageTypes = [
   'assistant_final',
   'run_error',
   'run_warning',
+  'token_trace',
   'compaction_event',
   'context_compacted',
   'subagent_start',
