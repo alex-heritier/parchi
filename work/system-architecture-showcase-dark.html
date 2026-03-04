@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Parchi Systems Showcase — What / Why / How / Structure</title>
+    <style>
+      :root {
+        --bg: #151719;
+        --panel: #1c1f23;
+        --panel-2: #20242a;
+        --text: #f3f3f1;
+        --muted: #b4b8be;
+        --line: #2d333b;
+        --gold: #f4b454;
+        --teal: #64d2c2;
+        --violet: #a78bfa;
+        --rose: #f38ba8;
+        --green: #86efac;
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background:
+          radial-gradient(1200px 600px at 10% -10%, rgba(244, 180, 84, 0.12), transparent 60%),
+          radial-gradient(900px 500px at 90% -20%, rgba(100, 210, 194, 0.1), transparent 55%),
+          var(--bg);
+        color: var(--text);
+        line-height: 1.45;
+      }
+
+      .wrap {
+        max-width: 1360px;
+        margin: 0 auto;
+        padding: 28px 28px 50px;
+      }
+
+      .hero {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 22px 24px;
+        box-shadow: var(--shadow);
+        margin-bottom: 18px;
+      }
+
+      .eyebrow {
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        font-size: 11px;
+        color: var(--gold);
+        margin-bottom: 8px;
+        font-weight: 600;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 28px;
+        line-height: 1.2;
+      }
+
+      .subtitle {
+        margin-top: 10px;
+        color: var(--muted);
+        max-width: 980px;
+      }
+
+      .meta {
+        margin-top: 14px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .pill {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 12px;
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.01);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 16px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+      }
+
+      .panel h2 {
+        margin: 0;
+        font-size: 14px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--gold);
+      }
+
+      .toc {
+        padding: 16px;
+        position: sticky;
+        top: 16px;
+        height: fit-content;
+      }
+
+      .toc ul {
+        list-style: none;
+        padding: 0;
+        margin: 12px 0 0;
+        display: grid;
+        gap: 8px;
+      }
+
+      .toc a {
+        color: var(--text);
+        text-decoration: none;
+        font-size: 13px;
+        display: block;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 10px;
+        background: var(--panel-2);
+      }
+
+      .toc a:hover {
+        border-color: var(--gold);
+      }
+
+      .content {
+        display: grid;
+        gap: 16px;
+      }
+
+      .section {
+        padding: 18px 18px 16px;
+      }
+
+      .section-title {
+        margin-top: 0;
+        margin-bottom: 10px;
+        font-size: 20px;
+      }
+
+      .section p {
+        color: var(--muted);
+        margin-top: 0;
+      }
+
+      .kpi {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 10px;
+      }
+
+      .kpi-card {
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+      }
+
+      .kpi-card .v {
+        font-size: 22px;
+        font-weight: 700;
+      }
+
+      .kpi-card .k {
+        font-size: 11px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .systems {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .sys {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel-2);
+        padding: 10px;
+      }
+
+      .sys h3 {
+        margin: 0 0 6px;
+        font-size: 14px;
+      }
+
+      .sys .path {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: var(--teal);
+        font-size: 11px;
+        margin-bottom: 7px;
+      }
+
+      .sys ul {
+        margin: 0;
+        padding-left: 16px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .mermaid-lite {
+        margin-top: 10px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #181b1f;
+        padding: 12px;
+        overflow: auto;
+      }
+
+      .flow {
+        display: grid;
+        gap: 10px;
+        min-width: 760px;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 170px 1fr;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .node {
+        border: 1px solid var(--line);
+        background: var(--panel-2);
+        border-radius: 10px;
+        padding: 8px;
+        font-size: 12px;
+      }
+
+      .node strong {
+        display: block;
+      }
+
+      .pipe {
+        border: 1px dashed #3a424c;
+        border-radius: 10px;
+        padding: 7px 10px;
+        color: var(--muted);
+        font-size: 12px;
+        background: rgba(255, 255, 255, 0.015);
+      }
+
+      .fundamentals {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .f-item {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel-2);
+        padding: 10px;
+      }
+
+      .f-item h4 {
+        margin: 0 0 6px;
+        font-size: 13px;
+        color: var(--teal);
+      }
+
+      .f-item p {
+        margin: 0;
+        font-size: 12px;
+      }
+
+      .whyhow {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .wh {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+        background: var(--panel-2);
+      }
+
+      .wh h4 {
+        margin: 0 0 6px;
+        color: var(--rose);
+        font-size: 13px;
+      }
+
+      .struct {
+        display: grid;
+        gap: 10px;
+      }
+
+      .lane {
+        border: 1px solid var(--line);
+        background: var(--panel-2);
+        border-radius: 12px;
+        padding: 10px;
+      }
+
+      .lane h4 {
+        margin: 0 0 6px;
+        color: var(--violet);
+      }
+
+      .lane ul {
+        margin: 0;
+        padding-left: 16px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .next {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        background: var(--panel-2);
+        border-radius: 12px;
+        padding: 10px;
+      }
+
+      .card h4 {
+        margin: 0 0 6px;
+        color: var(--green);
+      }
+
+      .foot {
+        margin-top: 10px;
+        font-size: 11px;
+        color: #8f96a0;
+      }
+
+      @media (max-width: 1180px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .toc {
+          position: relative;
+          top: auto;
+        }
+      }
+
+      @media (max-width: 960px) {
+        .kpi,
+        .systems,
+        .fundamentals,
+        .whyhow,
+        .next {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      @media (max-width: 700px) {
+        .kpi,
+        .systems,
+        .fundamentals,
+        .whyhow,
+        .next {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <div class="eyebrow">Systems showcase</div>
+        <h1>Parchi Architecture — What is running, why it exists, how it works, and how to structure it</h1>
+        <p class="subtitle">
+          Deep scan summary of the current monorepo, with an operator-level view of runtime surfaces and a recommended
+          structural model for scaling complexity down while keeping product velocity high.
+        </p>
+        <div class="meta">
+          <span class="pill">Theme: dark charcoal</span>
+          <span class="pill">Scope: extension + backend + relay + cli + electron + shared</span>
+          <span class="pill">Date: 2026-03-04</span>
+        </div>
+      </header>
+
+      <div class="grid">
+        <aside class="panel toc">
+          <h2>Map</h2>
+          <ul>
+            <li><a href="#what">1) What systems we have</a></li>
+            <li><a href="#runtime">2) Runtime story (how requests flow)</a></li>
+            <li><a href="#why">3) Why this architecture exists</a></li>
+            <li><a href="#fundamentals">4) Fundamentals in code today</a></li>
+            <li><a href="#structure">5) How we should structure next</a></li>
+            <li><a href="#next">6) Immediate execution plan</a></li>
+          </ul>
+          <div class="foot">
+            Source anchors: <br />
+            packages/extension/background/service.ts<br />
+            packages/extension/sidepanel/ui/*<br />
+            packages/backend/convex/http.ts + aiProxy.ts + payments.ts<br />
+            packages/relay-service/src/relay-daemon.ts<br />
+            packages/cli/src/main.ts<br />
+            packages/shared/src/runtime-messages.ts
+          </div>
+        </aside>
+
+        <main class="content">
+          <section id="what" class="panel section">
+            <h3 class="section-title">1) What systems we have</h3>
+            <p>
+              The product is a browser-embedded AI orchestration platform with optional remote relay + backend billing
+              and policy enforcement. At a high level, there are six operational systems.
+            </p>
+
+            <div class="kpi">
+              <div class="kpi-card"><div class="v">6</div><div class="k">Primary systems</div></div>
+              <div class="kpi-card"><div class="v">2</div><div class="k">Interactive surfaces</div></div>
+              <div class="kpi-card"><div class="v">3</div><div class="k">Execution routes</div></div>
+              <div class="kpi-card"><div class="v">1</div><div class="k">Shared contract layer</div></div>
+            </div>
+
+            <div class="systems" style="margin-top: 10px">
+              <article class="sys">
+                <h3>Extension Runtime Core</h3>
+                <div class="path">packages/extension/background/service.ts</div>
+                <ul>
+                  <li>Orchestrates model runs, tool calls, retries, compaction, run state</li>
+                  <li>Bridges sidepanel UI, content scripts, and relay</li>
+                  <li>Enforces tool permissions and session isolation</li>
+                </ul>
+              </article>
+
+              <article class="sys">
+                <h3>Sidepanel Application</h3>
+                <div class="path">packages/extension/sidepanel/ui/*</div>
+                <ul>
+                  <li>Modular prototype-augmented UI state machine</li>
+                  <li>Streams runtime events, renders plans/tool traces</li>
+                  <li>Owns settings, account mode, usage and history UX</li>
+                </ul>
+              </article>
+
+              <article class="sys">
+                <h3>Content Execution Surface</h3>
+                <div class="path">packages/extension/content*.ts + tools/injected/*</div>
+                <ul>
+                  <li>DOM interaction, overlays, capture, recording instrumentation</li>
+                  <li>Tab/page execution boundary for browser automation</li>
+                  <li>Privacy-capped payload signaling back to background</li>
+                </ul>
+              </article>
+
+              <article class="sys">
+                <h3>Backend Control Plane</h3>
+                <div class="path">packages/backend/convex/*</div>
+                <ul>
+                  <li>Auth, subscriptions/credits, Stripe flows, AI proxying</li>
+                  <li>Usage accounting and reserved/finalized charge lifecycle</li>
+                  <li>HTTP routes exposing provisioning + billing endpoints</li>
+                </ul>
+              </article>
+
+              <article class="sys">
+                <h3>Relay Plane</h3>
+                <div class="path">packages/relay-service/src/relay-daemon.ts</div>
+                <ul>
+                  <li>WebSocket hub for extension agents and external callers</li>
+                  <li>JSON-RPC request forwarding + run event fan-out</li>
+                  <li>Run waiters and completion tracking</li>
+                </ul>
+              </article>
+
+              <article class="sys">
+                <h3>CLI / Electron Agents</h3>
+                <div class="path">packages/cli/src/* + packages/electron-agent/src/*</div>
+                <ul>
+                  <li>Operator entrypoints for init/status/run/tool commands</li>
+                  <li>Native host + daemon workflows</li>
+                  <li>Electron transport for non-browser automation surfaces</li>
+                </ul>
+              </article>
+            </div>
+          </section>
+
+          <section id="runtime" class="panel section">
+            <h3 class="section-title">2) Runtime story (how requests flow)</h3>
+            <p>
+              The canonical loop: user intent enters through sidepanel or relay/CLI, background orchestrates model/tool
+              execution, content scripts perform browser actions, runtime events stream back to UI (and relay when
+              connected), backend handles billing/proxy/auth when paid routing is enabled.
+            </p>
+
+            <div class="mermaid-lite">
+              <div class="flow">
+                <div class="row">
+                  <div class="node"><strong>User Surface</strong>Sidepanel UI / CLI / Relay Caller</div>
+                  <div class="pipe">sends <code>user_message</code> or <code>agent.run</code></div>
+                </div>
+                <div class="row">
+                  <div class="node"><strong>BackgroundService</strong>Run state + model + tool orchestration</div>
+                  <div class="pipe">emits versioned runtime events, executes policy checks</div>
+                </div>
+                <div class="row">
+                  <div class="node"><strong>BrowserTools + Injected Scripts</strong>DOM actions in tab context</div>
+                  <div class="pipe">returns tool results, screenshots, recording signals</div>
+                </div>
+                <div class="row">
+                  <div class="node"><strong>Sidepanel Renderer</strong>Streaming UI + plan/tool trace timeline</div>
+                  <div class="pipe">renders run status, final response, usage, warnings/errors</div>
+                </div>
+                <div class="row">
+                  <div class="node"><strong>RelayDaemon</strong>JSON-RPC broker for external agents</div>
+                  <div class="pipe">mirrors run.event/run.done for remote clients</div>
+                </div>
+                <div class="row">
+                  <div class="node"><strong>Convex Backend</strong>Auth/credits/Stripe/AI proxy</div>
+                  <div class="pipe">reserves/settles credits and forwards paid provider calls</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="why" class="panel section">
+            <h3 class="section-title">3) Why this architecture exists</h3>
+            <div class="whyhow">
+              <article class="wh">
+                <h4>Why: Browser-native reliability</h4>
+                <p>
+                  Browser automation must happen in extension + content contexts, not a remote server. This design keeps
+                  interaction local to user tabs while preserving model orchestration in one control plane.
+                </p>
+              </article>
+              <article class="wh">
+                <h4>Why: Multi-surface control</h4>
+                <p>
+                  Users need both UI-first and terminal/agent workflows. Relay + CLI layers expose the same core tooling
+                  and run lifecycle without duplicating business logic.
+                </p>
+              </article>
+              <article class="wh">
+                <h4>Why: Economic controls</h4>
+                <p>
+                  Paid model routing requires authentication, usage metering, credit reservation/settlement, and Stripe
+                  lifecycle handling. Backend services isolate those responsibilities from extension runtime.
+                </p>
+              </article>
+              <article class="wh">
+                <h4>How: Contract-first messaging</h4>
+                <p>
+                  Shared runtime and JSON-RPC contracts define event schemas and request/response behaviors, enabling
+                  extension UI, relay, and clients to evolve against a common protocol.
+                </p>
+              </article>
+            </div>
+          </section>
+
+          <section id="fundamentals" class="panel section">
+            <h3 class="section-title">4) Fundamentals currently present in code</h3>
+            <p>These are already in the codebase and should remain non-negotiable design primitives.</p>
+            <div class="fundamentals">
+              <article class="f-item">
+                <h4>Session isolation + run cancellation</h4>
+                <p>
+                  Active run maps, per-session state, cancellation guards, and stop semantics prevent output spill across
+                  sessions and keep behavior deterministic.
+                </p>
+              </article>
+              <article class="f-item">
+                <h4>Bounded memory and payload controls</h4>
+                <p>
+                  MAX_* caps, truncation, dataUrl stripping, history clamps, and report image limits are consistently
+                  used to avoid runaway memory and message payload growth.
+                </p>
+              </article>
+              <article class="f-item">
+                <h4>Policy and permission gates</h4>
+                <p>
+                  Tool categories, allowed-domain checks, screenshot toggles, and account mode gates establish explicit
+                  runtime policy boundaries around automation behavior.
+                </p>
+              </article>
+              <article class="f-item">
+                <h4>Fallback and resilience loops</h4>
+                <p>
+                  Model fallback ordering, OAuth candidate refresh, finalization retries, and safe-await wrappers
+                  prioritize run completion under imperfect provider behavior.
+                </p>
+              </article>
+              <article class="f-item">
+                <h4>Streaming event architecture</h4>
+                <p>
+                  Runtime event schema with stream start/delta/stop, run_status, tool events, and terminal final/error
+                  enables progressive rendering and telemetry visibility.
+                </p>
+              </article>
+              <article class="f-item">
+                <h4>Shared protocol layer</h4>
+                <p>
+                  <code>@parchi/shared</code> unifies plan/runtime/tools/json-rpc types so extension, relay, CLI, and
+                  backend integration points can interoperate with reduced drift risk.
+                </p>
+              </article>
+            </div>
+          </section>
+
+          <section id="structure" class="panel section">
+            <h3 class="section-title">5) How we should structure going forward</h3>
+            <p>
+              Recommended target: explicit bounded-context modules around orchestration, tools, protocol, accounts, and
+              UI rendering so complexity is distributed by responsibility instead of accumulated in mega-files.
+            </p>
+
+            <div class="struct">
+              <article class="lane">
+                <h4>A. Runtime Orchestrator Layer (background)</h4>
+                <ul>
+                  <li><strong>run-engine/</strong>: run lifecycle, retries, finalize/compaction orchestration</li>
+                  <li><strong>message-router/</strong>: sidepanel + relay message handlers per command group</li>
+                  <li><strong>tool-runtime/</strong>: permission gate + tool dispatch + result enrichment</li>
+                  <li><strong>session-store/</strong>: session state, run registries, capacity eviction rules</li>
+                </ul>
+              </article>
+
+              <article class="lane">
+                <h4>B. Tooling Layer (browser-tools)</h4>
+                <ul>
+                  <li>Replace switch dispatch with typed registry: <code>toolName -&gt; handler</code></li>
+                  <li>Shared wrappers: tab resolution, overlay signaling, timeout normalization, result envelope</li>
+                  <li>Domain files: navigation, interaction, extraction, capture/video, tabs/session</li>
+                </ul>
+              </article>
+
+              <article class="lane">
+                <h4>C. Sidepanel App Layer</h4>
+                <ul>
+                  <li>Separate runtime-event reducer from DOM renderer components</li>
+                  <li>Normalize feature modules by domain (chat, account, settings, timeline, tabs)</li>
+                  <li>Keep prototype augmentation style if desired, but centralize shared state transitions</li>
+                </ul>
+              </article>
+
+              <article class="lane">
+                <h4>D. Backend & Billing Layer</h4>
+                <ul>
+                  <li>Split payments by concern: plan-config, stripe-session, key-provision, recovery</li>
+                  <li>Keep aiProxy focused on transport + accounting hooks; push provider policies to provider modules</li>
+                  <li>Treat credits reservation/settlement as a strict domain service API</li>
+                </ul>
+              </article>
+
+              <article class="lane">
+                <h4>E. Contract Layer (shared)</h4>
+                <ul>
+                  <li>Single source of truth for runtime events + rpc + tool schemas</li>
+                  <li>Add versioned compatibility rules and deprecation windows for event evolution</li>
+                  <li>Use shared validators at ingress points (UI messages, relay RPC, backend payloads)</li>
+                </ul>
+              </article>
+            </div>
+          </section>
+
+          <section id="next" class="panel section">
+            <h3 class="section-title">6) Immediate execution plan</h3>
+            <div class="next">
+              <article class="card">
+                <h4>Wave 1 — dispatch simplification</h4>
+                <p>
+                  Start with <code>browser-tools.ts</code> registry extraction and shared preflight wrappers. Low-risk,
+                  high readability, measurable line reduction.
+                </p>
+              </article>
+              <article class="card">
+                <h4>Wave 2 — event router split</h4>
+                <p>
+                  Split sidepanel <code>handleRuntimeMessage</code> into message map handlers grouped by run/tool/plan/
+                  error/session events.
+                </p>
+              </article>
+              <article class="card">
+                <h4>Wave 3 — run-engine extraction</h4>
+                <p>
+                  Move model pass/fallback/finalization + compaction from <code>service.ts</code> into a dedicated
+                  run-engine package-local module.
+                </p>
+              </article>
+            </div>
+            <div class="foot">
+              Practical principle: do not change behavior first—extract and stabilize interfaces, then optimize.
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>
