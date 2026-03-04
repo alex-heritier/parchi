@@ -21,8 +21,11 @@
 
   /* Status — vivid and clear */
   --success: #4ade80;
+  --success-rgb: 74 222 128;
   --warning: #fbbf24;
+  --warning-rgb: 251 191 36;
   --error: #f87171;
+  --error-rgb: 248 113 113;
 
   /* Ink system — layered transparency */
   --ink-1: rgba(255, 255, 255, 0.05);

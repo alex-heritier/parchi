@@ -613,6 +613,15 @@ sidePanelProto.updateActivityState = function updateActivityState() {
     toolbarLabels.push(`${usedLabel} / ${maxLabel}`);
   }
 
+  if (this.contextCompactionState?.inProgress) {
+    toolbarLabels.push('Compacting');
+  } else if (this.contextCompactionState?.lastResult === 'success') {
+    const compactedAt = Number(this.contextCompactionState.lastCompactedAt || 0);
+    if (compactedAt > 0 && Date.now() - compactedAt < 15000) {
+      toolbarLabels.push('Compacted');
+    }
+  }
+
   const usageLabel = this.buildUsageLabel?.(this.lastUsage);
   if (usageLabel) {
     toolbarLabels.push(usageLabel);

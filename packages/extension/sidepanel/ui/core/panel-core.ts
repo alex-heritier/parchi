@@ -128,6 +128,7 @@ sidePanelProto.init = async function init() {
     this.renderApiProviderGrid?.();
     await this.loadWorkflows();
     await this.loadHistoryList();
+    this.updateContextUsage?.();
     this.updateStatus('Ready', 'success');
     this.updateModelDisplay();
     this.fetchAvailableModels();
@@ -231,6 +232,10 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
       }
     });
   }
+
+  this.elements.contextInspectorBtn?.addEventListener('click', () => {
+    void this.requestManualContextCompaction?.();
+  });
 
   // Provider change — also refresh model catalog for setup tab
   const debouncedSetupModelRefresh = debounce(() => this.refreshModelCatalog({ force: true }), 800);
@@ -739,6 +744,31 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
 
   if (message.type === 'run_status') {
     const phase = typeof message.phase === 'string' ? message.phase : '';
+    const isCompactionStage = String((message as any).stage || '') === 'compaction';
+
+    if (isCompactionStage) {
+      if (phase === 'planning' || phase === 'executing' || phase === 'finalizing') {
+        this.setContextCompactionState?.({
+          inProgress: true,
+          lastResult: null,
+          lastMessage: message.note || null,
+        });
+      } else if (phase === 'completed') {
+        this.setContextCompactionState?.({
+          inProgress: false,
+          lastMessage: message.note || null,
+          lastCompletedAt: Date.now(),
+        });
+      } else if (phase === 'failed' || phase === 'stopped') {
+        this.setContextCompactionState?.({
+          inProgress: false,
+          lastResult: phase === 'stopped' ? 'skipped' : 'error',
+          lastMessage: message.note || null,
+          lastCompletedAt: Date.now(),
+        });
+      }
+    }
+
     if (phase === 'stopped' || phase === 'failed' || phase === 'completed') {
       this.stopWatchdog?.();
       this.stopThinkingTimer?.();
@@ -775,7 +805,7 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
               return parts.length ? ` (retries: ${parts.join(', ')})` : '';
             })()
           : '';
-      this.updateStatus(`${phaseLabel}${retryInfo}`, 'active');
+      this.updateStatus(message.note || `${phaseLabel}${retryInfo}`, 'active');
     } else if (phase) {
       this.updateStatus(message.note || phase, 'active');
     }
@@ -1043,6 +1073,14 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
       action: (message as any).action,
       recoverable: (message as any).recoverable,
     });
+    if (String((message as any).stage || '') === 'compaction') {
+      this.setContextCompactionState?.({
+        inProgress: false,
+        lastResult: 'error',
+        lastMessage: message.message || 'Compaction failed',
+        lastCompletedAt: Date.now(),
+      });
+    }
     void this.setParchiRuntimeHealth?.({
       level: 'error',
       summary: String(message.message || 'Paid runtime failed.'),
@@ -1054,7 +1092,19 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
     return;
   }
   if (message.type === 'run_warning') {
-    this.showErrorBanner(message.message);
+    const isCompactionWarning = String((message as any).stage || '') === 'compaction';
+    if (!isCompactionWarning) {
+      this.showErrorBanner(message.message);
+    }
+    if (isCompactionWarning) {
+      this.setContextCompactionState?.({
+        inProgress: false,
+        lastResult: 'skipped',
+        lastMessage: message.message || 'No compaction applied',
+        lastCompletedAt: Date.now(),
+      });
+      this.updateStatus(message.message || 'Compaction skipped', 'warning');
+    }
     const warningText = String(message.message || '');
     if (warningText) {
       const lower = warningText.toLowerCase();
@@ -1126,14 +1176,20 @@ sidePanelProto.appendContextMessages = function appendContextMessages(
 sidePanelProto.handleContextCompaction = function handleContextCompaction(message: any) {
   const trimmedCount = Number(message.trimmedCount || 0);
   const preservedCount = Number(message.preservedCount || 0);
+  const source = String(message.source || 'auto');
   const percent =
     typeof message.contextUsage?.percent === 'number'
       ? Math.max(0, Math.min(100, Math.round(message.contextUsage.percent)))
       : null;
+  const beforePercent =
+    typeof message.beforeContextUsage?.percent === 'number'
+      ? Math.max(0, Math.min(100, Math.round(message.beforeContextUsage.percent)))
+      : null;
   const parts = [
     trimmedCount > 0 ? `${trimmedCount} summarized` : 'Context compacted',
     preservedCount > 0 ? `${preservedCount} preserved` : null,
-    percent !== null ? `${percent}% after compaction` : null,
+    beforePercent !== null && percent !== null ? `${beforePercent}% → ${percent}%` : null,
+    beforePercent === null && percent !== null ? `${percent}% after compaction` : null,
   ].filter(Boolean);
   if (parts.length > 0) {
     this.updateStatus(`Context compacted: ${parts.join(', ')}`, 'success');
@@ -1142,6 +1198,16 @@ sidePanelProto.handleContextCompaction = function handleContextCompaction(messag
   const normalized = normalizeConversationHistory(message.contextMessages as unknown as Message[]);
   this.contextHistory = normalized;
   this.sessionId = message.newSessionId || this.sessionId;
+  if (message.startFreshSession === true) {
+    this.displayHistory = [];
+    this.elements.chatMessages.innerHTML = '';
+    this.lastChatTurn = null;
+    this.pendingTurnDraft = null;
+    this.historyTurnMap.clear();
+    this.currentPlan = null;
+    this.hidePlanDrawer?.();
+    this.toolCallViews.clear();
+  }
 
   const summaryText = message.summary || 'Context compacted.';
   const summaryEntry = createMessage({
@@ -1158,9 +1224,22 @@ sidePanelProto.handleContextCompaction = function handleContextCompaction(messag
     this.displaySummaryMessage(summaryEntry);
   }
 
-  if (message.contextUsage?.approxTokens) {
+  if (typeof message.contextUsage?.approxTokens === 'number') {
     this.updateContextUsage(message.contextUsage.approxTokens);
   }
+
+  this.setContextCompactionState?.({
+    inProgress: false,
+    lastResult: 'success',
+    lastMessage: parts.join(', '),
+    lastTrimmedCount: trimmedCount,
+    lastPreservedCount: preservedCount,
+    lastSource: source,
+    lastCompactedAt: Date.now(),
+    lastCompletedAt: Date.now(),
+    lastBeforePercent: beforePercent,
+    lastAfterPercent: percent,
+  });
 
   // Trigger compaction sweep animation on the context bar
   const bar = document.getElementById('contextBar');

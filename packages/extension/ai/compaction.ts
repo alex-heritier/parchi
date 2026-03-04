@@ -9,8 +9,8 @@ export type CompactionSettings = {
 
 export const DEFAULT_COMPACTION_SETTINGS: CompactionSettings = {
   enabled: true,
-  reserveTokens: 16384,
-  keepRecentTokens: 20000,
+  reserveTokens: 32768,
+  keepRecentTokens: 16000,
 };
 
 export const SUMMARIZATION_SYSTEM_PROMPT = `You are a context summarization assistant. Your task is to read a conversation between a user and an AI coding assistant, then produce a structured summary following the exact format specified.

@@ -182,6 +182,7 @@ select:focus-visible {
 }
 
 .icon-btn:focus-visible,
+.context-inspector-fab:focus-visible,
 .settings-fab:focus-visible,
 .history-fab:focus-visible,
 .new-session-fab:focus-visible,

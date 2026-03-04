@@ -65,6 +65,13 @@ sidePanelProto.startNewSession = function startNewSession() {
   this.sessionStartedAt = Date.now();
   this.firstUserMessage = '';
   this.sessionTokensUsed = 0;
+  this.contextCompactionState = {
+    inProgress: false,
+    lastResult: null,
+    lastMessage: null,
+    lastCompactedAt: 0,
+    lastCompletedAt: 0,
+  };
   this.lastUsage = null;
   this.sessionTokenTotals = {
     inputTokens: 0,

@@ -23,6 +23,9 @@ export const getSidePanelElements = (): SidePanelElements => ({
   statusText: byId<HTMLElement>('statusText'),
   statusMeta: byId<HTMLElement>('statusMeta'),
   statusBar: byId<HTMLElement>('statusBar'),
+  contextInspectorBtn: byId<HTMLButtonElement>('contextInspectorBtn'),
+  contextInspectorValue: byId<HTMLElement>('contextInspectorValue'),
+  contextInspectorMeta: byId<HTMLElement>('contextInspectorMeta'),
   agentNav: byId<HTMLElement>('agentNav'),
 
   tabSelectorBtn: byId<HTMLButtonElement>('tabSelectorBtn'),

@@ -71,6 +71,122 @@ body.sidebar-open .fab-group {
   transform: rotate(90deg) scale(1.15);
 }
 
+.context-inspector-fab {
+  height: 34px;
+  min-width: 110px;
+  max-width: 150px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--ink-2);
+  background: var(--card);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: 0.82;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: all 220ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.context-inspector-fab:hover {
+  transform: scale(1.02);
+  opacity: 1;
+  border-color: var(--ink-3);
+  color: var(--foreground);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 6px 24px rgba(0, 0, 0, 0.32);
+}
+
+.context-inspector-fab:active {
+  transform: scale(0.96);
+  transition-duration: 80ms;
+}
+
+.context-inspector-fab:disabled {
+  opacity: 0.72;
+  cursor: default;
+}
+
+.context-inspector-icon {
+  opacity: 0.65;
+  flex-shrink: 0;
+}
+
+.context-inspector-value {
+  color: var(--foreground);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.context-inspector-meta {
+  color: var(--muted-dim);
+  flex-shrink: 0;
+}
+
+.context-inspector-fab.level-mid {
+  border-color: rgb(var(--accent-rgb) / 0.4);
+}
+
+.context-inspector-fab.level-high {
+  border-color: rgb(245 171 53 / 0.65);
+}
+
+.context-inspector-fab.level-critical {
+  border-color: rgb(239 68 68 / 0.8);
+  background: rgb(239 68 68 / 0.12);
+}
+
+.context-inspector-fab.is-compacting {
+  border-color: rgb(var(--accent-rgb) / 0.7);
+  color: var(--foreground);
+}
+
+.context-inspector-fab.is-confirmed {
+  border-color: rgb(34 197 94 / 0.75);
+}
+
+.context-inspector-fab.is-warning {
+  border-color: rgb(245 171 53 / 0.65);
+}
+
+.context-inspector-fab.is-error {
+  border-color: rgb(239 68 68 / 0.85);
+}
+
+@media (max-width: 980px) {
+  .context-inspector-fab {
+    min-width: 94px;
+    max-width: 118px;
+    padding: 0 8px;
+    gap: 5px;
+  }
+
+  .context-inspector-meta {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .context-inspector-fab {
+    min-width: 34px;
+    width: 34px;
+    max-width: 34px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 999px;
+  }
+
+  .context-inspector-value,
+  .context-inspector-meta {
+    display: none;
+  }
+}
+
 /* Jump to latest */
 .jump-to-latest {
   position: fixed;
@@ -528,24 +644,182 @@ body.sidebar-open .fab-group {
 }
 
 /* ============================================================================
-   Summary / Context Compaction
+   Context Compaction — Minimal Inline Banner
    ============================================================================ */
 
-.message.summary {
-  text-align: center;
-  padding: 12px 16px;
-  margin: 8px 0;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+.compaction-message {
+  margin: 12px 0;
+  padding: 0;
+  animation: compactionAppear 0.4s var(--ease-out-expo);
 }
 
-.summary-header {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
+@keyframes compactionAppear {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.compaction-card {
+  background: var(--card);
+  border: 1px solid var(--ink-2);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.compaction-card:hover {
+  border-color: var(--ink-3);
+}
+
+.compaction-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+}
+
+.compaction-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.compaction-badge svg {
+  width: 14px;
+  height: 14px;
   color: var(--accent);
-  margin-bottom: 4px;
+  opacity: 0.8;
+}
+
+.compaction-count {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--muted-dim);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compaction-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--muted-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.compaction-toggle:hover {
+  background: var(--ink-1);
+  color: var(--foreground);
+}
+
+.compaction-toggle .toggle-chevron {
+  transition: transform 0.2s var(--ease-out-expo);
+}
+
+.compaction-toggle[aria-expanded="false"] .toggle-chevron {
+  transform: rotate(180deg);
+}
+
+.compaction-body {
+  max-height: 400px;
+  overflow-y: auto;
+  transition: all 0.25s var(--ease-out-expo);
+  border-top: 1px solid var(--ink-1);
+}
+
+.compaction-body.collapsed {
+  max-height: 0;
+  opacity: 0;
+  border-top-color: transparent;
+  overflow: hidden;
+}
+
+.compaction-detail {
+  padding: 12px 14px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--muted);
+}
+
+.compaction-detail h1,
+.compaction-detail h2,
+.compaction-detail h3 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--foreground);
+  margin: 12px 0 6px;
+}
+
+.compaction-detail h1:first-child,
+.compaction-detail h2:first-child,
+.compaction-detail h3:first-child {
+  margin-top: 0;
+}
+
+.compaction-detail ul,
+.compaction-detail ol {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+
+.compaction-detail li {
+  margin: 3px 0;
+}
+
+.compaction-detail code {
+  padding: 1px 5px;
+  background: var(--card-hover);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.compaction-detail a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+@media (max-width: 480px) {
+  .compaction-header {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .compaction-badge {
+    font-size: 10px;
+  }
+
+  .compaction-count {
+    font-size: 10px;
+  }
+
+  .compaction-detail {
+    padding: 10px 10px;
+    font-size: 11px;
+  }
 }
 
 /* ============================================================================

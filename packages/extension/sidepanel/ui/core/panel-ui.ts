@@ -46,6 +46,19 @@ export class SidePanelUI {
     maxContextTokens: number;
     percent: number;
   };
+  contextCompactionState: {
+    inProgress: boolean;
+    lastResult: 'success' | 'skipped' | 'error' | null;
+    lastMessage: string | null;
+    lastTrimmedCount?: number;
+    lastPreservedCount?: number;
+    lastCompactedAt: number;
+    lastCompletedAt: number;
+    lastTrigger?: string;
+    lastSource?: string;
+    lastBeforePercent?: number | null;
+    lastAfterPercent?: number | null;
+  };
   sessionTokensUsed: number;
   lastUsage: UsageStats | null;
   sessionTokenTotals: UsageStats;
@@ -190,6 +203,13 @@ export class SidePanelUI {
       approxTokens: 0,
       maxContextTokens: 196000,
       percent: 0,
+    };
+    this.contextCompactionState = {
+      inProgress: false,
+      lastResult: null,
+      lastMessage: null,
+      lastCompactedAt: 0,
+      lastCompletedAt: 0,
     };
     this.sessionTokensUsed = 0;
     this.lastUsage = null;

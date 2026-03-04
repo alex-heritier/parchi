@@ -7,7 +7,6 @@ import {
   SUMMARIZATION_PROMPT,
   SUMMARIZATION_SYSTEM_PROMPT,
   UPDATE_SUMMARIZATION_PROMPT,
-  applyCompaction,
   buildCompactionSummaryMessage,
   estimateContextTokens,
   findCutPoint,
@@ -667,6 +666,22 @@ export class BackgroundService {
           break;
         }
 
+        case 'compact_context': {
+          const sessionId =
+            typeof message.sessionId === 'string' && message.sessionId.trim()
+              ? message.sessionId.trim()
+              : `session-${Date.now()}`;
+          const conversationHistory = Array.isArray(message.conversationHistory)
+            ? (message.conversationHistory as Message[])
+            : [];
+          sendResponse({ success: true, accepted: true, sessionId });
+          void this.processContextCompaction(conversationHistory, sessionId, {
+            source: typeof message.trigger === 'string' ? message.trigger : 'manual',
+            force: true,
+          });
+          break;
+        }
+
         case 'stop_run': {
           const sessionId = typeof message.sessionId === 'string' ? message.sessionId : '';
           const note = typeof message.note === 'string' && message.note.trim() ? message.note.trim() : 'Stopped';
@@ -779,6 +794,443 @@ export class BackgroundService {
         message: error.message,
       });
       sendResponse({ success: false, error: error.message });
+    }
+  }
+
+  private async runContextCompaction(options: {
+    runMeta: RunMeta;
+    history: Message[];
+    contextLimit: number;
+    orchestratorProfile: Record<string, any>;
+    model: any;
+    abortSignal?: AbortSignal;
+    force?: boolean;
+    source?: string;
+    statusPrefix?: string;
+  }): Promise<{ compacted: boolean; reason?: string }> {
+    const toContentPreview = (content: Message['content'], max = 180) => {
+      if (typeof content === 'string') return content.replace(/\s+/g, ' ').trim().slice(0, max);
+      if (Array.isArray(content)) {
+        const joined = content
+          .map((part) => {
+            if (typeof part === 'string') return part;
+            if (!part || typeof part !== 'object') return '';
+            if (typeof (part as any).text === 'string') return (part as any).text;
+            if ((part as any).output !== undefined) {
+              try {
+                return JSON.stringify((part as any).output);
+              } catch {
+                return String((part as any).output ?? '');
+              }
+            }
+            if ((part as any).content !== undefined) {
+              try {
+                return JSON.stringify((part as any).content);
+              } catch {
+                return String((part as any).content ?? '');
+              }
+            }
+            return '';
+          })
+          .filter(Boolean)
+          .join(' ');
+        return joined.replace(/\s+/g, ' ').trim().slice(0, max);
+      }
+      try {
+        return JSON.stringify(content ?? '').slice(0, max);
+      } catch {
+        return String(content ?? '').slice(0, max);
+      }
+    };
+    const messageSignature = (msg: Message) => {
+      let contentSig = '';
+      try {
+        contentSig = JSON.stringify(msg.content ?? '').slice(0, 320);
+      } catch {
+        contentSig = String(msg.content ?? '').slice(0, 320);
+      }
+      return [
+        msg.role,
+        (msg as any).toolCallId || '',
+        (msg as any).toolName || '',
+        contentSig,
+        (msg as any).meta?.kind || '',
+      ].join('|');
+    };
+    const buildToolTraceMessage = (messages: Message[]) => {
+      const resultByToolCallId = new Map<string, string>();
+      const traces: string[] = [];
+      const seen = new Set<string>();
+
+      for (const msg of messages) {
+        if (msg.role !== 'tool') continue;
+        const id = String((msg as any).toolCallId || '').trim();
+        if (!id) continue;
+        const resultPreview = toContentPreview(msg.content, 140);
+        if (resultPreview) {
+          resultByToolCallId.set(id, resultPreview);
+        }
+      }
+
+      for (const msg of messages) {
+        if (msg.role !== 'assistant' || !Array.isArray(msg.toolCalls)) continue;
+        for (const call of msg.toolCalls) {
+          const id = String(call?.id || '').trim();
+          const toolName = String(call?.name || 'tool').trim() || 'tool';
+          const argsPreview = (() => {
+            try {
+              return JSON.stringify(call?.args ?? {}).slice(0, 120);
+            } catch {
+              return String(call?.args ?? '').slice(0, 120);
+            }
+          })();
+          const key = id || `${toolName}:${argsPreview}`;
+          if (!key || seen.has(key)) continue;
+          seen.add(key);
+          const resultPreview = id ? resultByToolCallId.get(id) : '';
+          traces.push(
+            `- ${toolName}(${argsPreview})${resultPreview ? ` -> ${resultPreview}` : ''}${id ? ` [${id}]` : ''}`,
+          );
+          if (traces.length >= 32) break;
+        }
+        if (traces.length >= 32) break;
+      }
+
+      if (traces.length === 0) return null;
+      return {
+        role: 'system' as const,
+        content: `## Tool Trace Mini Map\n${traces.join('\n')}`,
+        meta: {
+          kind: 'summary',
+          summaryOfCount: traces.length,
+          source: 'auto',
+        },
+      } satisfies Message;
+    };
+
+    const compactionSettings = DEFAULT_COMPACTION_SETTINGS;
+    const nextHistory = normalizeConversationHistory(Array.isArray(options.history) ? options.history : []);
+    const contextUsage = estimateContextTokens(nextHistory);
+    const compactionCheck = shouldCompact({
+      contextTokens: contextUsage.tokens,
+      contextLimit: options.contextLimit,
+      settings: compactionSettings,
+    });
+    const currentPercent = Math.max(0, Math.min(100, Math.round(compactionCheck.percent * 100)));
+    const forceCompaction = options.force === true;
+    const keepRecentTokens = forceCompaction
+      ? Math.max(320, Math.floor(options.contextLimit * 0.02))
+      : compactionSettings.keepRecentTokens;
+
+    if (!forceCompaction && !compactionCheck.shouldCompact) {
+      return {
+        compacted: false,
+        reason: `${options.statusPrefix || 'Context'} is at ${currentPercent}% (${compactionCheck.approxTokens}/${options.contextLimit} tokens).`,
+      };
+    }
+
+    this.sendRuntime(options.runMeta, {
+      type: 'run_status',
+      phase: 'finalizing',
+      attempts: { api: 0, tool: 0, finalize: 0 },
+      maxRetries: { api: 0, tool: 0, finalize: 0 },
+      note: forceCompaction
+        ? `${options.statusPrefix || 'Context'} compaction started (${currentPercent}%, ${compactionCheck.approxTokens}/${options.contextLimit} tokens).`
+        : `${options.statusPrefix || 'Context'} near limit (${currentPercent}%, ${compactionCheck.approxTokens}/${options.contextLimit} tokens). Compaction started.`,
+      stage: 'compaction',
+      source: options.source || 'auto',
+    });
+
+    let summaryIndex = -1;
+    for (let i = nextHistory.length - 1; i >= 0; i -= 1) {
+      const msg = nextHistory[i];
+      if (msg.role === 'system' && msg.meta?.kind === 'summary') {
+        summaryIndex = i;
+        break;
+      }
+    }
+
+    const previousSummary =
+      summaryIndex >= 0
+        ? typeof nextHistory[summaryIndex].content === 'string'
+          ? nextHistory[summaryIndex].content
+          : JSON.stringify(nextHistory[summaryIndex].content)
+        : undefined;
+
+    const compactionStart = summaryIndex >= 0 ? summaryIndex + 1 : 0;
+    const cutIndex = findCutPoint(nextHistory, compactionStart, keepRecentTokens);
+    let messagesToSummarize = nextHistory.slice(compactionStart, cutIndex);
+    let preserved = nextHistory.slice(cutIndex);
+
+    if (messagesToSummarize.length === 0 && !forceCompaction) {
+      const fallbackKeepMessages = Math.min(12, Math.max(4, Math.floor(nextHistory.length * 0.25)));
+      const fallbackCutIndex = Math.max(compactionStart + 1, nextHistory.length - fallbackKeepMessages);
+      messagesToSummarize = nextHistory.slice(compactionStart, fallbackCutIndex);
+      preserved = nextHistory.slice(fallbackCutIndex);
+    }
+
+    // Manual force mode should always compact when the user explicitly clicks
+    // compact, even if nothing qualifies as "old" under keepRecentTokens.
+    if (messagesToSummarize.length === 0 && forceCompaction) {
+      const forcedWindow = nextHistory.filter((msg) => !(msg.role === 'system' && msg.meta?.kind === 'summary'));
+      messagesToSummarize = forcedWindow.length > 0 ? forcedWindow : nextHistory;
+      preserved = [];
+    }
+
+    if (messagesToSummarize.length === 0) {
+      return { compacted: false, reason: 'Compaction skipped: nothing to summarize yet.' };
+    }
+
+    const conversationText = serializeConversation(messagesToSummarize);
+    let promptText = `<conversation>\n${conversationText}\n</conversation>\n\n`;
+    if (previousSummary) {
+      promptText += `<previous-summary>\n${previousSummary}\n</previous-summary>\n\n`;
+    }
+    promptText += previousSummary ? UPDATE_SUMMARIZATION_PROMPT : SUMMARIZATION_PROMPT;
+
+    const summaryUsesCodexOAuth = profileUsesCodexOAuth(options.orchestratorProfile as any);
+    const summaryResult = await generateText({
+      model: options.model,
+      system: SUMMARIZATION_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: 'user',
+          content: promptText,
+        },
+      ],
+      abortSignal: options.abortSignal,
+      temperature: 0.2,
+      maxOutputTokens: summaryUsesCodexOAuth ? undefined : Math.floor(0.8 * compactionSettings.reserveTokens),
+      providerOptions: summaryUsesCodexOAuth ? buildCodexOAuthProviderOptions(SUMMARIZATION_SYSTEM_PROMPT) : undefined,
+    });
+
+    const parsedSummary = extractThinking(summaryResult.text || '', null);
+    const summaryText = parsedSummary.content || String(summaryResult.text || '').trim();
+    const compactedInfo = `Compaction result: summarized ${messagesToSummarize.length} messages, kept ${preserved.length} recent messages.`;
+    const compactedSummary = `${compactedInfo}\n\n${summaryText}`;
+
+    const summaryMessage = buildCompactionSummaryMessage(compactedSummary, messagesToSummarize.length);
+    summaryMessage.meta = {
+      ...(summaryMessage.meta || {}),
+      source: options.source || 'auto',
+    };
+
+    const firstAnchor =
+      nextHistory.find((msg) => msg.role !== 'system') ||
+      nextHistory.find((msg) => msg.role === 'system' && msg.meta?.kind !== 'summary') ||
+      null;
+    const lastAnchor =
+      [...nextHistory].reverse().find((msg) => msg.role !== 'system') ||
+      [...nextHistory].reverse().find((msg) => msg.role === 'system' && msg.meta?.kind !== 'summary') ||
+      null;
+    const toolTraceMessage = buildToolTraceMessage(nextHistory);
+    const latestUserMessage = [...nextHistory].reverse().find((msg) => msg.role === 'user');
+    const continuationMessage: Message = {
+      role: 'system',
+      content: [
+        'Compaction checkpoint:',
+        '- Continue from the latest user objective.',
+        '- Use this summary + preserved anchors + mini tool traces as source of truth.',
+        '- Do not resend full old history unless explicitly requested.',
+        latestUserMessage ? `Latest user request: ${toContentPreview(latestUserMessage.content, 280)}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      meta: {
+        kind: 'summary',
+        summaryOfCount: 1,
+        source: options.source || 'auto',
+      },
+    };
+
+    const compactedCandidates: Array<Message | null> = [
+      summaryMessage,
+      continuationMessage,
+      toolTraceMessage,
+      firstAnchor,
+      ...preserved,
+      lastAnchor,
+    ];
+    const compacted: Message[] = [];
+    const compactedSeen = new Set<string>();
+    for (const candidate of compactedCandidates) {
+      if (!candidate) continue;
+      const signature = messageSignature(candidate);
+      if (compactedSeen.has(signature)) continue;
+      compactedSeen.add(signature);
+      compacted.push(candidate);
+    }
+    const preservedCount = compacted.filter((msg) => msg.role !== 'system').length;
+
+    const newSessionId = `session-${Date.now()}`;
+    const beforeUsage = {
+      approxTokens: compactionCheck.approxTokens,
+      contextLimit: options.contextLimit,
+      percent: currentPercent,
+    };
+    const afterEstimate = estimateContextTokens(compacted);
+    const afterPercent = Math.max(
+      0,
+      Math.min(100, Math.round((afterEstimate.tokens / Math.max(1, options.contextLimit)) * 100)),
+    );
+
+    this.sendRuntime(options.runMeta, {
+      type: 'context_compacted',
+      source: options.source || 'auto',
+      startFreshSession: true,
+      summary: compactedSummary,
+      trimmedCount: messagesToSummarize.length,
+      preservedCount,
+      newSessionId,
+      contextMessages: compacted,
+      beforeContextUsage: beforeUsage,
+      contextUsage: {
+        approxTokens: afterEstimate.tokens,
+        contextLimit: options.contextLimit,
+        percent: afterPercent,
+      },
+    });
+
+    this.sendRuntime(options.runMeta, {
+      type: 'run_status',
+      phase: 'finalizing',
+      attempts: { api: 0, tool: 0, finalize: 0 },
+      maxRetries: { api: 0, tool: 0, finalize: 0 },
+      note: `${options.statusPrefix || 'Context'} compacted. ${compactedInfo}`,
+      stage: 'compaction',
+      source: options.source || 'auto',
+    });
+
+    return { compacted: true };
+  }
+
+  async processContextCompaction(
+    conversationHistory: Message[],
+    sessionId: string,
+    options?: { source?: string; force?: boolean },
+  ) {
+    const runMeta: RunMeta = {
+      runId: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      turnId: `turn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      sessionId,
+    };
+    const source = typeof options?.source === 'string' ? options.source : 'manual';
+    const statusPrefix = source === 'manual' ? 'Manual context' : 'Context';
+
+    if (this.activeRunIdBySessionId.has(sessionId)) {
+      this.sendRuntime(runMeta, {
+        type: 'run_warning',
+        message: 'Compaction skipped because a run is still active.',
+        stage: 'compaction',
+        source,
+      });
+      this.sendRuntime(runMeta, {
+        type: 'run_status',
+        phase: 'stopped',
+        attempts: { api: 0, tool: 0, finalize: 0 },
+        maxRetries: { api: 0, tool: 0, finalize: 0 },
+        note: 'Stop the active run before compacting.',
+        stage: 'compaction',
+        source,
+      });
+      return;
+    }
+
+    try {
+      const settings = await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[]);
+      const activeProfileName = settings.activeConfig || 'default';
+      const orchestratorProfileName = settings.orchestratorProfile || activeProfileName;
+      const orchestratorEnabled = settings.useOrchestrator === true;
+
+      const activeProfile = resolveProfile(settings, activeProfileName);
+      let orchestratorProfile = orchestratorEnabled ? resolveProfile(settings, orchestratorProfileName) : activeProfile;
+
+      if (!hasOwnApiKey(orchestratorProfile)) {
+        await refreshConvexProxyAuthSession(settings);
+      }
+
+      let runtimeProfileResolution = resolveRuntimeModelProfile(orchestratorProfile, settings);
+      if (!runtimeProfileResolution.allowed) {
+        this.sendRuntime(runMeta, {
+          type: 'run_error',
+          message: runtimeProfileResolution.errorMessage || 'Please configure your API key in settings',
+          stage: 'compaction',
+          source,
+        });
+        return;
+      }
+      if (runtimeProfileResolution.route === 'oauth') {
+        orchestratorProfile = await injectOAuthTokens(runtimeProfileResolution.profile);
+      } else {
+        orchestratorProfile = runtimeProfileResolution.profile;
+      }
+
+      const model = resolveLanguageModel(orchestratorProfile);
+      const history = normalizeConversationHistory(Array.isArray(conversationHistory) ? conversationHistory : []);
+      if (history.length < 1) {
+        this.sendRuntime(runMeta, {
+          type: 'run_warning',
+          message: 'Compaction skipped: no conversation history yet.',
+          stage: 'compaction',
+          source,
+        });
+        this.sendRuntime(runMeta, {
+          type: 'run_status',
+          phase: 'completed',
+          attempts: { api: 0, tool: 0, finalize: 0 },
+          maxRetries: { api: 0, tool: 0, finalize: 0 },
+          note: 'Compaction skipped (no conversation history yet).',
+          stage: 'compaction',
+          source,
+        });
+        return;
+      }
+
+      const contextLimit = orchestratorProfile.contextLimit || settings.contextLimit || 200000;
+      const result = await this.runContextCompaction({
+        runMeta,
+        history,
+        contextLimit,
+        orchestratorProfile,
+        model,
+        force: options?.force === true,
+        source,
+        statusPrefix,
+      });
+      if (!result.compacted) {
+        this.sendRuntime(runMeta, {
+          type: 'run_warning',
+          message: result.reason || 'Compaction skipped.',
+          stage: 'compaction',
+          source,
+        });
+      }
+      this.sendRuntime(runMeta, {
+        type: 'run_status',
+        phase: 'completed',
+        attempts: { api: 0, tool: 0, finalize: 0 },
+        maxRetries: { api: 0, tool: 0, finalize: 0 },
+        note: result.compacted ? 'Context compaction completed.' : result.reason || 'Compaction skipped.',
+        stage: 'compaction',
+        source,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error || 'Compaction failed');
+      this.sendRuntime(runMeta, {
+        type: 'run_error',
+        message,
+        stage: 'compaction',
+        source,
+      });
+      this.sendRuntime(runMeta, {
+        type: 'run_status',
+        phase: 'failed',
+        attempts: { api: 0, tool: 0, finalize: 0 },
+        maxRetries: { api: 0, tool: 0, finalize: 0 },
+        note: `Compaction failed: ${message}`,
+        stage: 'compaction',
+        source,
+      });
     }
   }
 
@@ -1817,107 +2269,15 @@ export class BackgroundService {
 
       const nextHistory = normalizeConversationHistory([...currentHistory, ...responseMessages]);
       const contextLimit = orchestratorProfile.contextLimit || settings.contextLimit || 200000;
-      const compactionSettings = DEFAULT_COMPACTION_SETTINGS;
-      const contextUsage = estimateContextTokens(nextHistory);
-      const compactionCheck = shouldCompact({
-        contextTokens: contextUsage.tokens,
+      await this.runContextCompaction({
+        runMeta,
+        history: nextHistory,
         contextLimit,
-        settings: compactionSettings,
+        orchestratorProfile,
+        model,
+        abortSignal,
+        source: 'auto',
       });
-
-      if (compactionCheck.shouldCompact) {
-        const currentPercent = Math.max(0, Math.min(100, Math.round(compactionCheck.percent * 100)));
-        this.sendRuntime(runMeta, {
-          type: 'run_status',
-          phase: 'finalizing',
-          attempts: { api: 0, tool: 0, finalize: 0 },
-          maxRetries: { api: 0, tool: 0, finalize: 0 },
-          note: `Context near limit (${currentPercent}%, ${compactionCheck.approxTokens}/${contextLimit} tokens). Compaction started.`,
-        });
-
-        let summaryIndex = -1;
-        for (let i = nextHistory.length - 1; i >= 0; i -= 1) {
-          const msg = nextHistory[i];
-          if (msg.role === 'system' && msg.meta?.kind === 'summary') {
-            summaryIndex = i;
-            break;
-          }
-        }
-
-        const previousSummary =
-          summaryIndex >= 0
-            ? typeof nextHistory[summaryIndex].content === 'string'
-              ? nextHistory[summaryIndex].content
-              : JSON.stringify(nextHistory[summaryIndex].content)
-            : undefined;
-
-        const compactionStart = summaryIndex >= 0 ? summaryIndex + 1 : 0;
-        const cutIndex = findCutPoint(nextHistory, compactionStart, compactionSettings.keepRecentTokens);
-        const messagesToSummarize = nextHistory.slice(compactionStart, cutIndex);
-        const preserved = nextHistory.slice(cutIndex);
-
-        if (messagesToSummarize.length > 0) {
-          const conversationText = serializeConversation(messagesToSummarize);
-          let promptText = `<conversation>\n${conversationText}\n</conversation>\n\n`;
-          if (previousSummary) {
-            promptText += `<previous-summary>\n${previousSummary}\n</previous-summary>\n\n`;
-          }
-          promptText += previousSummary ? UPDATE_SUMMARIZATION_PROMPT : SUMMARIZATION_PROMPT;
-
-          const summaryUsesCodexOAuth = profileUsesCodexOAuth(orchestratorProfile as any);
-          const summaryResult = await generateText({
-            model,
-            system: SUMMARIZATION_SYSTEM_PROMPT,
-            messages: [
-              {
-                role: 'user',
-                content: promptText,
-              },
-            ],
-            abortSignal,
-            temperature: 0.2,
-            maxOutputTokens: summaryUsesCodexOAuth ? undefined : Math.floor(0.8 * compactionSettings.reserveTokens),
-            providerOptions: summaryUsesCodexOAuth
-              ? buildCodexOAuthProviderOptions(SUMMARIZATION_SYSTEM_PROMPT)
-              : undefined,
-          });
-
-          const parsedSummary = extractThinking(summaryResult.text || '', null);
-          const summaryText = parsedSummary.content || String(summaryResult.text || '').trim();
-          const compactedInfo = `Compaction result: summarized ${messagesToSummarize.length} messages, kept ${preserved.length} recent messages.`;
-          const compactedSummary = `${compactedInfo}\n\n${summaryText}`;
-
-          const summaryMessage = buildCompactionSummaryMessage(compactedSummary, messagesToSummarize.length);
-          const compaction = applyCompaction({
-            summaryMessage,
-            preserved,
-            trimmedCount: messagesToSummarize.length,
-          });
-          const newSessionId = `session-${Date.now()}`;
-
-          this.sendRuntime(runMeta, {
-            type: 'context_compacted',
-            summary: compactedSummary,
-            trimmedCount: messagesToSummarize.length,
-            preservedCount: compaction.preservedCount,
-            newSessionId,
-            contextMessages: compaction.compacted,
-            contextUsage: {
-              approxTokens: compactionCheck.approxTokens,
-              contextLimit,
-              percent: Math.round(compactionCheck.percent * 100),
-            },
-          });
-
-          this.sendRuntime(runMeta, {
-            type: 'run_status',
-            phase: 'finalizing',
-            attempts: { api: 0, tool: 0, finalize: 0 },
-            maxRetries: { api: 0, tool: 0, finalize: 0 },
-            note: `Context compacted. ${compactedInfo}`,
-          });
-        }
-      }
     } catch (error) {
       if (abortSignal.aborted || this.isRunCancelled(runMeta.runId)) {
         return;
