@@ -151,6 +151,36 @@ def detect_compaction(
     return None
 
 
+def run_self_tests() -> int:
+    compaction = detect_compaction(1000, 500, 1200, slack_tokens=32)
+    if not compaction or compaction["removed_tokens_lower_bound"] != 300:
+        print("SELF-TEST FAILED: compaction detection mismatch")
+        return 1
+
+    no_compaction = detect_compaction(1000, 500, 1485, slack_tokens=32)
+    if no_compaction is not None:
+        print("SELF-TEST FAILED: false positive compaction detection")
+        return 1
+
+    response = "PROJECT_CODENAME = ORBIT-DELTA-917\nLEAD_ENGINEER = Dr. Yuki Tanaka"
+    seed = {
+        "PROJECT_CODENAME": "ORBIT-DELTA-917",
+        "LEAD_ENGINEER": "Dr. Yuki Tanaka",
+    }
+    recall = score_recall(response, seed)
+    if recall["correct"] != 2 or recall["total"] != 2:
+        print("SELF-TEST FAILED: recall scoring mismatch")
+        return 1
+
+    prompt = make_probe_prompt(10, seed)
+    if "PROJECT_CODENAME" not in prompt or "LEAD_ENGINEER" not in prompt:
+        print("SELF-TEST FAILED: probe prompt missing keys")
+        return 1
+
+    print("SELF-TEST PASSED")
+    return 0
+
+
 def make_seed_prompt(seed_facts: dict[str, str]) -> str:
     lines = ["CRITICAL PROJECT REFERENCE — memorise every single field exactly as written:"]
     for key, value in seed_facts.items():
@@ -354,6 +384,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out-dir", default=str(Path(__file__).resolve().parent.parent / "test-output"))
     parser.add_argument("--run-id", default=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"))
     parser.add_argument("--seed-facts-path", help="Optional JSON file containing seed facts object")
+    parser.add_argument("--self-test", action="store_true", help="Run internal validation checks and exit")
     return parser
 
 
@@ -369,6 +400,9 @@ def load_seed_facts(path: str | None) -> dict[str, str]:
 def main() -> int:
     parser = build_arg_parser()
     args = parser.parse_args()
+
+    if args.self_test:
+        return run_self_tests()
 
     api_key = os.environ.get(args.api_key_env)
     if not api_key:

@@ -5,6 +5,7 @@
  * Tests individual components without Chrome APIs
  */
 
+import { runCompactionStressTestV2Suite } from './compaction-stress-test-v2.test.js';
 import { TestRunner, log } from './shared/runner.js';
 import { runAiProviderConfigSuite } from './suites/ai-provider-config.test.js';
 import { runApiErrorClassificationSuite } from './suites/api-error-classification.test.js';
@@ -44,6 +45,7 @@ function main() {
   runMessageSchemaSuite(runner);
   runModelMessageConvertSuite(runner);
   runConversationCompactionSuite(runner);
+  runCompactionStressTestV2Suite(runner);
   runThinkingExtractionSuite(runner);
   runPlanNormalizationSuite(runner);
   runRetryHelpersSuite(runner);
