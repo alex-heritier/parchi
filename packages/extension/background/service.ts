@@ -48,6 +48,7 @@ import {
   resolveRuntimeModelProfile,
   resolveTeamProfiles,
 } from './model-profiles.js';
+import { captureCompaction, captureException, captureMessage } from './telemetry.js';
 import {
   applyReportImageSelection,
   captureReportImage,
@@ -682,6 +683,22 @@ export class BackgroundService {
           break;
         }
 
+        case 'get_telemetry': {
+          const { getTelemetrySnapshot, getCompactionMetrics } = await import('./telemetry.js');
+          const sessionId = typeof message.sessionId === 'string' ? message.sessionId : undefined;
+          const events = await getTelemetrySnapshot(sessionId);
+          const metrics = sessionId ? await getCompactionMetrics(sessionId) : undefined;
+          sendResponse({ success: true, events, metrics });
+          break;
+        }
+
+        case 'clear_telemetry': {
+          const { clearTelemetry } = await import('./telemetry.js');
+          await clearTelemetry();
+          sendResponse({ success: true });
+          break;
+        }
+
         case 'stop_run': {
           const sessionId = typeof message.sessionId === 'string' ? message.sessionId : '';
           const note = typeof message.note === 'string' && message.note.trim() ? message.note.trim() : 'Stopped';
@@ -963,6 +980,13 @@ export class BackgroundService {
       },
     });
 
+    void captureCompaction('decision', {
+      shouldCompact: compactionCheck.shouldCompact,
+      forced: forceCompaction,
+      percent: currentPercent,
+      approxTokens: compactionCheck.approxTokens,
+    }, { sessionId: options.runMeta.sessionId, runId: options.runMeta.runId, turnId: options.runMeta.turnId });
+
     if (!forceCompaction && !compactionCheck.shouldCompact) {
       const skipReason = `${options.statusPrefix || 'Context'} is at ${currentPercent}% (${compactionCheck.approxTokens}/${options.contextLimit} tokens).`;
       this.sendRuntime(options.runMeta, {
@@ -979,6 +1003,11 @@ export class BackgroundService {
           percent: currentPercent,
         },
       });
+      void captureCompaction('skipped', {
+        reason: 'below_threshold',
+        percent: currentPercent,
+        approxTokens: compactionCheck.approxTokens,
+      }, { sessionId: options.runMeta.sessionId, runId: options.runMeta.runId, turnId: options.runMeta.turnId });
       return {
         compacted: false,
         reason: skipReason,
@@ -997,6 +1026,12 @@ export class BackgroundService {
         percent: currentPercent,
       },
     });
+
+    void captureCompaction('start', {
+      forced: forceCompaction,
+      percent: currentPercent,
+      approxTokens: compactionCheck.approxTokens,
+    }, { sessionId: options.runMeta.sessionId, runId: options.runMeta.runId, turnId: options.runMeta.turnId });
 
     this.sendRuntime(options.runMeta, {
       type: 'run_status',
@@ -1249,6 +1284,21 @@ export class BackgroundService {
       compactionMetrics,
     });
 
+    void captureCompaction('applied', {
+      trimmedCount: messagesToSummarize.length,
+      preservedCount,
+      removedApproxTokensLowerBound,
+      beforePercent: currentPercent,
+      afterPercent,
+      summaryUsage,
+    }, { sessionId: options.runMeta.sessionId, runId: options.runMeta.runId, turnId: options.runMeta.turnId });
+
+    void captureMessage('Context compaction completed', 'info', {
+      percentBefore: currentPercent,
+      percentAfter: afterPercent,
+      tokensRemoved: removedApproxTokensLowerBound,
+    }, { sessionId: options.runMeta.sessionId, runId: options.runMeta.runId });
+
     this.sendRuntime(options.runMeta, {
       type: 'run_status',
       phase: 'finalizing',
@@ -1392,6 +1442,8 @@ export class BackgroundService {
           error: message,
         },
       });
+      void captureCompaction('failed', { error: message }, { sessionId: runMeta.sessionId, runId: runMeta.runId, turnId: runMeta.turnId });
+      void captureException(error instanceof Error ? error : new Error(message), { stage: 'compaction' }, { sessionId: runMeta.sessionId, runId: runMeta.runId });
       this.sendRuntime(runMeta, {
         type: 'run_error',
         message,
