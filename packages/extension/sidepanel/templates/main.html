@@ -284,8 +284,8 @@
                     <button
                         id="contextInspectorBtn"
                         class="context-inspector-fab"
-                        title="Context usage · Click to compact now"
-                        data-tooltip="Context usage · Click to compact now"
+                        title="Context usage · Click for compaction log"
+                        data-tooltip="Context usage · Click for compaction log"
                         type="button"
                     >
                         <svg
@@ -305,6 +305,23 @@
                         <span id="contextInspectorValue" class="context-inspector-value">0 / 0</span>
                         <span id="contextInspectorMeta" class="context-inspector-meta">0%</span>
                     </button>
+                    <div id="contextInspectorPopover" class="context-inspector-popover hidden" role="dialog" aria-label="Context compaction log">
+                        <div class="context-inspector-popover-header">
+                            <span class="context-inspector-popover-title">Compaction log</span>
+                            <button id="contextInspectorCloseBtn" class="icon-btn" type="button" title="Close">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="contextInspectorSummary" class="context-inspector-summary">No compaction events yet.</div>
+                        <div id="contextInspectorEvents" class="context-inspector-events"></div>
+                        <div id="contextInspectorEmpty" class="context-inspector-empty">No compaction events in this session yet.</div>
+                        <div class="context-inspector-actions">
+                            <button id="contextInspectorCompactBtn" class="btn btn-secondary" type="button">Compact now</button>
+                        </div>
+                    </div>
                     <!-- Session Tabs Orb -->
                     <div id="sessionTabsHud" class="session-tabs-orb hidden">
                         <div id="sessionTabsList" class="session-tabs-list"></div>

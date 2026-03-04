@@ -233,8 +233,33 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
     });
   }
 
-  this.elements.contextInspectorBtn?.addEventListener('click', () => {
+  this.elements.contextInspectorBtn?.addEventListener('click', (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void this.toggleContextInspectorPopover?.();
+  });
+
+  this.elements.contextInspectorCloseBtn?.addEventListener('click', (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    this.closeContextInspectorPopover?.();
+  });
+
+  this.elements.contextInspectorCompactBtn?.addEventListener('click', (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    this.closeContextInspectorPopover?.();
     void this.requestManualContextCompaction?.();
+  });
+
+  document.addEventListener('click', (event: Event) => {
+    const popover = this.elements.contextInspectorPopover as HTMLElement | null;
+    const button = this.elements.contextInspectorBtn as HTMLElement | null;
+    const target = event.target as Node | null;
+    if (!popover || popover.classList.contains('hidden') || !target) return;
+    if (popover.contains(target)) return;
+    if (button?.contains(target)) return;
+    this.closeContextInspectorPopover?.();
   });
 
   // Provider change — also refresh model catalog for setup tab
@@ -863,6 +888,13 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
       this.updateStatus(note || 'Compacting context…', 'active');
     } else if (stage === 'summary_result') {
       this.updateStatus(note || 'Compaction summary generated.', 'active');
+    } else if (stage === 'provider_detected') {
+      this.setContextCompactionState?.({
+        inProgress: false,
+        lastMessage: note || 'Provider compaction detected.',
+        lastCompletedAt: Date.now(),
+      });
+      this.updateStatus(note || 'Provider compaction detected.', 'warning');
     } else if (stage === 'skipped') {
       this.setContextCompactionState?.({
         inProgress: false,
@@ -881,7 +913,7 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
       this.updateStatus(note || 'Compaction failed', 'error');
     }
 
-    appendTrace({
+    void appendTrace({
       sessionId: this.sessionId,
       ts: Date.now(),
       kind: 'compaction_event',
@@ -889,6 +921,10 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
       source,
       note,
       details,
+    }).finally(() => {
+      if (this.isContextInspectorPopoverOpen?.()) {
+        void this.refreshContextInspectorLog?.();
+      }
     });
 
     return;
@@ -1327,7 +1363,7 @@ sidePanelProto.handleContextCompaction = function handleContextCompaction(messag
         : null,
   });
 
-  appendTrace({
+  void appendTrace({
     sessionId: this.sessionId,
     ts: Date.now(),
     kind: 'compaction_event',
@@ -1341,6 +1377,10 @@ sidePanelProto.handleContextCompaction = function handleContextCompaction(messag
       contextUsage: message.contextUsage,
       metrics: message.compactionMetrics,
     }),
+  }).finally(() => {
+    if (this.isContextInspectorPopoverOpen?.()) {
+      void this.refreshContextInspectorLog?.();
+    }
   });
 
   // Trigger compaction sweep animation on the context bar

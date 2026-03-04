@@ -2673,6 +2673,55 @@ export class BackgroundService {
       const totalTokens = Number(totalUsage.totalTokens || inputTokens + outputTokens);
       const currentTokenSnapshot = this.getTokenVisibilitySnapshot(sessionState);
       const totalDelta = totalTokens > 0 ? totalTokens : inputTokens + outputTokens;
+
+      const previousInputTokens = Number(currentTokenSnapshot.providerInputTokens ?? Number.NaN);
+      const previousOutputTokens = Number(currentTokenSnapshot.providerOutputTokens ?? Number.NaN);
+      if (inputTokens > 0 && Number.isFinite(previousInputTokens) && Number.isFinite(previousOutputTokens)) {
+        const expectedMinInputTokens = previousInputTokens + previousOutputTokens;
+        if (expectedMinInputTokens > 0 && inputTokens < expectedMinInputTokens) {
+          const tokensRemoved = expectedMinInputTokens - inputTokens;
+          const detectionNote = `Provider compaction inferred: ${tokensRemoved} input tokens removed.`;
+          this.sendRuntime(runMeta, {
+            type: 'compaction_event',
+            stage: 'provider_detected',
+            source: 'provider',
+            note: detectionNote,
+            details: {
+              previousInputTokens,
+              previousOutputTokens,
+              expectedMinInputTokens,
+              actualInputTokens: inputTokens,
+              tokensRemoved,
+              model: orchestratorProfile.model || settings.model || '',
+              provider: orchestratorProfile.provider || settings.provider || '',
+            },
+          });
+          this.emitTokenTrace(runMeta, sessionState, {
+            action: 'provider_compaction_detected',
+            reason: 'input_tokens_drop',
+            note: detectionNote,
+            details: {
+              previousInputTokens,
+              previousOutputTokens,
+              expectedMinInputTokens,
+              actualInputTokens: inputTokens,
+              tokensRemoved,
+            },
+          });
+          void captureCompaction(
+            'provider_detected',
+            {
+              previousInputTokens,
+              previousOutputTokens,
+              expectedMinInputTokens,
+              actualInputTokens: inputTokens,
+              tokensRemoved,
+            },
+            { sessionId: runMeta.sessionId, runId: runMeta.runId, turnId: runMeta.turnId },
+          );
+        }
+      }
+
       this.emitTokenTrace(runMeta, sessionState, {
         action: 'assistant_final',
         reason: inputTokens > 0 ? 'new_assistant_usage' : 'estimate_fallback',

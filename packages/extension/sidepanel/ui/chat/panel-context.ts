@@ -1,4 +1,6 @@
 import { SidePanelUI } from '../core/panel-ui.js';
+import { compactionStageLabel, formatClockTime, toFiniteNumber, toPlainObject } from './context-inspector-utils.js';
+import { getSessionTraces } from './trace-store.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
 const formatContextTokens = (value: number) => {
@@ -35,6 +37,102 @@ sidePanelProto.setContextCompactionState = function setContextCompactionState(ne
       : defaultCompactionState();
   this.contextCompactionState = { ...current, ...nextState } as SidePanelUI['contextCompactionState'];
   this.updateContextInspector?.();
+  if (this.isContextInspectorPopoverOpen?.()) {
+    void this.refreshContextInspectorLog?.();
+  }
+};
+
+sidePanelProto.isContextInspectorPopoverOpen = function isContextInspectorPopoverOpen() {
+  const popover = this.elements.contextInspectorPopover as HTMLElement | null;
+  return Boolean(popover && !popover.classList.contains('hidden'));
+};
+
+sidePanelProto.closeContextInspectorPopover = function closeContextInspectorPopover() {
+  const popover = this.elements.contextInspectorPopover as HTMLElement | null;
+  if (!popover) return;
+  popover.classList.add('hidden');
+  this.elements.contextInspectorBtn?.setAttribute('aria-expanded', 'false');
+};
+
+sidePanelProto.toggleContextInspectorPopover = function toggleContextInspectorPopover() {
+  const popover = this.elements.contextInspectorPopover as HTMLElement | null;
+  if (!popover) return;
+  const shouldOpen = popover.classList.contains('hidden');
+  if (!shouldOpen) {
+    this.closeContextInspectorPopover?.();
+    return;
+  }
+  popover.classList.remove('hidden');
+  this.elements.contextInspectorBtn?.setAttribute('aria-expanded', 'true');
+  void this.refreshContextInspectorLog?.();
+};
+
+sidePanelProto.refreshContextInspectorLog = async function refreshContextInspectorLog() {
+  const eventsEl = this.elements.contextInspectorEvents as HTMLElement | null;
+  const emptyEl = this.elements.contextInspectorEmpty as HTMLElement | null;
+  const summaryEl = this.elements.contextInspectorSummary as HTMLElement | null;
+  if (!eventsEl || !emptyEl || !summaryEl) return;
+
+  const traces = await getSessionTraces(this.sessionId);
+  const compactionEvents = traces
+    .filter((event) => event.kind === 'compaction_event')
+    .sort((a, b) => Number(a.ts || 0) - Number(b.ts || 0));
+  const recentEvents = compactionEvents.slice(-20).reverse();
+
+  const usage = this.contextUsage || {};
+  const used = Math.max(0, Number(usage.approxTokens || 0));
+  const max = Math.max(1, Number(usage.maxContextTokens || this.getConfiguredContextLimit() || 1));
+  const percent = Math.max(0, Math.min(100, Number(usage.percent || 0)));
+  const compactedAt = Number(this.contextCompactionState?.lastCompactedAt || 0);
+  summaryEl.textContent = compactedAt
+    ? `${formatContextTokens(used)} / ${formatContextTokens(max)} (${percent}%) · Last compacted ${formatCompactionTimeAgo(compactedAt)}`
+    : `${formatContextTokens(used)} / ${formatContextTokens(max)} (${percent}%) · No compaction yet`;
+
+  if (recentEvents.length === 0) {
+    eventsEl.innerHTML = '';
+    emptyEl.classList.remove('hidden');
+    return;
+  }
+
+  emptyEl.classList.add('hidden');
+  eventsEl.innerHTML = recentEvents
+    .map((event) => {
+      const stage = String(event.stage || 'event');
+      const details = toPlainObject(event.details);
+      const beforeUsage = toPlainObject(details.beforeContextUsage);
+      const afterUsage = toPlainObject(details.contextUsage);
+      const trimmedCount = toFiniteNumber(details.trimmedCount);
+      const preservedCount = toFiniteNumber(details.preservedCount);
+      const removedApproxTokens =
+        toFiniteNumber(details.tokensRemoved) ??
+        toFiniteNumber(details.removedApproxTokensLowerBound) ??
+        toFiniteNumber(details.removedTokens);
+      const beforePercent = toFiniteNumber(beforeUsage.percent);
+      const afterPercent = toFiniteNumber(afterUsage.percent) ?? toFiniteNumber(details.afterPercent);
+
+      const metrics: string[] = [];
+      if (trimmedCount !== null && trimmedCount > 0) metrics.push(`${Math.round(trimmedCount)} summarized`);
+      if (preservedCount !== null && preservedCount > 0) metrics.push(`${Math.round(preservedCount)} kept`);
+      if (removedApproxTokens !== null && removedApproxTokens > 0)
+        metrics.push(`${formatContextTokens(removedApproxTokens)} removed`);
+      if (beforePercent !== null && afterPercent !== null)
+        metrics.push(`${Math.round(beforePercent)}%→${Math.round(afterPercent)}%`);
+
+      const note = String(event.note || '').trim();
+      const stageClass = `stage-${stage.replace(/[^a-z0-9_-]/gi, '-').toLowerCase()}`;
+      const summary = metrics.join(' · ');
+      return `
+        <div class="context-inspector-event ${stageClass}">
+          <div class="context-inspector-event-head">
+            <span class="context-inspector-event-stage">${this.escapeHtml(compactionStageLabel(stage))}</span>
+            <span class="context-inspector-event-time">${this.escapeHtml(formatClockTime(Number(event.ts || 0)))}</span>
+          </div>
+          ${summary ? `<div class="context-inspector-event-summary">${this.escapeHtml(summary)}</div>` : ''}
+          ${note ? `<div class="context-inspector-event-note">${this.escapeHtml(note)}</div>` : ''}
+        </div>
+      `;
+    })
+    .join('');
 };
 
 sidePanelProto.updateContextInspector = function updateContextInspector() {
@@ -92,11 +190,12 @@ sidePanelProto.updateContextInspector = function updateContextInspector() {
 
   button.disabled = inProgress;
   button.setAttribute('aria-busy', inProgress ? 'true' : 'false');
+  button.setAttribute('aria-haspopup', 'dialog');
   button.setAttribute(
     'aria-label',
-    `Context ${formatContextTokens(used)} / ${formatContextTokens(max)} (${percent}%). Click to compact.`,
+    `Context ${formatContextTokens(used)} / ${formatContextTokens(max)} (${percent}%). Click for compaction log and controls.`,
   );
-  const tooltip = `${formatContextTokens(used)} / ${formatContextTokens(max)} (${percent}%)`;
+  const tooltip = `${formatContextTokens(used)} / ${formatContextTokens(max)} (${percent}%) · Compaction log`;
   button.title = tooltip;
   button.setAttribute('data-tooltip', tooltip);
 };

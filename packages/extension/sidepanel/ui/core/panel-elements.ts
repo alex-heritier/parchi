@@ -26,6 +26,12 @@ export const getSidePanelElements = (): SidePanelElements => ({
   contextInspectorBtn: byId<HTMLButtonElement>('contextInspectorBtn'),
   contextInspectorValue: byId<HTMLElement>('contextInspectorValue'),
   contextInspectorMeta: byId<HTMLElement>('contextInspectorMeta'),
+  contextInspectorPopover: byId<HTMLElement>('contextInspectorPopover'),
+  contextInspectorSummary: byId<HTMLElement>('contextInspectorSummary'),
+  contextInspectorEvents: byId<HTMLElement>('contextInspectorEvents'),
+  contextInspectorEmpty: byId<HTMLElement>('contextInspectorEmpty'),
+  contextInspectorCloseBtn: byId<HTMLButtonElement>('contextInspectorCloseBtn'),
+  contextInspectorCompactBtn: byId<HTMLButtonElement>('contextInspectorCompactBtn'),
   agentNav: byId<HTMLElement>('agentNav'),
 
   tabSelectorBtn: byId<HTMLButtonElement>('tabSelectorBtn'),
