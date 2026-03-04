@@ -35,7 +35,14 @@ function openDb(): Promise<IDBDatabase> {
 export interface TraceEvent {
   sessionId: string;
   ts: number;
-  kind: 'tool_start' | 'tool_result' | 'user_message' | 'assistant_final' | 'plan_update' | 'compaction_event' | 'token_trace';
+  kind:
+    | 'tool_start'
+    | 'tool_result'
+    | 'user_message'
+    | 'assistant_final'
+    | 'plan_update'
+    | 'compaction_event'
+    | 'token_trace';
   tool?: string;
   toolId?: string;
   args?: unknown;

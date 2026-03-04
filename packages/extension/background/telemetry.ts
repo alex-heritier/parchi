@@ -73,11 +73,18 @@ export async function captureEvent(
   }
 }
 
-export const captureException = (error: Error, context?: Record<string, unknown>, meta?: { sessionId?: string; runId?: string; turnId?: string }) =>
-  captureEvent('error', error.message, { ...context, stack: error.stack }, meta);
+export const captureException = (
+  error: Error,
+  context?: Record<string, unknown>,
+  meta?: { sessionId?: string; runId?: string; turnId?: string },
+) => captureEvent('error', error.message, { ...context, stack: error.stack }, meta);
 
-export const captureMessage = (message: string, level: 'info' | 'warning' = 'info', context?: Record<string, unknown>, meta?: { sessionId?: string; runId?: string; turnId?: string }) =>
-  captureEvent(level, message, context, meta);
+export const captureMessage = (
+  message: string,
+  level: 'info' | 'warning' = 'info',
+  context?: Record<string, unknown>,
+  meta?: { sessionId?: string; runId?: string; turnId?: string },
+) => captureEvent(level, message, context, meta);
 
 export const captureCompaction = (
   stage: string,
