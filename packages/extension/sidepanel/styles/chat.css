@@ -87,6 +87,7 @@ body.sidebar-open .fab-group {
   font-family: var(--font-mono);
   letter-spacing: 0.01em;
   white-space: nowrap;
+  overflow: hidden;
   cursor: pointer;
   opacity: 0.82;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 8px rgba(0, 0, 0, 0.3);

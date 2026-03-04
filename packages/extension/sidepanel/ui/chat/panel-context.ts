@@ -60,13 +60,13 @@ sidePanelProto.updateContextInspector = function updateContextInspector() {
 
   let meta = `${percent}%`;
   if (inProgress) {
-    meta = 'Compacting…';
+    meta = 'Compacting';
   } else if (result === 'success' && compactedAt > 0) {
-    meta = `Compacted ${formatCompactionTimeAgo(compactedAt)}`;
+    meta = formatCompactionTimeAgo(compactedAt);
   } else if (result === 'skipped') {
-    meta = 'No trim needed';
+    meta = 'OK';
   } else if (result === 'error') {
-    meta = 'Compaction failed';
+    meta = 'Failed';
   }
   metaEl.textContent = meta;
 
@@ -94,9 +94,9 @@ sidePanelProto.updateContextInspector = function updateContextInspector() {
   button.setAttribute('aria-busy', inProgress ? 'true' : 'false');
   button.setAttribute(
     'aria-label',
-    `Context usage ${formatContextTokens(used)} of ${formatContextTokens(max)} tokens (${percent} percent). Click to compact context.`,
+    `Context ${formatContextTokens(used)} / ${formatContextTokens(max)} (${percent}%). Click to compact.`,
   );
-  const tooltip = `Context ${formatContextTokens(used)} / ${formatContextTokens(max)} (${percent}%) · Click to compact now`;
+  const tooltip = `${formatContextTokens(used)} / ${formatContextTokens(max)} (${percent}%)`;
   button.title = tooltip;
   button.setAttribute('data-tooltip', tooltip);
 };

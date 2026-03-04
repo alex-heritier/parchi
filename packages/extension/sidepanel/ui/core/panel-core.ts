@@ -1250,4 +1250,13 @@ sidePanelProto.handleContextCompaction = function handleContextCompaction(messag
     bar.classList.add('compacting');
     bar.addEventListener('animationend', () => bar.classList.remove('compacting'), { once: true });
   }
+
+  // Auto-continue: if compaction was triggered automatically at end of turn,
+  // send a continuation prompt so the model resumes with the compacted context.
+  if (source === 'auto' && !this.elements.composer?.classList.contains('running')) {
+    setTimeout(() => {
+      this.elements.userInput.value = 'Continue where you left off. The context was compacted — use the summary above as your source of truth.';
+      this.sendMessage();
+    }, 400);
+  }
 };
