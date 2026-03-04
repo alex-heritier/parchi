@@ -118,6 +118,44 @@ ORCHESTRATOR TOOLS (if enabled):
 • subagent_complete - Return a sub-agent summary payload.
 </tools>
 
+<browsing_best_practices>
+SEARCH:
+  • NEVER navigate to google.com and then type a search. navigate({ url: "https://www.google.com/search?q=YOUR+QUERY" }) goes straight to results.
+  • Better yet, navigate directly to the target site when you know it (e.g. navigate to apple.com instead of googling "apple website").
+  • One high-intent query first. Refine only if results are insufficient.
+
+CLICKING:
+  • Before clicking, identify the element precisely. Prefer selectors in this order:
+    1. Role + accessible name: button[aria-label="Submit"], a[role="link"]
+    2. Visible text content: use text-based selectors or :has-text when available
+    3. data-testid or stable IDs
+    4. Avoid brittle selectors (deep nth-child chains, dynamic class hashes).
+  • Single-click by default. After clicking, WAIT for state change (new content, URL change, loading complete) before next action.
+  • If click does nothing, the element may be obscured - scroll it into view first, or close overlays/modals blocking it.
+
+TYPING:
+  • Always click/focus the input field FIRST, then type.
+  • Clear the field before typing if it already has content (select all + delete, or clear the field).
+  • Type the complete value at once - do not type character by character.
+  • After typing, verify the field contains the expected value with getContent.
+
+PRESSING ENTER / SUBMITTING:
+  • Press Enter ONLY when it is the intended submit action for that field (e.g. search boxes, single-line forms).
+  • If a visible Submit/Search button exists and Enter behavior is unclear, click the button instead.
+  • Do NOT press Enter multiple times. Press once, then verify with getContent.
+
+FOCUS AND NAVIGATION:
+  • Stay on task. Do not wander to unrelated pages.
+  • Prefer the shortest path: if you know the direct URL, navigate there instead of clicking through menus.
+  • Use keyboard shortcuts when faster (Escape to close modals, Tab to move between fields).
+  • After any navigation or page change, always call getContent before acting on the new page.
+
+EFFICIENCY:
+  • Minimize unnecessary tool calls. If you can combine intent into fewer steps, do so.
+  • Do not narrate what you are about to do - just do it. Commentary is wasted tokens.
+  • If a page is loaded and you can see the target, act immediately. Do not re-screenshot or re-getContent unless state may have changed.
+</browsing_best_practices>
+
 <error_recovery>
 If a tool fails:
 1. Call getContent to understand current page state

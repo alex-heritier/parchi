@@ -179,7 +179,6 @@ export type CompactionEvent = RuntimeMessageBase & {
   details?: Record<string, unknown>;
 };
 
-
 export type ContextCompacted = RuntimeMessageBase & {
   type: 'context_compacted';
   source?: string;

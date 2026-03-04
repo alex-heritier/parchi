@@ -48,7 +48,6 @@ import {
   resolveRuntimeModelProfile,
   resolveTeamProfiles,
 } from './model-profiles.js';
-import { captureCompaction, captureException, captureMessage } from './telemetry.js';
 import {
   applyReportImageSelection,
   captureReportImage,
@@ -58,6 +57,7 @@ import {
 } from './report-images.js';
 import type { RunMeta, SessionState, SessionTokenVisibility } from './service-types.js';
 import { enhanceSystemPrompt } from './system-prompt.js';
+import { captureCompaction, captureException, captureMessage } from './telemetry.js';
 import { checkToolPermission } from './tool-permissions.js';
 import { buildPlanFromArgs, extractXmlToolCalls, stripXmlToolCalls } from './xml-tool-parser.js';
 
@@ -982,7 +982,11 @@ export class BackgroundService {
     });
     this.emitTokenTrace(options.runMeta, sessionState, {
       action: 'compaction_decision',
-      reason: forceCompaction ? 'manual_force' : compactionCheck.shouldCompact ? 'threshold_exceeded' : 'below_threshold',
+      reason: forceCompaction
+        ? 'manual_force'
+        : compactionCheck.shouldCompact
+          ? 'threshold_exceeded'
+          : 'below_threshold',
       note: forceCompaction
         ? 'Compaction forced by user request.'
         : `Compaction decision evaluated at ${currentPercent}% context usage.`,
@@ -999,12 +1003,16 @@ export class BackgroundService {
       },
     });
 
-    void captureCompaction('decision', {
-      shouldCompact: compactionCheck.shouldCompact,
-      forced: forceCompaction,
-      percent: currentPercent,
-      approxTokens: compactionCheck.approxTokens,
-    }, { sessionId: options.runMeta.sessionId, runId: options.runMeta.runId, turnId: options.runMeta.turnId });
+    void captureCompaction(
+      'decision',
+      {
+        shouldCompact: compactionCheck.shouldCompact,
+        forced: forceCompaction,
+        percent: currentPercent,
+        approxTokens: compactionCheck.approxTokens,
+      },
+      { sessionId: options.runMeta.sessionId, runId: options.runMeta.runId, turnId: options.runMeta.turnId },
+    );
 
     if (!forceCompaction && !compactionCheck.shouldCompact) {
       const skipReason = `${options.statusPrefix || 'Context'} is at ${currentPercent}% (${compactionCheck.approxTokens}/${options.contextLimit} tokens).`;
@@ -1037,11 +1045,15 @@ export class BackgroundService {
           forced: false,
         },
       });
-      void captureCompaction('skipped', {
-        reason: 'below_threshold',
-        percent: currentPercent,
-        approxTokens: compactionCheck.approxTokens,
-      }, { sessionId: options.runMeta.sessionId, runId: options.runMeta.runId, turnId: options.runMeta.turnId });
+      void captureCompaction(
+        'skipped',
+        {
+          reason: 'below_threshold',
+          percent: currentPercent,
+          approxTokens: compactionCheck.approxTokens,
+        },
+        { sessionId: options.runMeta.sessionId, runId: options.runMeta.runId, turnId: options.runMeta.turnId },
+      );
       return {
         compacted: false,
         reason: skipReason,
@@ -1075,11 +1087,15 @@ export class BackgroundService {
       },
     });
 
-    void captureCompaction('start', {
-      forced: forceCompaction,
-      percent: currentPercent,
-      approxTokens: compactionCheck.approxTokens,
-    }, { sessionId: options.runMeta.sessionId, runId: options.runMeta.runId, turnId: options.runMeta.turnId });
+    void captureCompaction(
+      'start',
+      {
+        forced: forceCompaction,
+        percent: currentPercent,
+        approxTokens: compactionCheck.approxTokens,
+      },
+      { sessionId: options.runMeta.sessionId, runId: options.runMeta.runId, turnId: options.runMeta.turnId },
+    );
 
     this.sendRuntime(options.runMeta, {
       type: 'run_status',
@@ -1226,14 +1242,20 @@ export class BackgroundService {
       reason: 'summary_generated',
       note: 'Summary generated for compaction.',
       afterPatch: {
-        sessionInputTokens: (sessionState.tokenVisibility?.sessionInputTokens || 0) + Number(summaryUsage.inputTokens || 0),
-        sessionOutputTokens: (sessionState.tokenVisibility?.sessionOutputTokens || 0) + Number(summaryUsage.outputTokens || 0),
-        sessionTotalTokens: (sessionState.tokenVisibility?.sessionTotalTokens || 0) + Number(summaryUsage.totalTokens || summaryUsage.inputTokens + summaryUsage.outputTokens || 0),
+        sessionInputTokens:
+          (sessionState.tokenVisibility?.sessionInputTokens || 0) + Number(summaryUsage.inputTokens || 0),
+        sessionOutputTokens:
+          (sessionState.tokenVisibility?.sessionOutputTokens || 0) + Number(summaryUsage.outputTokens || 0),
+        sessionTotalTokens:
+          (sessionState.tokenVisibility?.sessionTotalTokens || 0) +
+          Number(summaryUsage.totalTokens || summaryUsage.inputTokens + summaryUsage.outputTokens || 0),
       },
       details: {
         summaryInputTokens: Number(summaryUsage.inputTokens || 0),
         summaryOutputTokens: Number(summaryUsage.outputTokens || 0),
-        summaryTotalTokens: Number(summaryUsage.totalTokens || summaryUsage.inputTokens + summaryUsage.outputTokens || 0),
+        summaryTotalTokens: Number(
+          summaryUsage.totalTokens || summaryUsage.inputTokens + summaryUsage.outputTokens || 0,
+        ),
         generationMs: summaryGenerationMs,
       },
     });
@@ -1378,20 +1400,29 @@ export class BackgroundService {
       compactionMetrics,
     });
 
-    void captureCompaction('applied', {
-      trimmedCount: messagesToSummarize.length,
-      preservedCount,
-      removedApproxTokensLowerBound,
-      beforePercent: currentPercent,
-      afterPercent,
-      summaryUsage,
-    }, { sessionId: options.runMeta.sessionId, runId: options.runMeta.runId, turnId: options.runMeta.turnId });
+    void captureCompaction(
+      'applied',
+      {
+        trimmedCount: messagesToSummarize.length,
+        preservedCount,
+        removedApproxTokensLowerBound,
+        beforePercent: currentPercent,
+        afterPercent,
+        summaryUsage,
+      },
+      { sessionId: options.runMeta.sessionId, runId: options.runMeta.runId, turnId: options.runMeta.turnId },
+    );
 
-    void captureMessage('Context compaction completed', 'info', {
-      percentBefore: currentPercent,
-      percentAfter: afterPercent,
-      tokensRemoved: removedApproxTokensLowerBound,
-    }, { sessionId: options.runMeta.sessionId, runId: options.runMeta.runId });
+    void captureMessage(
+      'Context compaction completed',
+      'info',
+      {
+        percentBefore: currentPercent,
+        percentAfter: afterPercent,
+        tokensRemoved: removedApproxTokensLowerBound,
+      },
+      { sessionId: options.runMeta.sessionId, runId: options.runMeta.runId },
+    );
 
     this.sendRuntime(options.runMeta, {
       type: 'run_status',
@@ -1536,8 +1567,16 @@ export class BackgroundService {
           error: message,
         },
       });
-      void captureCompaction('failed', { error: message }, { sessionId: runMeta.sessionId, runId: runMeta.runId, turnId: runMeta.turnId });
-      void captureException(error instanceof Error ? error : new Error(message), { stage: 'compaction' }, { sessionId: runMeta.sessionId, runId: runMeta.runId });
+      void captureCompaction(
+        'failed',
+        { error: message },
+        { sessionId: runMeta.sessionId, runId: runMeta.runId, turnId: runMeta.turnId },
+      );
+      void captureException(
+        error instanceof Error ? error : new Error(message),
+        { stage: 'compaction' },
+        { sessionId: runMeta.sessionId, runId: runMeta.runId },
+      );
       this.sendRuntime(runMeta, {
         type: 'run_error',
         message,
@@ -2637,7 +2676,10 @@ export class BackgroundService {
       this.emitTokenTrace(runMeta, sessionState, {
         action: 'assistant_final',
         reason: inputTokens > 0 ? 'new_assistant_usage' : 'estimate_fallback',
-        note: inputTokens > 0 ? 'Assistant usage recorded from provider response.' : 'Assistant usage missing; using fallback totals.',
+        note:
+          inputTokens > 0
+            ? 'Assistant usage recorded from provider response.'
+            : 'Assistant usage missing; using fallback totals.',
         afterPatch: {
           providerInputTokens: inputTokens > 0 ? inputTokens : currentTokenSnapshot.providerInputTokens,
           providerOutputTokens: outputTokens > 0 ? outputTokens : currentTokenSnapshot.providerOutputTokens,
