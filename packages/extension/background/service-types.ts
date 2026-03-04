@@ -18,6 +18,17 @@ export type ReportImage = {
   visionDescription?: string;
 };
 
+export type SessionTokenVisibility = {
+  providerInputTokens: number | null;
+  providerOutputTokens: number | null;
+  contextApproxTokens: number | null;
+  contextLimit: number | null;
+  contextPercent: number | null;
+  sessionInputTokens: number;
+  sessionOutputTokens: number;
+  sessionTotalTokens: number;
+};
+
 export type SessionState = {
   sessionId: string;
   currentPlan: RunPlan | null;
@@ -31,4 +42,5 @@ export type SessionState = {
   reportImages: ReportImage[];
   reportImageBytes: number;
   selectedReportImageIds: Set<string>;
+  tokenVisibility: SessionTokenVisibility;
 };

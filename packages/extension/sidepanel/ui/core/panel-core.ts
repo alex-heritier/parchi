@@ -812,6 +812,31 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
     return;
   }
 
+  if (message.type === 'token_trace') {
+    const action = typeof message.action === 'string' ? message.action : '';
+    const reason = typeof message.reason === 'string' ? message.reason : '';
+    const note = typeof message.note === 'string' ? message.note : '';
+    const before = sanitizeTracePayload((message as any).before || null);
+    const after = sanitizeTracePayload((message as any).after || null);
+    const details = sanitizeTracePayload((message as any).details || null);
+
+    this.displayTokenTraceMessage?.({ action, reason, note, before, after, details });
+
+    appendTrace({
+      sessionId: this.sessionId,
+      ts: Date.now(),
+      kind: 'token_trace',
+      action,
+      reason,
+      note,
+      before,
+      after,
+      details,
+    });
+
+    return;
+  }
+
   if (message.type === 'compaction_event') {
     const stage = typeof message.stage === 'string' ? message.stage : '';
     const note = typeof message.note === 'string' ? message.note : '';

@@ -35,7 +35,7 @@ function openDb(): Promise<IDBDatabase> {
 export interface TraceEvent {
   sessionId: string;
   ts: number;
-  kind: 'tool_start' | 'tool_result' | 'user_message' | 'assistant_final' | 'plan_update' | 'compaction_event';
+  kind: 'tool_start' | 'tool_result' | 'user_message' | 'assistant_final' | 'plan_update' | 'compaction_event' | 'token_trace';
   tool?: string;
   toolId?: string;
   args?: unknown;
@@ -51,6 +51,10 @@ export interface TraceEvent {
   source?: string;
   note?: string;
   details?: unknown;
+  action?: string;
+  reason?: string;
+  before?: unknown;
+  after?: unknown;
 }
 
 /** Append a single event — fast write, no read-modify-write. */

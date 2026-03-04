@@ -95,6 +95,23 @@ export function runRuntimeMessagesSuite(runner: TestRunner) {
       },
       { ...base, type: 'run_error', message: 'Boom' },
       { ...base, type: 'run_warning', message: 'Heads up' },
+      {
+        ...base,
+        type: 'token_trace',
+        action: 'assistant_final',
+        reason: 'new_assistant_usage',
+        before: { providerInputTokens: 1000, contextApproxTokens: 1000, contextLimit: 200000, contextPercent: 1 },
+        after: {
+          providerInputTokens: 1500,
+          providerOutputTokens: 800,
+          contextApproxTokens: 1500,
+          contextLimit: 200000,
+          contextPercent: 1,
+          sessionInputTokens: 1500,
+          sessionOutputTokens: 800,
+          sessionTotalTokens: 2300,
+        },
+      },
     ];
 
     samples.forEach((sample) => {

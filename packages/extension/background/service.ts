@@ -56,7 +56,7 @@ import {
   getReportImageSummary,
   trimReportImages,
 } from './report-images.js';
-import type { RunMeta, SessionState } from './service-types.js';
+import type { RunMeta, SessionState, SessionTokenVisibility } from './service-types.js';
 import { enhanceSystemPrompt } from './system-prompt.js';
 import { checkToolPermission } from './tool-permissions.js';
 import { buildPlanFromArgs, extractXmlToolCalls, stripXmlToolCalls } from './xml-tool-parser.js';
@@ -926,6 +926,7 @@ export class BackgroundService {
     };
 
     const compactionSettings = DEFAULT_COMPACTION_SETTINGS;
+    const sessionState = this.getSessionState(options.runMeta.sessionId);
     const nextHistory = normalizeConversationHistory(Array.isArray(options.history) ? options.history : []);
     const contextUsage = estimateContextTokens(nextHistory);
     const compactionCheck = shouldCompact({
@@ -979,6 +980,24 @@ export class BackgroundService {
         keepRecentTokens,
       },
     });
+    this.emitTokenTrace(options.runMeta, sessionState, {
+      action: 'compaction_decision',
+      reason: forceCompaction ? 'manual_force' : compactionCheck.shouldCompact ? 'threshold_exceeded' : 'below_threshold',
+      note: forceCompaction
+        ? 'Compaction forced by user request.'
+        : `Compaction decision evaluated at ${currentPercent}% context usage.`,
+      afterPatch: {
+        contextApproxTokens: compactionCheck.approxTokens,
+        contextLimit: options.contextLimit,
+        contextPercent: currentPercent,
+      },
+      details: {
+        shouldCompact: compactionCheck.shouldCompact,
+        forced: forceCompaction,
+        reserveTokens: compactionSettings.reserveTokens,
+        keepRecentTokens,
+      },
+    });
 
     void captureCompaction('decision', {
       shouldCompact: compactionCheck.shouldCompact,
@@ -1003,6 +1022,21 @@ export class BackgroundService {
           percent: currentPercent,
         },
       });
+      this.emitTokenTrace(options.runMeta, sessionState, {
+        action: 'compaction_skipped',
+        reason: 'below_threshold',
+        note: skipReason,
+        afterPatch: {
+          contextApproxTokens: compactionCheck.approxTokens,
+          contextLimit: options.contextLimit,
+          contextPercent: currentPercent,
+        },
+        details: {
+          stage: 'skipped',
+          shouldCompact: false,
+          forced: false,
+        },
+      });
       void captureCompaction('skipped', {
         reason: 'below_threshold',
         percent: currentPercent,
@@ -1024,6 +1058,20 @@ export class BackgroundService {
         contextLimit: options.contextLimit,
         approxTokens: compactionCheck.approxTokens,
         percent: currentPercent,
+      },
+    });
+    this.emitTokenTrace(options.runMeta, sessionState, {
+      action: 'compaction_start',
+      reason: forceCompaction ? 'manual_force' : 'threshold_exceeded',
+      note: 'Compaction started.',
+      afterPatch: {
+        contextApproxTokens: compactionCheck.approxTokens,
+        contextLimit: options.contextLimit,
+        contextPercent: currentPercent,
+      },
+      details: {
+        stage: 'start',
+        forced: forceCompaction,
       },
     });
 
@@ -1090,6 +1138,15 @@ export class BackgroundService {
         note: skipReason,
         details: {
           reason: 'no_messages_to_summarize',
+          forced: forceCompaction,
+        },
+      });
+      this.emitTokenTrace(options.runMeta, sessionState, {
+        action: 'compaction_skipped',
+        reason: 'no_messages_to_summarize',
+        note: skipReason,
+        details: {
+          stage: 'skipped',
           forced: forceCompaction,
         },
       });
@@ -1162,6 +1219,22 @@ export class BackgroundService {
         textLength: summaryText.length,
         generationMs: summaryGenerationMs,
         hasThinking: Boolean(parsedSummary.thinking),
+      },
+    });
+    this.emitTokenTrace(options.runMeta, sessionState, {
+      action: 'compaction_summary_result',
+      reason: 'summary_generated',
+      note: 'Summary generated for compaction.',
+      afterPatch: {
+        sessionInputTokens: (sessionState.tokenVisibility?.sessionInputTokens || 0) + Number(summaryUsage.inputTokens || 0),
+        sessionOutputTokens: (sessionState.tokenVisibility?.sessionOutputTokens || 0) + Number(summaryUsage.outputTokens || 0),
+        sessionTotalTokens: (sessionState.tokenVisibility?.sessionTotalTokens || 0) + Number(summaryUsage.totalTokens || summaryUsage.inputTokens + summaryUsage.outputTokens || 0),
+      },
+      details: {
+        summaryInputTokens: Number(summaryUsage.inputTokens || 0),
+        summaryOutputTokens: Number(summaryUsage.outputTokens || 0),
+        summaryTotalTokens: Number(summaryUsage.totalTokens || summaryUsage.inputTokens + summaryUsage.outputTokens || 0),
+        generationMs: summaryGenerationMs,
       },
     });
 
@@ -1263,6 +1336,27 @@ export class BackgroundService {
           percent: afterPercent,
         },
         summaryUsage,
+      },
+    });
+    this.emitTokenTrace(options.runMeta, sessionState, {
+      action: 'compaction_applied',
+      reason: 'compaction_applied',
+      note: 'Compaction applied to context.',
+      afterPatch: {
+        contextApproxTokens: afterEstimate.tokens,
+        contextLimit: options.contextLimit,
+        contextPercent: afterPercent,
+      },
+      details: {
+        trimmedCount: messagesToSummarize.length,
+        preservedCount,
+        removedApproxTokensLowerBound,
+        beforeContextUsage: beforeUsage,
+        contextUsage: {
+          approxTokens: afterEstimate.tokens,
+          contextLimit: options.contextLimit,
+          percent: afterPercent,
+        },
       },
     });
 
@@ -1539,6 +1633,15 @@ export class BackgroundService {
     sessionState.lastBrowserAction = null;
     sessionState.awaitingVerification = false;
     sessionState.currentStepVerified = false;
+    this.emitTokenTrace(runMeta, sessionState, {
+      action: 'user_run_start',
+      reason: 'turn_started',
+      note: 'Turn started. Baseline token snapshot captured.',
+      details: {
+        messageLength: String(userMessage || '').length,
+        historyMessageCount: Array.isArray(conversationHistory) ? conversationHistory.length : 0,
+      },
+    });
     this.sendRuntime(runMeta, {
       type: 'user_run_start',
       message: userMessage,
@@ -1630,6 +1733,16 @@ export class BackgroundService {
           this.sendRuntime(runMeta, {
             type: 'run_warning',
             message: `Orchestrator profile OAuth session is unavailable. Falling back to active profile "${activeProfileName}".`,
+          });
+          this.emitTokenTrace(runMeta, sessionState, {
+            action: 'profile_fallback',
+            reason: 'history_sanitized',
+            note: `Orchestrator OAuth unavailable. Falling back to active profile "${activeProfileName}".`,
+            details: {
+              fromProfile: orchestratorProfileName,
+              toProfile: activeProfileName,
+              route: runtimeProfileResolution.route,
+            },
           });
           runtimeProfileResolution = activeRuntimeProfile;
           orchestratorProfile =
@@ -1740,6 +1853,18 @@ export class BackgroundService {
           ? [...historyInput, { role: 'user' as const, content: enrichedUserMessage }]
           : historyInput;
       const normalizedHistory = normalizeConversationHistory(historyWithUserMessage);
+      this.emitTokenTrace(runMeta, sessionState, {
+        action: 'history_prepared',
+        reason: 'history_sanitized',
+        note: `Prepared ${normalizedHistory.length} messages for model call.`,
+        details: {
+          inputHistoryCount: historyInput.length,
+          withUserMessageCount: historyWithUserMessage.length,
+          normalizedCount: normalizedHistory.length,
+          appendedUserMessage: shouldAppendUserMessage,
+          replacedLastUserMessage: shouldReplaceLastUserMessage,
+        },
+      });
       let activeModelId = String(orchestratorProfile.model || settings.model || '').trim();
       let model = resolveLanguageModel(orchestratorProfile);
       const modelRetryOrder = [activeModelId];
@@ -2244,6 +2369,16 @@ export class BackgroundService {
                   type: 'run_warning',
                   message: `Provider returned an empty response body. Retrying ${emptyBodyRetries}/${maxEmptyBodyRetriesPerModel}...`,
                 });
+                this.emitTokenTrace(runMeta, sessionState, {
+                  action: 'provider_retry',
+                  reason: 'provider_retry_empty_body',
+                  note: `Provider returned an empty response body. Retrying ${emptyBodyRetries}/${maxEmptyBodyRetriesPerModel}.`,
+                  details: {
+                    retry: emptyBodyRetries,
+                    retryMax: maxEmptyBodyRetriesPerModel,
+                    waitMs,
+                  },
+                });
                 await new Promise((resolve) => setTimeout(resolve, waitMs));
                 continue;
               }
@@ -2493,6 +2628,35 @@ export class BackgroundService {
         responseMessages,
         latency: buildLatencyMetrics(),
         benchmark: buildBenchmarkContext(true),
+      });
+      const inputTokens = Number(totalUsage.inputTokens || 0);
+      const outputTokens = Number(totalUsage.outputTokens || 0);
+      const totalTokens = Number(totalUsage.totalTokens || inputTokens + outputTokens);
+      const currentTokenSnapshot = this.getTokenVisibilitySnapshot(sessionState);
+      const totalDelta = totalTokens > 0 ? totalTokens : inputTokens + outputTokens;
+      this.emitTokenTrace(runMeta, sessionState, {
+        action: 'assistant_final',
+        reason: inputTokens > 0 ? 'new_assistant_usage' : 'estimate_fallback',
+        note: inputTokens > 0 ? 'Assistant usage recorded from provider response.' : 'Assistant usage missing; using fallback totals.',
+        afterPatch: {
+          providerInputTokens: inputTokens > 0 ? inputTokens : currentTokenSnapshot.providerInputTokens,
+          providerOutputTokens: outputTokens > 0 ? outputTokens : currentTokenSnapshot.providerOutputTokens,
+          contextApproxTokens: inputTokens > 0 ? inputTokens : currentTokenSnapshot.contextApproxTokens,
+          contextLimit: orchestratorProfile.contextLimit || settings.contextLimit || currentTokenSnapshot.contextLimit,
+          contextPercent: this.normalizeContextPercent(
+            inputTokens > 0 ? inputTokens : currentTokenSnapshot.contextApproxTokens,
+            orchestratorProfile.contextLimit || settings.contextLimit || currentTokenSnapshot.contextLimit,
+          ),
+          sessionInputTokens: currentTokenSnapshot.sessionInputTokens + inputTokens,
+          sessionOutputTokens: currentTokenSnapshot.sessionOutputTokens + outputTokens,
+          sessionTotalTokens: currentTokenSnapshot.sessionTotalTokens + totalDelta,
+        },
+        details: {
+          inputTokens,
+          outputTokens,
+          totalTokens,
+          responseMessageCount: responseMessages.length,
+        },
       });
 
       const nextHistory = normalizeConversationHistory([...currentHistory, ...responseMessages]);
@@ -3145,6 +3309,80 @@ Rules:
   private static readonly MAX_SESSIONS = 10;
   private static readonly MAX_FAILURE_TRACKER_ENTRIES = 250;
 
+  private defaultTokenVisibility(): SessionTokenVisibility {
+    return {
+      providerInputTokens: null,
+      providerOutputTokens: null,
+      contextApproxTokens: null,
+      contextLimit: null,
+      contextPercent: null,
+      sessionInputTokens: 0,
+      sessionOutputTokens: 0,
+      sessionTotalTokens: 0,
+    };
+  }
+
+  private normalizeContextPercent(tokens: number | null, limit: number | null): number | null {
+    if (typeof tokens !== 'number' || tokens < 0) return null;
+    if (typeof limit !== 'number' || limit <= 0) return null;
+    const raw = (tokens / Math.max(1, limit)) * 100;
+    return Math.max(0, Math.min(100, Math.round(raw)));
+  }
+
+  private getTokenVisibilitySnapshot(sessionState: SessionState): SessionTokenVisibility {
+    return {
+      ...(sessionState.tokenVisibility || this.defaultTokenVisibility()),
+    };
+  }
+
+  private updateSessionTokenVisibility(
+    sessionState: SessionState,
+    patch: Partial<SessionTokenVisibility>,
+  ): SessionTokenVisibility {
+    const current = sessionState.tokenVisibility || this.defaultTokenVisibility();
+    const merged: SessionTokenVisibility = {
+      ...current,
+      ...patch,
+    };
+    merged.sessionInputTokens = Math.max(0, Number(merged.sessionInputTokens || 0));
+    merged.sessionOutputTokens = Math.max(0, Number(merged.sessionOutputTokens || 0));
+    merged.sessionTotalTokens = Math.max(0, Number(merged.sessionTotalTokens || 0));
+    if (typeof merged.contextPercent !== 'number') {
+      merged.contextPercent = this.normalizeContextPercent(merged.contextApproxTokens, merged.contextLimit);
+    } else {
+      merged.contextPercent = Math.max(0, Math.min(100, Math.round(merged.contextPercent)));
+    }
+    sessionState.tokenVisibility = merged;
+    return this.getTokenVisibilitySnapshot(sessionState);
+  }
+
+  private emitTokenTrace(
+    runMeta: RunMeta,
+    sessionState: SessionState,
+    payload: {
+      action: string;
+      reason: string;
+      note?: string;
+      before?: SessionTokenVisibility;
+      afterPatch?: Partial<SessionTokenVisibility>;
+      details?: Record<string, unknown>;
+    },
+  ) {
+    const before = payload.before || this.getTokenVisibilitySnapshot(sessionState);
+    const after = payload.afterPatch
+      ? this.updateSessionTokenVisibility(sessionState, payload.afterPatch)
+      : this.getTokenVisibilitySnapshot(sessionState);
+    this.sendRuntime(runMeta, {
+      type: 'token_trace',
+      action: payload.action,
+      reason: payload.reason,
+      note: payload.note,
+      before,
+      after,
+      details: payload.details,
+    });
+  }
+
   private getSessionState(sessionId: string): SessionState {
     const id = typeof sessionId === 'string' && sessionId.trim() ? sessionId : 'default';
     const existing = this.sessionStateById.get(id);
@@ -3158,6 +3396,11 @@ Rules:
           (sum, image) => sum + estimateDataUrlBytes(String(image?.dataUrl || '')),
           0,
         );
+      }
+      if (!existing.tokenVisibility || typeof existing.tokenVisibility !== 'object') {
+        existing.tokenVisibility = this.defaultTokenVisibility();
+      } else {
+        this.updateSessionTokenVisibility(existing, {});
       }
       trimReportImages(existing);
       return existing;
@@ -3180,6 +3423,7 @@ Rules:
       reportImages: [],
       reportImageBytes: 0,
       selectedReportImageIds: new Set(),
+      tokenVisibility: this.defaultTokenVisibility(),
     };
     this.sessionStateById.set(id, created);
     return created;
