@@ -201,10 +201,12 @@ sidePanelProto.updateContextInspector = function updateContextInspector() {
 };
 
 sidePanelProto.updateContextUsage = function updateContextUsage(actualTokens: number | null = null) {
+  if (typeof actualTokens === 'number' && Number.isFinite(actualTokens) && actualTokens >= 0) {
+    this.sessionTokensUsed = Math.max(this.sessionTokensUsed || 0, actualTokens);
+  }
   let approxTokens;
 
-  if (actualTokens !== null && actualTokens > 0) {
-    this.sessionTokensUsed = Math.max(this.sessionTokensUsed || 0, actualTokens);
+  if (typeof actualTokens === 'number' && Number.isFinite(actualTokens) && actualTokens >= 0) {
     approxTokens = this.sessionTokensUsed;
   } else {
     const joined = this.contextHistory
@@ -244,8 +246,9 @@ sidePanelProto.updateContextUsage = function updateContextUsage(actualTokens: nu
   }
 
   const maxContextTokens = this.getConfiguredContextLimit();
-  const percent = Math.min(100, Math.round((approxTokens / maxContextTokens) * 100));
-  this.contextUsage = { approxTokens, maxContextTokens, percent };
+  const safeApproxTokens = Math.max(0, Number(approxTokens || 0));
+  const percent = Math.min(100, Math.round((safeApproxTokens / maxContextTokens) * 100));
+  this.contextUsage = { approxTokens: safeApproxTokens, maxContextTokens, percent };
   this.updateActivityState();
   this.updateContextInspector?.();
 

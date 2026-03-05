@@ -45,6 +45,8 @@ sidePanelProto.handleAssistantStream = function handleAssistantStream(event: { s
   if (event.status === 'start') {
     this.isStreaming = true;
     this.clearErrorBanner();
+    this.streamingUsageEstimatedTokens = 0;
+    this.streamingUsageEstimatedTokensApplied = 0;
     this.startStreamingMessage();
     this.startThinkingTimer();
   } else if (event.status === 'delta') {
@@ -154,6 +156,19 @@ sidePanelProto.updateStreamingMessage = function updateStreamingMessage(content:
     }
     const cleanedText = extracted.content || this.streamingState.textBuffer || '';
     this.streamingState.textEventEl.innerHTML = this.renderMarkdown(cleanedText);
+
+    const estimatedOutputTokens = Math.max(0, Math.ceil(cleanedText.length / 4));
+    this.streamingUsageEstimatedTokens = estimatedOutputTokens;
+    const applied = Number(this.streamingUsageEstimatedTokensApplied || 0);
+    if (estimatedOutputTokens > applied) {
+      const delta = estimatedOutputTokens - applied;
+      this.streamingUsageEstimatedTokensApplied = estimatedOutputTokens;
+      this.updateUsageStats?.({
+        inputTokens: 0,
+        outputTokens: delta,
+        totalTokens: delta,
+      });
+    }
   }
 
   this.scrollToBottom();

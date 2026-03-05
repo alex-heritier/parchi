@@ -101,6 +101,8 @@ export class SidePanelUI {
   latestThinking: string | null;
   activeToolName: string | null;
   streamingReasoning: string;
+  streamingUsageEstimatedTokens: number;
+  streamingUsageEstimatedTokensApplied: number;
   currentPlan: RunPlan | null;
   stepTimeline: {
     steps: Map<number, { el: HTMLElement; toolsEl: HTMLElement; bodyEl: HTMLElement }>;
@@ -248,6 +250,8 @@ export class SidePanelUI {
     this.latestThinking = null;
     this.activeToolName = null;
     this.streamingReasoning = '';
+    this.streamingUsageEstimatedTokens = 0;
+    this.streamingUsageEstimatedTokensApplied = 0;
     this.currentPlan = null;
     this.stepTimeline = {
       steps: new Map(),

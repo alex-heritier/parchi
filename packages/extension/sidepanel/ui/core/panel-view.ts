@@ -73,6 +73,8 @@ sidePanelProto.startNewSession = function startNewSession() {
     lastCompletedAt: 0,
   };
   this.lastUsage = null;
+  this.streamingUsageEstimatedTokens = 0;
+  this.streamingUsageEstimatedTokensApplied = 0;
   this.sessionTokenTotals = {
     inputTokens: 0,
     outputTokens: 0,

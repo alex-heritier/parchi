@@ -158,6 +158,18 @@ ${tabsSection}
 ${orchestratorSection ? `\n${orchestratorSection}` : ''}
 ${teamSection ? `\n${teamSection}` : ''}
 
+<enter_and_search_rules>
+SEARCH:
+• NEVER navigate to google.com/bing.com homepages just to type a query.
+• If search is needed, use a direct results URL with encoded query OR go directly to target site.
+• After ONE failed search attempt, switch strategy (different selector, click submit button, or direct URL).
+
+ENTER / SUBMIT:
+• Prefer clicking visible submit/search buttons when present.
+• Use pressKey("Enter") once only; then verify page state with getContent.
+• If Enter does not change content/URL, do not repeat blindly—use click submit or direct navigation.
+</enter_and_search_rules>
+
 <checkpoint>
 Before your next tool call, verify:
 □ Required next call shown above: ${requiredNextCall}

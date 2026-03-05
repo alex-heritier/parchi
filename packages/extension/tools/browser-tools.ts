@@ -630,7 +630,7 @@ export class BrowserTools {
       return {
         success: false,
         error: `Invalid URL: "${url}". URLs must start with http://, https://, or chrome://`,
-        hint: 'For Google searches, use: https://www.google.com/search?q=your+query',
+        hint: 'For searches, navigate directly to the target site or use a direct search URL only when necessary.',
       };
     }
 
@@ -709,7 +709,7 @@ export class BrowserTools {
       return {
         success: false,
         error: `Invalid URL: "${url}". URLs must start with http://, https://, or chrome://`,
-        hint: 'Use navigate({ url: "https://google.com/search?q=..." }) for searches.',
+        hint: 'Use a fully-qualified URL and prefer direct target-site navigation over generic search pages.',
       };
     }
 
@@ -1018,11 +1018,53 @@ export class BrowserTools {
     const result = await this.runInTab(
       tabId,
       (k: string, sel: string) => {
-        const target = sel ? document.querySelector<HTMLElement>(sel) : document.body;
+        const target = sel
+          ? document.querySelector<HTMLElement>(sel)
+          : (document.activeElement as HTMLElement | null) || document.body;
         if (!target) return { success: false, error: 'Target not found.' };
         target.focus?.();
-        target.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
-        target.dispatchEvent(new KeyboardEvent('keyup', { key: k, bubbles: true }));
+
+        const keyEventInit: KeyboardEventInit = {
+          key: k,
+          code: k === 'Enter' ? 'Enter' : undefined,
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          keyCode: k === 'Enter' ? 13 : undefined,
+          which: k === 'Enter' ? 13 : undefined,
+        };
+
+        const dispatch = (type: 'keydown' | 'keypress' | 'keyup') => {
+          target.dispatchEvent(new KeyboardEvent(type, keyEventInit));
+        };
+
+        dispatch('keydown');
+        if (k === 'Enter') {
+          dispatch('keypress');
+        }
+        dispatch('keyup');
+
+        if (k === 'Enter') {
+          const active = target as HTMLElement;
+          const maybeForm =
+            active.closest?.('form') || ((active as HTMLInputElement | HTMLTextAreaElement).form ?? null);
+          if (maybeForm && typeof (maybeForm as HTMLFormElement).requestSubmit === 'function') {
+            try {
+              (maybeForm as HTMLFormElement).requestSubmit();
+            } catch {}
+          }
+
+          const clickish =
+            active instanceof HTMLButtonElement ||
+            (active as HTMLInputElement).type === 'submit' ||
+            active.getAttribute?.('role') === 'button';
+          if (clickish && typeof (active as HTMLButtonElement).click === 'function') {
+            try {
+              (active as HTMLButtonElement).click();
+            } catch {}
+          }
+        }
+
         return { success: true };
       },
       [key, selector] as const,
