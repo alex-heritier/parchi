@@ -1,4 +1,5 @@
 import { dedupeThinking } from '../../../ai/message-utils.js';
+import { clearToolCallViews } from '../core/panel-session-memory.js';
 import { sidePanelProto } from './panel-tools-shared.js';
 
 sidePanelProto.refreshTimelineHud = function refreshTimelineHud() {
@@ -169,7 +170,7 @@ sidePanelProto.resetActivityPanel = function resetActivityPanel() {
   }
   this.latestThinking = null;
   this.activeToolName = null;
-  this.toolCallViews.clear();
+  clearToolCallViews(this.toolCallViews);
   this.stepTimeline.steps.clear();
   this.stepTimeline.activeStepIndex = null;
   this.stepTimeline.activeStepBody = null;

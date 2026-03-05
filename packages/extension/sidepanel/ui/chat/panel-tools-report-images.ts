@@ -1,5 +1,47 @@
 import { MAX_REPORT_IMAGES, MAX_REPORT_IMAGE_BYTES, dataUrlToBlobUrl, sidePanelProto } from './panel-tools-shared.js';
 
+const removeReportImage = (self: any, id: string) => {
+  const evicted = self.reportImages.get(id);
+  if (!evicted) return 0;
+  const byteLength = evicted.dataUrl?.length || 0;
+  if (evicted._blobUrl) URL.revokeObjectURL(evicted._blobUrl);
+  self.reportImages.delete(id);
+  self.selectedReportImageIds.delete(id);
+  const previewEl = document.querySelector(`.report-image-toggle[data-report-image-id="${id}"]`);
+  previewEl?.closest('.tool-screenshot-preview')?.remove();
+  return byteLength;
+};
+
+const trimReportImagesByCount = (self: any) => {
+  if (self.reportImages.size <= MAX_REPORT_IMAGES) return;
+  for (const allowSelected of [false, true]) {
+    for (const id of [...self.reportImageOrder]) {
+      if (self.reportImages.size <= MAX_REPORT_IMAGES) break;
+      if (!allowSelected && self.selectedReportImageIds.has(id)) continue;
+      removeReportImage(self, id);
+    }
+    if (self.reportImages.size <= MAX_REPORT_IMAGES) break;
+  }
+  self.reportImageOrder = self.reportImageOrder.filter((id: string) => self.reportImages.has(id));
+};
+
+const trimReportImagesByBytes = (self: any) => {
+  let totalBytes = 0;
+  for (const img of self.reportImages.values()) totalBytes += img.dataUrl?.length || 0;
+  if (totalBytes <= MAX_REPORT_IMAGE_BYTES) return;
+
+  for (const allowSelected of [false, true]) {
+    for (const id of [...self.reportImageOrder]) {
+      if (totalBytes <= MAX_REPORT_IMAGE_BYTES) break;
+      if (!allowSelected && self.selectedReportImageIds.has(id)) continue;
+      totalBytes -= removeReportImage(self, id);
+    }
+    if (totalBytes <= MAX_REPORT_IMAGE_BYTES) break;
+  }
+
+  self.reportImageOrder = self.reportImageOrder.filter((id: string) => self.reportImages.has(id));
+};
+
 sidePanelProto.recordReportImage = function recordReportImage(image: any) {
   if (!image || typeof image.id !== 'string' || typeof image.dataUrl !== 'string') return;
   const normalized = {
@@ -21,45 +63,8 @@ sidePanelProto.recordReportImage = function recordReportImage(image: any) {
     this.selectedReportImageIds.delete(normalized.id);
   }
 
-  if (this.reportImages.size > MAX_REPORT_IMAGES) {
-    const toEvict: string[] = [];
-    for (const id of this.reportImageOrder) {
-      if (this.reportImages.size - toEvict.length <= MAX_REPORT_IMAGES) break;
-      if (!this.selectedReportImageIds.has(id)) toEvict.push(id);
-    }
-    for (const id of toEvict) {
-      const evicted = this.reportImages.get(id);
-      if (evicted?._blobUrl) URL.revokeObjectURL(evicted._blobUrl);
-      this.reportImages.delete(id);
-      const previewEl = document.querySelector(`.report-image-toggle[data-report-image-id="${id}"]`);
-      previewEl?.closest('.tool-screenshot-preview')?.remove();
-    }
-    this.reportImageOrder = this.reportImageOrder.filter((id: string) => this.reportImages.has(id));
-  }
-
-  let totalBytes = 0;
-  for (const img of this.reportImages.values()) totalBytes += img.dataUrl?.length || 0;
-  if (totalBytes > MAX_REPORT_IMAGE_BYTES) {
-    const byteEvict: string[] = [];
-    for (const id of this.reportImageOrder) {
-      if (totalBytes <= MAX_REPORT_IMAGE_BYTES) break;
-      if (!this.selectedReportImageIds.has(id)) {
-        const img = this.reportImages.get(id);
-        totalBytes -= img?.dataUrl?.length || 0;
-        byteEvict.push(id);
-      }
-    }
-    for (const id of byteEvict) {
-      const evicted = this.reportImages.get(id);
-      if (evicted?._blobUrl) URL.revokeObjectURL(evicted._blobUrl);
-      this.reportImages.delete(id);
-      const previewEl = document.querySelector(`.report-image-toggle[data-report-image-id="${id}"]`);
-      previewEl?.closest('.tool-screenshot-preview')?.remove();
-    }
-    if (byteEvict.length > 0) {
-      this.reportImageOrder = this.reportImageOrder.filter((id: string) => this.reportImages.has(id));
-    }
-  }
+  trimReportImagesByCount(this);
+  trimReportImagesByBytes(this);
 
   if (normalized.toolCallId) {
     const entry = this.toolCallViews.get(normalized.toolCallId);

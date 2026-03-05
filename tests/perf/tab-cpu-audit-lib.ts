@@ -1,7 +1,7 @@
 import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { toAggregateTable, toLatestRowsTable } from './tab-cpu-audit-format.js';
+import { buildTabCpuAuditMarkdown } from './tab-cpu-audit-report.js';
 import type {
   AggregateRow,
   AuditRow,
@@ -18,6 +18,16 @@ const runCommand = (cmd: string, args: string[]) =>
   execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const sum = <T>(rows: T[], getValue: (row: T) => number) => rows.reduce((acc, row) => acc + getValue(row), 0);
+const toFixedNumber = (value: number, digits = 2) => Number(value.toFixed(digits));
+const computeSlopePerMinute = (points: Array<{ ts: number; value: number }>) => {
+  if (points.length < 2) return null;
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (!first || !last || last.ts <= first.ts) return null;
+  const durationMinutes = (last.ts - first.ts) / 60_000;
+  if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) return null;
+  return toFixedNumber((last.value - first.value) / durationMinutes);
+};
 
 function parseProcessRows(raw: string): ParsedProcess[] {
   const rows: ParsedProcess[] = [];
@@ -94,20 +104,26 @@ function collectSample(sampleIndex: number, topN: number): SampleSummary {
     .filter((row) => row.browserKind !== 'other')
     .slice(0, topN);
   const firefoxTabs = rows.filter((row) => row.browserKind === 'firefox-tab');
+  const parchiFirefoxTabs = firefoxTabs.filter((row) => row.hasParchiFirefoxXpi);
   const chromeRenderers = rows.filter((row) => row.browserKind === 'chrome-renderer');
   return {
     sampleIndex,
     capturedAt: new Date().toISOString(),
     firefoxTabs: {
       count: firefoxTabs.length,
-      totalCpuPercent: Number(sum(firefoxTabs, (row) => row.cpuPercent).toFixed(2)),
-      totalRssMb: Number(sum(firefoxTabs, (row) => row.rssMb).toFixed(2)),
+      totalCpuPercent: toFixedNumber(sum(firefoxTabs, (row) => row.cpuPercent)),
+      totalRssMb: toFixedNumber(sum(firefoxTabs, (row) => row.rssMb)),
       tabsWithParchiXpi: firefoxTabs.filter((row) => row.hasParchiFirefoxXpi).length,
+    },
+    parchiFirefoxTabs: {
+      count: parchiFirefoxTabs.length,
+      totalCpuPercent: toFixedNumber(sum(parchiFirefoxTabs, (row) => row.cpuPercent)),
+      totalRssMb: toFixedNumber(sum(parchiFirefoxTabs, (row) => row.rssMb)),
     },
     chromeRenderers: {
       count: chromeRenderers.length,
-      totalCpuPercent: Number(sum(chromeRenderers, (row) => row.cpuPercent).toFixed(2)),
-      totalRssMb: Number(sum(chromeRenderers, (row) => row.rssMb).toFixed(2)),
+      totalCpuPercent: toFixedNumber(sum(chromeRenderers, (row) => row.cpuPercent)),
+      totalRssMb: toFixedNumber(sum(chromeRenderers, (row) => row.rssMb)),
     },
     topRows,
   };
@@ -198,6 +214,19 @@ export async function runTabCpuAudit(
   const latest = samples[samples.length - 1];
   const generatedAt = new Date().toISOString();
   const timestamp = generatedAt.replace(/[:.]/g, '-');
+  const parchiRssSlopeMbPerMin = computeSlopePerMinute(
+    samples.map((sample) => ({
+      ts: Date.parse(sample.capturedAt),
+      value: sample.parchiFirefoxTabs.totalRssMb,
+    })),
+  );
+  const parchiCpuSlopePercentPerMin = computeSlopePerMinute(
+    samples.map((sample) => ({
+      ts: Date.parse(sample.capturedAt),
+      value: sample.parchiFirefoxTabs.totalCpuPercent,
+    })),
+  );
+  const hottestParchiProcessOverall = aggregateRows.find((row) => row.hasParchiFirefoxXpi) ?? null;
   const result = {
     generatedAt,
     config: {
@@ -212,66 +241,35 @@ export async function runTabCpuAudit(
     },
     summary: {
       durationMs: Date.now() - startedAt,
-      latestSample: { firefoxTabs: latest.firefoxTabs, chromeRenderers: latest.chromeRenderers },
+      latestSample: {
+        firefoxTabs: latest.firefoxTabs,
+        parchiFirefoxTabs: latest.parchiFirefoxTabs,
+        chromeRenderers: latest.chromeRenderers,
+      },
       sustainedAlertsCount: sustainedAlerts.length,
       hottestProcessOverall: aggregateRows[0] ?? null,
+      hottestParchiProcessOverall,
+      parchiFirefoxTabs: {
+        rssSlopeMbPerMin: parchiRssSlopeMbPerMin,
+        cpuSlopePercentPerMin: parchiCpuSlopePercentPerMin,
+      },
     },
     samples,
     aggregateTopRows: aggregateRows,
     sustainedAlerts,
   };
 
-  const timelineTable = samples
-    .map(
-      (sample) =>
-        `| ${sample.sampleIndex} | ${sample.capturedAt} | ${sample.firefoxTabs.totalCpuPercent.toFixed(1)} | ${sample.firefoxTabs.totalRssMb.toFixed(1)} | ${sample.chromeRenderers.totalCpuPercent.toFixed(1)} | ${sample.chromeRenderers.totalRssMb.toFixed(1)} |`,
-    )
-    .join('\n');
-
-  const markdown = `# Browser tab CPU audit
-
-- Generated: ${generatedAt}
-- Samples: ${options.sampleCount}
-- Interval: ${options.sampleIntervalMs}ms
-- Top rows per sample: ${options.topN}
-- CPU alert threshold: ${options.cpuAlertPercent}%
-- RSS alert threshold: ${options.rssAlertMb}MB
-- Sustained alert threshold: >=${sustainedMinSamples} samples
-
-## Latest sample summary
-
-- Firefox tab count: ${latest.firefoxTabs.count}
-- Firefox tab CPU total: ${latest.firefoxTabs.totalCpuPercent.toFixed(1)}%
-- Firefox tab RSS total: ${latest.firefoxTabs.totalRssMb.toFixed(1)}MB
-- Firefox tabs with Parchi XPI: ${latest.firefoxTabs.tabsWithParchiXpi}
-- Chrome renderer count: ${latest.chromeRenderers.count}
-- Chrome renderer CPU total: ${latest.chromeRenderers.totalCpuPercent.toFixed(1)}%
-- Chrome renderer RSS total: ${latest.chromeRenderers.totalRssMb.toFixed(1)}MB
-
-## Sustained alerts
-
-${toAggregateTable(sustainedAlerts)}
-
-## Top aggregated browser rows
-
-${toAggregateTable(aggregateRows.slice(0, options.topN))}
-
-## Latest sample top rows
-
-${toLatestRowsTable(latest.topRows)}
-
-## Browser timeline by sample
-
-| Sample | Captured At | Firefox CPU% | Firefox RSS MB | Chrome CPU% | Chrome RSS MB |
-| ---: | :--- | ---: | ---: | ---: | ---: |
-${timelineTable}
-
-## Notes
-
-- Firefox process number maps to trailing \`N tab\` value in plugin-container args.
-- \`Parchi XPI\` indicates the process has opened the extension bundle; it is a correlation signal only.
-- Run this once during active automation and once after 5+ minutes idle; sustained alerts in idle mode are regressions.
-`;
+  const markdown = buildTabCpuAuditMarkdown({
+    generatedAt,
+    options,
+    sustainedMinSamples,
+    latest,
+    samples,
+    aggregateRows,
+    sustainedAlerts,
+    parchiRssSlopeMbPerMin,
+    parchiCpuSlopePercentPerMin,
+  });
 
   const jsonPath = path.join(outputDir, `tab-cpu-audit-${timestamp}.json`);
   const markdownPath = path.join(outputDir, `tab-cpu-audit-${timestamp}.md`);

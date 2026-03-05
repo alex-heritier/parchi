@@ -20,6 +20,7 @@ import { runModelListingSuite } from './suites/model-listing.test.js';
 import { runModelMessageConvertSuite } from './suites/model-message-convert.test.js';
 import { runOauthCandidatesSuite } from './suites/oauth-candidates.test.js';
 import { runOauthModelNormalizationSuite } from './suites/oauth-model-normalization.test.js';
+import { runPanelSessionMemorySuite } from './suites/panel-session-memory.test.js';
 import { runPlanNormalizationSuite } from './suites/plan-normalization.test.js';
 import { runRecordingSummarySuite } from './suites/recording-summary.test.js';
 import { runReportImagesSuite } from './suites/report-images.test.js';
@@ -57,6 +58,7 @@ export function runUnitTests() {
   runModelListingSuite(runner);
   runReportImagesSuite(runner);
   runRecordingSummarySuite(runner);
+  runPanelSessionMemorySuite(runner);
   runPlanNormalizationSuite(runner);
   runRetryHelpersSuite(runner);
   runRuntimeMessagesSuite(runner);

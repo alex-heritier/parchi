@@ -1,4 +1,5 @@
 import { setSidebarOpen, showRightPanel as showRightPanelContent } from './panel-navigation.js';
+import { clearReportImages, clearToolCallViews } from './panel-session-memory.js';
 import { SidePanelUI } from './panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
@@ -97,21 +98,10 @@ sidePanelProto.startNewSession = function startNewSession() {
   this.subagents.clear();
   this.activeAgent = 'main';
   this.historyTurnMap.clear();
-  // Revoke blob URLs and abort listeners before clearing
-  for (const img of this.reportImages.values()) {
-    if (img._blobUrl) {
-      URL.revokeObjectURL(img._blobUrl);
-    }
-  }
-  this.reportImages.clear();
-  this.reportImageOrder = [];
-  this.selectedReportImageIds.clear();
+  clearReportImages(this.reportImages, this.reportImageOrder, this.selectedReportImageIds);
   this.pendingTurnDraft = null;
   this.elements.chatMessages.innerHTML = '';
-  for (const entry of this.toolCallViews.values()) {
-    entry.abortController?.abort();
-  }
-  this.toolCallViews.clear();
+  clearToolCallViews(this.toolCallViews);
   this.updateChatEmptyState?.();
   this.resetActivityPanel();
   this.hideAgentNav();

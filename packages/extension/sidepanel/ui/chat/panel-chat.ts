@@ -2,6 +2,7 @@ import { createMessage } from '../../../ai/message-schema.js';
 import type { Message } from '../../../ai/message-schema.js';
 import { dedupeThinking, extractThinking } from '../../../ai/message-utils.js';
 import { getActiveTab } from '../../../utils/active-tab.js';
+import { clampContextHistory } from '../core/panel-session-memory.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 import type { UsagePayload } from '../types/panel-types.js';
 
@@ -248,6 +249,7 @@ sidePanelProto.sendMessage = async function sendMessage() {
   const contextEntry = createMessage({ role: 'user', content: fullMessage });
   if (contextEntry) {
     this.contextHistory.push(contextEntry);
+    clampContextHistory(this.contextHistory);
   }
   this.updateContextUsage();
 

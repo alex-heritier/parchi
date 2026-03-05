@@ -18,11 +18,18 @@ export type AuditRow = ParsedProcess & {
   hasParchiFirefoxXpi: boolean;
 };
 
+export type ResourceTotals = {
+  count: number;
+  totalCpuPercent: number;
+  totalRssMb: number;
+};
+
 export type SampleSummary = {
   sampleIndex: number;
   capturedAt: string;
-  firefoxTabs: { count: number; totalCpuPercent: number; totalRssMb: number; tabsWithParchiXpi: number };
-  chromeRenderers: { count: number; totalCpuPercent: number; totalRssMb: number };
+  firefoxTabs: ResourceTotals & { tabsWithParchiXpi: number };
+  parchiFirefoxTabs: ResourceTotals;
+  chromeRenderers: ResourceTotals;
   topRows: AuditRow[];
 };
 

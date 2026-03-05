@@ -1,6 +1,7 @@
 import { createMessage, normalizeConversationHistory } from '../../../ai/message-schema.js';
 import type { Message } from '../../../ai/message-schema.js';
 import { dedupeThinking, extractThinking } from '../../../ai/message-utils.js';
+import { clampContextHistory, clearReportImages, clearToolCallViews } from '../core/panel-session-memory.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
@@ -229,10 +230,8 @@ sidePanelProto.loadSession = function loadSession(session: any) {
       this.sessionId = session.id || `session-${suffix}`;
       this.firstUserMessage = session.title || '';
       this.elements.chatMessages.innerHTML = '';
-      this.toolCallViews.clear();
-      this.reportImages.clear();
-      this.reportImageOrder = [];
-      this.selectedReportImageIds.clear();
+      clearToolCallViews(this.toolCallViews);
+      clearReportImages(this.reportImages, this.reportImageOrder, this.selectedReportImageIds);
       this.resetActivityPanel();
 
       turns.forEach((turn: any) => {
@@ -299,6 +298,7 @@ sidePanelProto.loadSession = function loadSession(session: any) {
       } else {
         this.contextHistory = normalizedTranscript;
       }
+      clampContextHistory(this.contextHistory);
       this.updateContextUsage();
       this.updateChatEmptyState();
       this.scrollToBottom({ force: true });
@@ -311,6 +311,7 @@ sidePanelProto.loadSession = function loadSession(session: any) {
   if (transcript.length > 0) {
     this.displayHistory = normalizedTranscript;
     this.contextHistory = normalizedContextTranscript.length > 0 ? normalizedContextTranscript : normalizedTranscript;
+    clampContextHistory(this.contextHistory);
     const suffix = typeof crypto?.randomUUID === 'function' ? crypto.randomUUID() : String(Date.now());
     this.sessionId = session.id || `session-${suffix}`;
     this.firstUserMessage = session.title || '';
@@ -366,10 +367,8 @@ sidePanelProto.formatTimeAgo = function formatTimeAgo(date: Date): string {
 
 sidePanelProto.renderConversationHistory = function renderConversationHistory() {
   this.elements.chatMessages.innerHTML = '';
-  this.toolCallViews.clear();
-  this.reportImages.clear();
-  this.reportImageOrder = [];
-  this.selectedReportImageIds.clear();
+  clearToolCallViews(this.toolCallViews);
+  clearReportImages(this.reportImages, this.reportImageOrder, this.selectedReportImageIds);
   this.lastChatTurn = null;
   this.resetActivityPanel();
 

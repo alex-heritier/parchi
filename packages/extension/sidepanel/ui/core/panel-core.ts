@@ -4,6 +4,7 @@ import type { Message } from '../../../ai/message-schema.js';
 import { appendTrace, pruneOldTraces } from '../chat/trace-store.js';
 import { recordUsage } from '../settings/usage-store.js';
 import { bindSidebarNavigation, setSidebarOpen } from './panel-navigation.js';
+import { clampContextHistory, clearReportImages, clearToolCallViews } from './panel-session-memory.js';
 
 const debounce = (fn: (...args: any[]) => void, ms: number) => {
   let timer: ReturnType<typeof setTimeout>;
@@ -1233,6 +1234,7 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
     this.streamingUsageEstimatedTokens = 0;
     this.streamingUsageEstimatedTokensApplied = 0;
     this.updateActivityState();
+    this.nullifyFinalizedToolData?.();
     this.finishStreamingMessage();
     this.showErrorBanner(message.message, {
       category: (message as any).errorCategory,
@@ -1326,17 +1328,13 @@ sidePanelProto.appendContextMessages = function appendContextMessages(
     });
     if (assistantEntry) {
       this.contextHistory.push(assistantEntry);
+      clampContextHistory(this.contextHistory);
     }
     return;
   }
   const normalized = normalizeConversationHistory(responseMessages as unknown as Message[]);
   this.contextHistory.push(...normalized);
-
-  // Soft cap — prevent unbounded growth if compaction is delayed
-  const CONTEXT_HISTORY_SOFT_CAP = 600;
-  if (this.contextHistory.length > CONTEXT_HISTORY_SOFT_CAP) {
-    this.contextHistory.splice(0, this.contextHistory.length - CONTEXT_HISTORY_SOFT_CAP);
-  }
+  clampContextHistory(this.contextHistory);
 };
 
 sidePanelProto.handleContextCompaction = function handleContextCompaction(message: any) {
@@ -1363,6 +1361,7 @@ sidePanelProto.handleContextCompaction = function handleContextCompaction(messag
 
   const normalized = normalizeConversationHistory(message.contextMessages as unknown as Message[]);
   this.contextHistory = normalized;
+  clampContextHistory(this.contextHistory);
   this.sessionId = message.newSessionId || this.sessionId;
   if (message.startFreshSession === true) {
     this.displayHistory = [];
@@ -1372,7 +1371,8 @@ sidePanelProto.handleContextCompaction = function handleContextCompaction(messag
     this.historyTurnMap.clear();
     this.currentPlan = null;
     this.hidePlanDrawer?.();
-    this.toolCallViews.clear();
+    clearToolCallViews(this.toolCallViews);
+    clearReportImages(this.reportImages, this.reportImageOrder, this.selectedReportImageIds);
   }
 
   const summaryText = message.summary || 'Context compacted.';
