@@ -1,0 +1,149 @@
+import { type BrowserToolArgs, type BrowserToolsDelegate, missingSessionTabError } from './browser-tool-shared.js';
+
+export async function getContentTool(ctx: BrowserToolsDelegate, args: BrowserToolArgs) {
+  const tabId = await ctx.resolveTabId(args);
+  if (!tabId) return missingSessionTabError();
+  const type = String(args.type || args.mode || 'text');
+  const selector = args.selector ? String(args.selector) : '';
+  const maxChars = typeof args.maxChars === 'number' && args.maxChars > 0 ? args.maxChars : 8000;
+  await ctx.sendOverlay(tabId, {
+    label: 'Read page',
+    note: selector ? `from ${selector}` : type,
+    durationMs: 1200,
+  });
+  const result = await ctx.runInTab(
+    tabId,
+    (t: string, sel: string, limit: number) => {
+      const base = sel ? document.querySelector<HTMLElement>(sel) : document.body;
+      if (!base) return { success: false, error: 'Target not found.' };
+      const normalizedType = ['text', 'html', 'title', 'url', 'links'].includes(t) ? t : 'text';
+      const truncate = (value: string) => {
+        const length = value.length;
+        if (length <= limit) {
+          return { content: value, truncated: false, contentLength: length };
+        }
+        return { content: value.slice(0, limit), truncated: true, contentLength: length };
+      };
+      if (normalizedType === 'html') {
+        const result = truncate(base.innerHTML);
+        return { success: true, ...result };
+      }
+      if (normalizedType === 'title') {
+        const result = truncate(document.title || '');
+        return { success: true, ...result };
+      }
+      if (normalizedType === 'url') {
+        const result = truncate(window.location.href || '');
+        return { success: true, ...result };
+      }
+      if (normalizedType === 'links') {
+        const links = Array.from(base.querySelectorAll('a'))
+          .slice(0, 200)
+          .map((link) => ({
+            text: link.textContent || '',
+            href: link.href,
+          }));
+        const result = truncate(JSON.stringify(links));
+        return { success: true, items: links.length, ...result };
+      }
+      const result = truncate(base.innerText || '');
+      return { success: true, ...result };
+    },
+    [type, selector, maxChars] as const,
+  );
+  return result || { success: false, error: 'Script execution failed.' };
+}
+
+export async function findHtmlTool(ctx: BrowserToolsDelegate, args: BrowserToolArgs) {
+  const tabId = await ctx.resolveTabId(args);
+  if (!tabId) return missingSessionTabError();
+
+  const htmlSnippet = String(args.htmlSnippet || args.snippet || '').trim();
+  if (!htmlSnippet) {
+    return {
+      success: false,
+      error: 'Missing htmlSnippet parameter.',
+    };
+  }
+
+  const selector = args.selector ? String(args.selector) : '';
+  const normalizeWhitespace = args.normalizeWhitespace === true;
+  const maxMatches = Math.max(1, Math.min(20, Math.floor(Number(args.maxMatches) || 8)));
+  await ctx.sendOverlay(tabId, {
+    label: 'Find HTML snippet',
+    note: selector ? `within ${selector}` : 'in document markup',
+    durationMs: 700,
+  });
+
+  const result = await ctx.runInTab(
+    tabId,
+    (scopeSelector: string, needle: string, normalizeWs: boolean, matchLimit: number) => {
+      const normalize = (value: string) => {
+        if (!normalizeWs) return value;
+        return value.replace(/\s+/g, ' ').trim();
+      };
+
+      let scope: HTMLElement | null = null;
+      try {
+        if (scopeSelector) {
+          scope = document.querySelector(scopeSelector);
+        }
+      } catch {
+        scope = null;
+      }
+      const sourceNode = scope || document.documentElement;
+      if (!sourceNode) return { success: false, error: 'Target scope not found.' };
+
+      const rawSource = sourceNode.outerHTML || '';
+      const source = normalize(rawSource);
+      const normalizedNeedle = normalize(needle);
+      const haystack = normalizeWs ? source : rawSource;
+      const searchNeedle = normalizeWs ? normalizedNeedle : needle;
+
+      const matches: Array<{ index: number; context: string }> = [];
+      if (searchNeedle && searchNeedle.length > 0) {
+        let position = 0;
+        while (matches.length < matchLimit) {
+          const foundAt = haystack.indexOf(searchNeedle, position);
+          if (foundAt < 0) break;
+          const contextStart = Math.max(0, foundAt - 120);
+          const contextEnd = Math.min(haystack.length, foundAt + searchNeedle.length + 120);
+          matches.push({
+            index: foundAt,
+            context: haystack.slice(contextStart, contextEnd),
+          });
+          position = foundAt + Math.max(1, searchNeedle.length);
+        }
+      }
+
+      if (!normalizeWs && matches.length === 0 && normalizedNeedle && normalizedNeedle !== needle) {
+        let position = 0;
+        while (matches.length < matchLimit) {
+          const foundAt = source.indexOf(normalizedNeedle, position);
+          if (foundAt < 0) break;
+          const contextStart = Math.max(0, foundAt - 120);
+          const contextEnd = Math.min(source.length, foundAt + normalizedNeedle.length + 120);
+          matches.push({
+            index: -1,
+            context: source.slice(contextStart, contextEnd),
+          });
+          position = foundAt + Math.max(1, normalizedNeedle.length);
+        }
+      }
+
+      return {
+        success: true,
+        hasMatch: matches.length > 0,
+        matchCount: matches.length,
+        matched: matches.length > 0 ? `Found ${matches.length} match(es) for provided HTML.` : 'No exact match found.',
+        scopeSelector: scopeSelector || ':root',
+        snippetLength: searchNeedle.length,
+        sourceLength: haystack.length,
+        matches,
+      };
+    },
+    [selector, htmlSnippet, normalizeWhitespace, maxMatches] as const,
+  );
+
+  return result || { success: false, error: 'Script execution failed.' };
+}

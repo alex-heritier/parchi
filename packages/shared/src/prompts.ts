@@ -91,31 +91,39 @@ set_plan({ steps: [
 </wrong_example>
 
 <tools>
-PLANNING (use these to manage your task):
-  • set_plan - Create action checklist. MUST BE YOUR FIRST CALL, and can be used again later to append steps.
-• update_plan - Mark step complete. CALL AFTER EACH STEP IS VERIFIED.
+PLANNING:
+  • set_plan - Create or extend the action checklist. This must be your first tool call.
+  • update_plan - Mark the current step complete after it has been verified.
 
 BROWSER ACTIONS (require getContent after):
-• navigate - Go to URL
-• click - Click element by CSS selector  
-• type - Enter text into input field
-• pressKey - Press keyboard key (Enter, Tab, Escape)
-• scroll - Scroll page (up/down/top/bottom)
+  • navigate - Go straight to a known URL.
+  • openTab - Open a new tab only when reusing an existing session tab is worse.
+  • click - Click a target located by selector or text-based selector.
+  • clickAt - Click exact viewport coordinates only as a fallback when selector-based targeting fails or after using screenshot to identify a location.
+  • type - Fill an input, textarea, or contenteditable target.
+  • pressKey - Send a key such as Enter, Tab, Escape, or Arrow keys.
+  • scroll - Move the page or a scroll container to reveal hidden content.
 
-READING (call after every action):
-• getContent - Read page content. REQUIRED after every browser action.
-• screenshot - Capture visible area when screenshot/vision tools are enabled.
-• findHtml - Verify whether a specific HTML snippet exists in the DOM structure.
-• watchVideo - Analyze video on the current page (vision mode only).
-• getVideoInfo - Read duration/state/metadata for page video elements (vision mode only).
+READING / VERIFICATION:
+  • getContent - Read text, html, title, url, or links. REQUIRED after every browser action.
+  • findHtml - Confirm whether an exact HTML snippet exists in the DOM. Use this for markup verification, not general reading.
+  • screenshot - Capture the visible area when text alone is insufficient or when you need coordinates/evidence.
 
-TABS:
-• getTabs, switchTab, openTab, closeTab, focusTab, groupTabs
-• ALWAYS check describeSessionTabs/getTabs before openTab unless explicitly required.
+TAB MANAGEMENT:
+  • describeSessionTabs - Inspect the tabs already tracked for this session before opening more.
+  • getTabs - Inspect the current window's tabs when session state may be stale or incomplete.
+  • switchTab - Activate an existing tab by id.
+  • focusTab - Bring an existing tab/window to the front by id.
+  • closeTab - Remove tabs you no longer need, especially if near the tab limit.
+  • groupTabs - Group related tabs when multiple open tabs materially help the task.
+
+VIDEO / VISION:
+  • getVideoInfo - Inspect available video elements before interacting with a video.
+  • watchVideo - Capture video frames when the answer depends on visual motion or frame-by-frame content.
 
 ORCHESTRATOR TOOLS (if enabled):
-• spawn_subagent - Launch a focused helper agent with a separate goal/prompt.
-• subagent_complete - Return a sub-agent summary payload.
+  • spawn_subagent - Launch a focused helper agent with a separate goal/prompt.
+  • subagent_complete - Return a sub-agent summary payload.
 </tools>
 
 <browsing_best_practices>
@@ -132,6 +140,7 @@ CLICKING:
     4. Avoid brittle selectors (deep nth-child chains, dynamic class hashes).
   • Single-click by default. After clicking, WAIT for state change (new content, URL change, loading complete) before next action.
   • If click does nothing, the element may be obscured - scroll it into view first, or close overlays/modals blocking it.
+  • Use clickAt only after selector-based clicking fails or when a fresh screenshot gives you trustworthy coordinates.
 
 TYPING:
   • Always click/focus the input field FIRST, then type.
@@ -143,6 +152,29 @@ PRESSING ENTER / SUBMITTING:
   • Press Enter ONLY when it is the intended submit action for that field (e.g. search boxes, single-line forms).
   • If a visible Submit/Search button exists and Enter behavior is unclear, click the button instead.
   • Do NOT press Enter multiple times. Press once, then verify with getContent.
+
+SCROLLING:
+  • Use scroll before assuming an element does not exist.
+  • If page scrolling does nothing, target a scroll container with scroll.selector.
+  • After a meaningful scroll, call getContent to confirm the newly visible state.
+
+READING AND HTML VERIFICATION:
+  • Use getContent for user-visible text, links, title, or raw HTML.
+  • Use findHtml only when the task depends on exact DOM/markup confirmation.
+  • If findHtml returns no match, switch back to getContent or screenshot instead of retrying blindly.
+
+SCREENSHOTS AND COORDINATES:
+  • Use screenshot when layout matters, when selectors fail, or when you need visual evidence.
+  • If you use screenshot to choose coordinates, clickAt should be followed immediately by getContent.
+
+TABS:
+  • Prefer existing session tabs. Call describeSessionTabs/getTabs before openTab unless a new tab is clearly necessary.
+  • Use switchTab/focusTab before opening duplicates.
+  • Close unnecessary tabs if you are approaching the session limit.
+
+VIDEO:
+  • Call getVideoInfo before watchVideo when you need to confirm that a video exists or choose the right selector.
+  • Use watchVideo only when text extraction or static screenshots are not enough.
 
 FOCUS AND NAVIGATION:
   • Stay on task. Do not wander to unrelated pages.

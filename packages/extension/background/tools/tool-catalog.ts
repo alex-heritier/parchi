@@ -1,8 +1,16 @@
-import type { ComposedSkill } from '@parchi/shared';
+import type { ComposedSkill, ToolDefinition } from '@parchi/shared';
+
+type BrowserToolProvider = {
+  getToolDefinitions(): ToolDefinition[];
+};
+
+type ToolCatalogSettings = {
+  enableScreenshots?: boolean;
+} & Record<string, unknown>;
 
 export function getToolsForSession(
-  browserTools: { getToolDefinitions(): any[] },
-  settings: Record<string, any>,
+  browserTools: BrowserToolProvider,
+  settings: ToolCatalogSettings,
   includeOrchestrator = false,
   teamProfiles: Array<{ name: string }> = [],
   includeVisionTools = false,
@@ -12,9 +20,7 @@ export function getToolsForSession(
     tools = tools.filter((tool) => tool.name !== 'screenshot');
   }
   if (!includeVisionTools) {
-    tools = tools.filter(
-      (tool) => tool.name !== 'screenshot' && tool.name !== 'watchVideo' && tool.name !== 'getVideoInfo',
-    );
+    tools = tools.filter((tool) => tool.name !== 'watchVideo' && tool.name !== 'getVideoInfo');
   }
   tools = tools.concat([
     {
@@ -68,8 +74,7 @@ export function getToolsForSession(
     },
     {
       name: 'list_report_images',
-      description:
-        'List screenshots captured in this run session and whether they are selected for the final report.',
+      description: 'List screenshots captured in this run session and whether they are selected for the final report.',
       input_schema: {
         type: 'object',
         properties: {},
@@ -143,7 +148,9 @@ export function getToolsForSession(
   return tools;
 }
 
-export async function getMatchedSkills(url: string): Promise<Array<{ name: string; description: string; steps: string }>> {
+export async function getMatchedSkills(
+  url: string,
+): Promise<Array<{ name: string; description: string; steps: string }>> {
   try {
     const data = await chrome.storage.local.get('skills');
     const skills: ComposedSkill[] = Array.isArray(data.skills) ? data.skills : [];
