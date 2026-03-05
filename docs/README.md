@@ -1,23 +1,23 @@
 # Parchi docs
 
-This repo was missing a real docs surface. Start here.
+Start here.
 
-## Core docs
+## Read first
 
-- [`agent-pipeline.md`](./agent-pipeline.md) — end-to-end runtime flow from sidepanel input to tool execution, compaction, relay, and UI updates.
-- [`tab-process-performance-playbook.md`](./tab-process-performance-playbook.md) — how to run Firefox/Chrome tab-memory audits, read the new Parchi-attributed metrics, and validate regressions.
+- [`agent-pipeline.md`](./agent-pipeline.md) — runtime flow, ownership, and debugging order.
+- [`tab-process-performance-playbook.md`](./tab-process-performance-playbook.md) — Firefox/Chrome memory and CPU triage.
 
-## Fast repo map
+## Repo map
 
-| Area | Path | Notes |
-| --- | --- | --- |
-| Extension entrypoints | `packages/extension/` | Browser runtime, background worker, sidepanel, content scripts |
-| Shared contracts | `packages/shared/src/` | Prompt text, plans, runtime message schemas, settings |
-| Relay daemon + CLI | `packages/relay-service/`, `packages/cli/` | Local automation endpoint and client |
-| Electron agent | `packages/electron-agent/` | Relay-native desktop automation |
-| Backend | `packages/backend/` | Auth, billing, proxy/runtime services |
+| Area | Path |
+| --- | --- |
+| Extension | `packages/extension/` |
+| Shared contracts | `packages/shared/src/` |
+| Relay + CLI | `packages/relay-service/`, `packages/cli/` |
+| Electron agent | `packages/electron-agent/` |
+| Backend | `packages/backend/` |
 
-## Fast validation ladder
+## Validation
 
 ```bash
 npm run typecheck
@@ -27,7 +27,7 @@ npm run test:e2e
 npm run check:repo-standards
 ```
 
-For browser-memory work, also run:
+For browser perf work:
 
 ```bash
 npm run perf:tabs

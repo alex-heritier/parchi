@@ -11,7 +11,6 @@ Chat-driven browser automation that lives in your sidebar. Navigate, read, click
 [![Chrome MV3](https://img.shields.io/badge/Chrome-MV3-4285F4?logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/)
 [![Firefox](https://img.shields.io/badge/Firefox-109%2B-FF7139?logo=firefox&logoColor=white)](https://www.mozilla.org/firefox/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-a5b4fc.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.4.41-6366f1.svg)]()
 
 <br />
 
@@ -25,17 +24,6 @@ Chat-driven browser automation that lives in your sidebar. Navigate, read, click
 
 ### Chrome (recommended)
 
-<table>
-<tr>
-<td width="60">
-
-**1.**
-
-</td>
-<td>
-
-**Get the extension files**
-
 ```bash
 git clone https://github.com/0xSero/parchi.git
 cd parchi
@@ -43,67 +31,13 @@ npm install
 npm run build
 ```
 
-This creates a `dist/` folder with the built extension.
+Then:
 
-</td>
-</tr>
-<tr>
-<td>
-
-**2.**
-
-</td>
-<td>
-
-**Open Chrome Extensions page**
-
-Navigate to `chrome://extensions` in your address bar, or go to **⋮ Menu → Extensions → Manage Extensions**.
-
-</td>
-</tr>
-<tr>
-<td>
-
-**3.**
-
-</td>
-<td>
-
-**Enable Developer Mode**
-
-Toggle the **Developer mode** switch in the top-right corner of the extensions page.
-
-</td>
-</tr>
-<tr>
-<td>
-
-**4.**
-
-</td>
-<td>
-
-**Load the extension**
-
-Click **"Load unpacked"** and select the `dist/` folder from the cloned repo.
-
-</td>
-</tr>
-<tr>
-<td>
-
-**5.**
-
-</td>
-<td>
-
-**Open Parchi**
-
-Click the Parchi icon in your toolbar (you may need to pin it first via the puzzle piece icon). The side panel opens — you're ready to go.
-
-</td>
-</tr>
-</table>
+1. open `chrome://extensions`
+2. enable **Developer mode**
+3. click **Load unpacked**
+4. select `dist/`
+5. pin and open Parchi from the toolbar
 
 ### Firefox
 
@@ -186,44 +120,12 @@ CLIProxyAPI is an open-source proxy that converts your existing AI subscription 
 
 ## ✨ Features
 
-### Chat & AI
+- **Chat + AI** — streaming answers, reasoning display, profiles, vision support, context compaction, workflow shortcuts
+- **Browser tools** — navigate, click, clickAt, type, scroll, screenshot, findHtml, tab management, video helpers, planning, subagents
+- **Session tools** — session tabs, floating HUD, saved history, markdown export with tool traces
+- **Controls** — tool permissions, allowlists, confirmations, themes, zoom, custom headers
 
-- **Streaming responses** with real-time reasoning display
-- **Extended thinking** for Claude models (thinking budget scales with max tokens)
-- **Multiple profiles** — save different provider/model/prompt configs and switch instantly
-- **Vision support** — analyze screenshots and video frames with vision-capable models
-- **Context compaction** — auto-summarizes old conversation when approaching token limits
-- **Workflow templates** — save and reuse prompt templates with `/` quick access
-
-### Browser Automation (25+ tools)
-
-Parchi can control your browser through natural language:
-
-| Category | Tools | What they do |
-|----------|-------|-------------|
-| **Navigate** | `navigate`, `openTab`, `closeTab`, `switchTab` | Go to URLs, manage tabs |
-| **Interact** | `click`, `clickAt`, `type`, `pressKey`, `scroll` | Click elements, fill forms, press keys |
-| **Read** | `getContent`, `screenshot`, `findHtml` | Extract text, capture pages, search DOM |
-| **Video** | `watchVideo`, `getVideoInfo` | Analyze video by frame capture |
-| **Organize** | `groupTabs`, `getTabs`, `describeSessionTabs` | Group and list tabs |
-| **Plan** | `set_plan`, `update_plan` | Step-by-step task planning and tracking |
-| **Delegate** | `spawn_subagent`, `subagent_complete` | Multi-agent orchestration |
-
-### Session Management
-
-- **Session tabs** — auto-groups tabs opened during a session (Chrome)
-- **Floating HUD** showing active session tabs
-- **Chat history** — up to 50 sessions, 200 messages each
-- **Export** conversations as markdown (full, last response, or detailed with tool events)
-
-### Settings & Controls
-
-- **Tool permissions** — toggle read, interact, navigate, tabs, screenshots
-- **Domain allowlist** — restrict which sites the agent can act on
-- **Action confirmation** — require approval before the agent acts
-- **Themes** — Void, Ember, Forest, Ocean, and more
-- **UI zoom** — 85% to 125%
-- **Custom headers** — add auth tokens or special headers per profile
+See [`docs/agent-pipeline.md`](docs/agent-pipeline.md) for the runtime shape and [`docs/tab-process-performance-playbook.md`](docs/tab-process-performance-playbook.md) for perf triage.
 
 ---
 
@@ -322,23 +224,13 @@ parchi electron click @e5
 
 ## 🏗 Architecture
 
-```
-┌─────────────────────────────────────────────────┐
-│                  Side Panel UI                   │
-│  Chat · Tools Timeline · Settings · History      │
-└──────────────────────┬──────────────────────────┘
-                       │ runtime messages
-┌──────────────────────▼──────────────────────────┐
-│            Background Service Worker             │
-│  Agent loop · Tool execution · Stream handling   │
-└───────┬───────────────────┬─────────────────────┘
-        │                   │
-   Chrome APIs         AI Provider
-  (tabs, scripting,    (OpenAI, Anthropic,
-   navigation)          custom endpoints)
-```
+High level:
 
-**Monorepo workspaces:**
+- **Sidepanel UI** renders chat, history, settings, and tool timelines
+- **Background worker** runs the agent loop, tool execution, relay handling, and stream updates
+- **Shared contracts** define plans, prompts, tools, and runtime-message schemas
+
+**Workspaces:**
 
 | Workspace | Role |
 |------|------|
@@ -350,7 +242,7 @@ parchi electron click @e5
 | `packages/shared/` | Shared plans, prompts, schemas, and message types |
 | `packages/website/` | Static website + billing pages |
 
-**More detail:**
+More detail:
 
 - [`docs/README.md`](docs/README.md)
 - [`docs/agent-pipeline.md`](docs/agent-pipeline.md)
