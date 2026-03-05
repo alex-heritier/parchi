@@ -767,6 +767,12 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
     return;
   }
 
+  if (message.type === 'user_run_start') {
+    this.streamingUsageEstimatedTokens = 0;
+    this.streamingUsageEstimatedTokensApplied = 0;
+    return;
+  }
+
   if (message.type === 'run_status') {
     const phase = typeof message.phase === 'string' ? message.phase : '';
     const isCompactionStage = String((message as any).stage || '') === 'compaction';
@@ -805,6 +811,8 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
       this.pendingToolCount = 0;
       this.isStreaming = false;
       this.activeToolName = null;
+      this.streamingUsageEstimatedTokens = 0;
+      this.streamingUsageEstimatedTokensApplied = 0;
       this.updateActivityState();
       this.finishStreamingMessage();
     }
@@ -856,6 +864,39 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
       after,
       details,
     });
+
+    const beforeSnapshot =
+      before && typeof before === 'object' ? (before as Record<string, unknown>) : ({} as Record<string, unknown>);
+    const afterSnapshot =
+      after && typeof after === 'object' ? (after as Record<string, unknown>) : ({} as Record<string, unknown>);
+
+    const nextSessionInput = Number(afterSnapshot.sessionInputTokens);
+    const nextSessionOutput = Number(afterSnapshot.sessionOutputTokens);
+    const nextSessionTotal = Number(afterSnapshot.sessionTotalTokens);
+
+    if (Number.isFinite(nextSessionInput) && Number.isFinite(nextSessionOutput) && Number.isFinite(nextSessionTotal)) {
+      const previousSessionInput = Number(beforeSnapshot.sessionInputTokens || 0);
+      const previousSessionOutput = Number(beforeSnapshot.sessionOutputTokens || 0);
+      const previousSessionTotal = Number(beforeSnapshot.sessionTotalTokens || 0);
+
+      this.sessionTokenTotals = {
+        inputTokens: Math.max(0, nextSessionInput),
+        outputTokens: Math.max(0, nextSessionOutput),
+        totalTokens: Math.max(0, nextSessionTotal),
+      };
+      this.sessionTokensUsed = Math.max(0, Number(afterSnapshot.contextApproxTokens || nextSessionInput));
+      this.lastUsage = {
+        inputTokens: Math.max(0, nextSessionInput - previousSessionInput),
+        outputTokens: Math.max(0, nextSessionOutput - previousSessionOutput),
+        totalTokens: Math.max(0, nextSessionTotal - previousSessionTotal),
+      };
+      this.updateActivityState();
+    }
+
+    const nextContextApprox = Number(afterSnapshot.contextApproxTokens);
+    if (Number.isFinite(nextContextApprox) && nextContextApprox > 0) {
+      this.updateContextUsage(nextContextApprox);
+    }
 
     return;
   }
@@ -1184,6 +1225,8 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
     this.pendingToolCount = 0;
     this.isStreaming = false;
     this.activeToolName = null;
+    this.streamingUsageEstimatedTokens = 0;
+    this.streamingUsageEstimatedTokensApplied = 0;
     this.updateActivityState();
     this.finishStreamingMessage();
     this.showErrorBanner(message.message, {

@@ -567,6 +567,7 @@ sidePanelProto.displayAssistantMessage = function displayAssistantMessage(
   const modelLabel = model || this.getActiveModelLabel();
   const combinedThinking = [streamResult?.thinking, thinking].filter(Boolean).join('\n\n') || null;
   const showThinking = this.elements.showThinking?.value === 'true';
+  const estimatedApplied = Math.max(0, Number(this.streamingUsageEstimatedTokensApplied || 0));
 
   if ((!content || content.trim() === '') && !combinedThinking && !hasStreamEvents) {
     if (streamedContainer) {
@@ -592,10 +593,28 @@ sidePanelProto.displayAssistantMessage = function displayAssistantMessage(
 
   if (!normalizedUsage) {
     normalizedUsage = this.estimateUsageFromContent(content);
+    if (normalizedUsage && estimatedApplied > 0) {
+      normalizedUsage = {
+        inputTokens: normalizedUsage.inputTokens,
+        outputTokens: Math.max(0, normalizedUsage.outputTokens - estimatedApplied),
+        totalTokens: Math.max(0, normalizedUsage.totalTokens - estimatedApplied),
+      };
+    }
+  } else if (estimatedApplied > 0) {
+    normalizedUsage = {
+      inputTokens: normalizedUsage.inputTokens,
+      outputTokens: Math.max(0, normalizedUsage.outputTokens - estimatedApplied),
+      totalTokens: Math.max(0, normalizedUsage.totalTokens - estimatedApplied),
+    };
   }
-  if (normalizedUsage) {
+  if (
+    normalizedUsage &&
+    (normalizedUsage.inputTokens > 0 || normalizedUsage.outputTokens > 0 || normalizedUsage.totalTokens > 0)
+  ) {
     this.updateUsageStats(normalizedUsage);
   }
+  this.streamingUsageEstimatedTokens = 0;
+  this.streamingUsageEstimatedTokensApplied = 0;
   const messageMeta = this.buildMessageMeta(normalizedUsage, modelLabel);
   const selectedReportImages =
     typeof this.getSelectedReportImagesForExport === 'function' ? this.getSelectedReportImagesForExport() : [];

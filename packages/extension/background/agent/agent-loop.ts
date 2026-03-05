@@ -977,18 +977,11 @@ export async function processUserMessage(
           const finalizeResult = await generateText({
             model,
             system: finalizeSystemPrompt,
-            messages: [
-              ...toModelMessages(currentHistory),
-              { role: 'user', content: finalizePromptParts.join('\n') },
-            ],
+            messages: [...toModelMessages(currentHistory), { role: 'user', content: finalizePromptParts.join('\n') }],
             abortSignal,
             temperature: 0.2,
-            maxOutputTokens: finalizeUsesCodexOAuth
-              ? undefined
-              : Math.min(2048, orchestratorProfile.maxTokens ?? 4096),
-            providerOptions: finalizeUsesCodexOAuth
-              ? buildCodexOAuthProviderOptions(finalizeSystemPrompt)
-              : undefined,
+            maxOutputTokens: finalizeUsesCodexOAuth ? undefined : Math.min(2048, orchestratorProfile.maxTokens ?? 4096),
+            providerOptions: finalizeUsesCodexOAuth ? buildCodexOAuthProviderOptions(finalizeSystemPrompt) : undefined,
           });
 
           const candidateRaw = String(finalizeResult.text || '');
@@ -1149,10 +1142,10 @@ export async function processUserMessage(
       afterPatch: {
         providerInputTokens: inputTokens > 0 ? inputTokens : currentTokenSnapshot.providerInputTokens,
         providerOutputTokens: outputTokens > 0 ? outputTokens : currentTokenSnapshot.providerOutputTokens,
-        contextApproxTokens: inputTokens > 0 ? inputTokens : currentTokenSnapshot.contextApproxTokens,
+        contextApproxTokens: totalTokens > 0 ? totalTokens : currentTokenSnapshot.contextApproxTokens,
         contextLimit: orchestratorProfile.contextLimit || settings.contextLimit || currentTokenSnapshot.contextLimit,
         contextPercent: normalizeContextPercent(
-          inputTokens > 0 ? inputTokens : currentTokenSnapshot.contextApproxTokens,
+          totalTokens > 0 ? totalTokens : currentTokenSnapshot.contextApproxTokens,
           orchestratorProfile.contextLimit || settings.contextLimit || currentTokenSnapshot.contextLimit,
         ),
         sessionInputTokens: currentTokenSnapshot.sessionInputTokens + inputTokens,
