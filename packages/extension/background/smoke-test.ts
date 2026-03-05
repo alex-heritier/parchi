@@ -1,3 +1,4 @@
+import { PARCHI_STORAGE_KEYS } from '@parchi/shared';
 import { streamText } from 'ai';
 import { extractTextFromResponseMessages } from '../ai/message-utils.js';
 import {
@@ -108,15 +109,7 @@ export async function generateWorkflowPrompt(
   maxOutputTokens?: number,
 ): Promise<{ prompt: string; error?: string }> {
   try {
-    const settings = await chrome.storage.local.get([
-      'provider',
-      'apiKey',
-      'model',
-      'customEndpoint',
-      'extraHeaders',
-      'convexUrl',
-      'convexAccessToken',
-    ]);
+    const settings = await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[]);
     const runtimeProfile = resolveRuntimeModelProfile(
       {
         provider: settings.provider,
