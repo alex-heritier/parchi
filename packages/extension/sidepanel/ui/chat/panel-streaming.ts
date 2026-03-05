@@ -1,45 +1,9 @@
 import type { RunPlan } from '@parchi/shared';
 import { dedupeThinking, extractThinking } from '../../../ai/message-utils.js';
 import { SidePanelUI } from '../core/panel-ui.js';
+import { formatStreamingElapsed, nextStreamingVerb } from './panel-streaming-helpers.js';
 
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
-
-const formatElapsed = (elapsedMs: number) => {
-  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  const minuteLabel = minutes.toString().padStart(1, '0');
-  const secondLabel = seconds.toString().padStart(2, '0');
-  return `${minuteLabel}:${secondLabel}`;
-};
-
-const MASCOT_VERBS = [
-  'Vibing',
-  'Slaying',
-  'Cooking',
-  'Grinding',
-  'Manifesting',
-  'Ghosting',
-  'Flexing',
-  'Streaming',
-  'Hustling',
-  'Glazing',
-  'Mogging',
-  'Coping',
-  'Rizzing',
-  'Finessing',
-  'Fumbling',
-  'Binging',
-  'Canceling',
-  'Yoinking',
-  'Simping',
-  'Dooming',
-];
-let _verbIndex = Math.floor(Math.random() * MASCOT_VERBS.length);
-const nextVerb = () => {
-  _verbIndex = (_verbIndex + 1) % MASCOT_VERBS.length;
-  return MASCOT_VERBS[_verbIndex];
-};
 
 sidePanelProto.handleAssistantStream = function handleAssistantStream(event: { status?: string; content?: string }) {
   if (event.status === 'start') {
@@ -65,14 +29,14 @@ sidePanelProto.startThinkingTimer = function startThinkingTimer() {
     window.clearInterval(this.thinkingTimerId);
   }
   this.thinkingStartedAt = Date.now();
-  this._currentVerb = nextVerb();
+  this._currentVerb = nextStreamingVerb();
   let tickCount = 0;
   const updateTimer = () => {
-    const elapsed = formatElapsed(Date.now() - (this.thinkingStartedAt || Date.now()));
+    const elapsed = formatStreamingElapsed(Date.now() - (this.thinkingStartedAt || Date.now()));
     // Rotate verb every 3 seconds
     tickCount++;
     if (tickCount % 3 === 0) {
-      this._currentVerb = nextVerb();
+      this._currentVerb = nextStreamingVerb();
     }
     this.updateStatus(`${this._currentVerb} ${elapsed}`, 'active');
     this.updateMascotBubbleContent(this._currentVerb, elapsed);

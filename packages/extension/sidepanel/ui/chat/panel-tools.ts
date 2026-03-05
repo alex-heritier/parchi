@@ -75,6 +75,27 @@ const toolIcons: Record<string, string> = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m4.22-10.22l4.24-4.24M6.34 6.34L2.1 2.1m20.9 9.9h-6m-6 0H2.1m16.12 4.24l4.24 4.24M6.34 17.66l-4.24 4.24"/></svg>',
 };
 
+Object.assign(toolIcons, {
+  navigate: toolIcons.browser_navigate,
+  openTab: toolIcons.browser_navigate,
+  click: toolIcons.browser_click,
+  clickAt: toolIcons.browser_click,
+  type: toolIcons.browser_type,
+  pressKey: toolIcons.browser_press_key,
+  scroll: toolIcons.browser_scroll,
+  getContent: toolIcons.browser_get_page_text,
+  findHtml: toolIcons.browser_find_element,
+  screenshot: toolIcons.browser_screenshot,
+  getTabs: toolIcons.browser_get_page_text,
+  switchTab: toolIcons.browser_go_forward,
+  focusTab: toolIcons.browser_go_forward,
+  closeTab: toolIcons.browser_go_back,
+  groupTabs: toolIcons.browser_set_viewport,
+  describeSessionTabs: toolIcons.browser_get_page_text,
+  watchVideo: toolIcons.browser_screenshot,
+  getVideoInfo: toolIcons.browser_screenshot,
+});
+
 // ============================================================================
 // Tool Display - Elegant inline visualization
 // ============================================================================
