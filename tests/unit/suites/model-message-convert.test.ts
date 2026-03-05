@@ -97,4 +97,44 @@ export function runModelMessageConvertSuite(runner: TestRunner) {
     runner.assertTrue(toolCallIds.includes('present:1'), 'Expected matched tool call to remain');
     runner.assertFalse(toolCallIds.includes('missing:2'), 'Expected orphan tool call to be removed');
   });
+
+  runner.test('toModelMessages normalizes user/system payloads and direct tool messages', () => {
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+
+    const messages = toModelMessages([
+      {
+        role: 'system',
+        content: ['Rule one', { text: 'Rule two' }, { invalid: true } as any],
+      },
+      {
+        role: 'user',
+        content: ['hello', { text: 'world' }, { image_url: { url: 'https://example.com/image.png' } } as any],
+      },
+      {
+        role: 'assistant',
+        content: { structured: true } as any,
+      },
+      {
+        role: 'assistant',
+        content: 'Calling tool',
+        toolCalls: [{ id: 'tool-1', name: 'click', args: { selector: '#go' } }],
+      },
+      {
+        role: 'tool',
+        toolCallId: 'tool-1',
+        toolName: 'click',
+        content: circular as any,
+      },
+    ] as Message[]);
+
+    runner.assertEqual(messages[0]?.role, 'system');
+    runner.assertEqual(messages[0]?.content, 'Rule one\nRule two\n');
+    runner.assertTrue(Array.isArray(messages[1]?.content), 'User content should be structured array');
+    runner.assertEqual(messages[2]?.content, JSON.stringify({ structured: true }));
+
+    const toolMessage = messages.find((message) => message.role === 'tool') as any;
+    runner.assertEqual(toolMessage.content?.[0]?.toolCallId, 'tool-1');
+    runner.assertEqual(toolMessage.content?.[0]?.output?.type, 'json');
+  });
 }

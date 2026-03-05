@@ -32,4 +32,17 @@ export function runOauthCandidatesSuite(runner: TestRunner) {
     runner.assertTrue(copilotModels.includes('gemini-3-pro-preview'));
     runner.assertTrue(copilotModels.includes('gemini-3.1-pro-preview'));
   });
+
+  runner.test('Provider-specific text heuristics and dedupe behavior cover fallback branches', () => {
+    runner.assertTrue(isLikelyTextGenerationModelId('claude-oauth', 'claude-3-haiku'));
+    runner.assertTrue(isLikelyTextGenerationModelId('qwen-oauth', 'my-qwen-model'));
+    runner.assertTrue(isLikelyTextGenerationModelId('copilot-oauth', 'mistral-large'));
+    runner.assertFalse(isLikelyTextGenerationModelId('copilot-oauth', 'audio-preview'));
+    runner.assertFalse(isLikelyTextGenerationModelId('codex-oauth', ''));
+    runner.assertTrue(isLikelyTextGenerationModelId('unknown-oauth', 'custom-chat-model'));
+
+    runner.assertEqual(prioritizeOAuthModelCandidates('claude', [], ['claude-sonnet-4.5', 'claude-sonnet-4.5']), [
+      'claude-sonnet-4.5',
+    ]);
+  });
 }

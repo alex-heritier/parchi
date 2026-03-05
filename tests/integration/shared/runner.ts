@@ -10,26 +10,20 @@ export function log(message: string, type: keyof typeof colors = 'info') {
   console.log(`${colors[type]}${message}${colors.reset}`);
 }
 
-export class TestRunner {
-  passed: number;
-  failed: number;
-  errors: Array<{ test: string; error: string }>;
+export class AsyncTestRunner {
+  passed = 0;
+  failed = 0;
+  errors: Array<{ test: string; error: string }> = [];
 
-  constructor() {
-    this.passed = 0;
-    this.failed = 0;
-    this.errors = [];
-  }
-
-  test(description: string, fn: () => void) {
+  async test(description: string, fn: () => Promise<void> | void) {
     try {
-      fn();
-      this.passed++;
+      await fn();
+      this.passed += 1;
       log(`✓ ${description}`, 'success');
       return true;
     } catch (error) {
       const err = error as Error;
-      this.failed++;
+      this.failed += 1;
       this.errors.push({ test: description, error: err.message });
       log(`✗ ${description}: ${err.message}`, 'error');
       return false;
@@ -54,19 +48,6 @@ export class TestRunner {
     }
   }
 
-  assertThrows(fn: () => void, message = 'Should have thrown an error') {
-    try {
-      fn();
-      throw new Error(message);
-    } catch (error) {
-      const err = error as Error;
-      if (err.message === message) {
-        throw err;
-      }
-      // Expected error
-    }
-  }
-
   assertIncludes(haystack: string, needle: string, message = 'Expected string to include substring') {
     if (!haystack.includes(needle)) {
       throw new Error(`${message}\nMissing: ${needle}`);
@@ -74,7 +55,7 @@ export class TestRunner {
   }
 
   printSummary() {
-    log('\n=== Unit Test Summary ===', 'info');
+    log('\n=== Integration Test Summary ===', 'info');
     log(`Tests Passed: ${this.passed}`, 'success');
 
     if (this.failed > 0) {
@@ -87,11 +68,11 @@ export class TestRunner {
     }
 
     if (this.failed === 0) {
-      log('\n✓ All unit tests passed!', 'success');
+      log('\n✓ All integration tests passed!', 'success');
       return true;
     }
 
-    log('\n✗ Some unit tests failed!', 'error');
+    log('\n✗ Some integration tests failed!', 'error');
     return false;
   }
 }

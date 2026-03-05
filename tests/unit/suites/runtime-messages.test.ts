@@ -122,6 +122,7 @@ export function runRuntimeMessagesSuite(runner: TestRunner) {
   });
 
   runner.test('Runtime messages reject invalid schema versions or types', () => {
+    runner.assertFalse(isRuntimeMessage(null), 'Should reject non-objects');
     const badVersion = {
       type: 'assistant_final',
       schemaVersion: 999,
@@ -144,5 +145,25 @@ export function runRuntimeMessagesSuite(runner: TestRunner) {
     runner.assertFalse(isRuntimeMessage(badVersion), 'Should reject mismatched schema versions');
     runner.assertFalse(isRuntimeMessage(badType), 'Should reject unknown message types');
     runner.assertFalse(isRuntimeMessage(missingRunId), 'Should reject missing runId');
+    runner.assertFalse(
+      isRuntimeMessage({
+        type: 'assistant_final',
+        schemaVersion: RUNTIME_MESSAGE_SCHEMA_VERSION,
+        runId: 'run-test',
+        sessionId: '',
+        timestamp: Date.now(),
+      }),
+      'Should reject blank sessionId',
+    );
+    runner.assertFalse(
+      isRuntimeMessage({
+        type: 'assistant_final',
+        schemaVersion: RUNTIME_MESSAGE_SCHEMA_VERSION,
+        runId: 'run-test',
+        sessionId: 'session-test',
+        timestamp: 'bad',
+      }),
+      'Should reject non-numeric timestamps',
+    );
   });
 }

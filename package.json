@@ -1,6 +1,6 @@
 {
   "name": "parchi-extension",
-  "version": "0.4.39",
+  "version": "0.4.40",
   "description": "Warm-paper browser automation extension with configurable LLM providers",
   "private": true,
   "type": "module",
@@ -24,8 +24,8 @@
     "validate": "node scripts/build.mjs && node dist/tests/validate-extension.js",
     "test": "node scripts/build.mjs && node dist/tests/run-tests.js",
     "test:unit": "node scripts/build.mjs && node dist/tests/unit/run-unit-tests.js",
-    "test:coverage": "c8 npm run test:unit",
-    "test:integration": "echo 'Load tests/integration/test-page.html in browser and run tests'",
+    "test:coverage": "node scripts/run-coverage.mjs",
+    "test:integration": "node scripts/build.mjs && node dist/tests/integration/run-integration-tests.js",
     "test:api": "node scripts/build.mjs && node dist/tests/api/run-api-tests.js",
     "test:e2e": "node scripts/build.mjs && node dist/tests/e2e/run-e2e.js",
     "test:relay": "node scripts/build.mjs && node dist/tests/relay/run-relay-tests.js && node dist/tests/relay/run-electron-agent-tests.js",

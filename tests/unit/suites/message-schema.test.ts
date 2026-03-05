@@ -59,4 +59,60 @@ export function runMessageSchemaSuite(runner: TestRunner) {
     const provider = toProviderMessages(normalized);
     runner.assertFalse('thinking' in provider[0], 'Provider messages should not include thinking');
   });
+
+  runner.test('normalizeConversationHistory hydrates tool metadata and respects addIds/addTimestamps flags', () => {
+    const normalized = normalizeConversationHistory(
+      [
+        {
+          role: 'assistant',
+          content: { ok: true } as any,
+          tool_calls: [{ id: 'call-1', function: { name: 'click', arguments: '{"selector":"#go"}' } }],
+        },
+        {
+          role: 'tool',
+          content: { success: true } as any,
+          tool_call_id: 'call-1',
+          name: 'click',
+          toolName: 'click',
+        },
+      ],
+      { addIds: false, addTimestamps: false },
+    );
+
+    runner.assertFalse('id' in normalized[0], 'addIds=false should omit generated ids');
+    runner.assertFalse('createdAt' in normalized[0], 'addTimestamps=false should omit timestamps');
+    runner.assertEqual(normalized[0]?.toolCalls?.[0], { id: 'call-1', name: 'click', args: { selector: '#go' } });
+    runner.assertEqual(normalized[1]?.toolCallId, 'call-1');
+    runner.assertEqual(normalized[1]?.name, 'click');
+  });
+
+  runner.test('toProviderMessages normalizes array content and serializes tool payloads', () => {
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+
+    const provider = toProviderMessages([
+      {
+        role: 'system',
+        content: ['Rule one', { text: 'Rule two' }, { invalid: true } as any],
+      },
+      {
+        role: 'user',
+        content: [
+          'Question',
+          { text: ' with details' },
+          { image_url: { url: 'https://example.com/image.png' } } as any,
+        ],
+      },
+      {
+        role: 'tool',
+        toolCallId: 'tool-1',
+        content: circular as any,
+      },
+    ]);
+
+    runner.assertTrue(Array.isArray(provider[0]?.content), 'System array content should stay structured');
+    runner.assertTrue(Array.isArray(provider[1]?.content), 'User array content should stay structured');
+    const toolContent = typeof provider[2]?.content === 'string' ? provider[2].content : '';
+    runner.assertIncludes(toolContent, '[object Object]');
+  });
 }

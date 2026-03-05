@@ -5,6 +5,7 @@
  * Tests individual components without Chrome APIs
  */
 
+import { pathToFileURL } from 'node:url';
 import { runCompactionStressTestV2Suite } from './compaction-stress-test-v2.test.js';
 import { TestRunner, log } from './shared/runner.js';
 import { runAiProviderConfigSuite } from './suites/ai-provider-config.test.js';
@@ -14,18 +15,23 @@ import { runConversationCompactionSuite } from './suites/conversation-compaction
 import { runErrorHandlingSuite } from './suites/error-handling.test.js';
 import { runInputValidationSuite } from './suites/input-validation.test.js';
 import { runMessageSchemaSuite } from './suites/message-schema.test.js';
+import { runMessageUtilsSuite } from './suites/message-utils.test.js';
+import { runModelListingSuite } from './suites/model-listing.test.js';
 import { runModelMessageConvertSuite } from './suites/model-message-convert.test.js';
 import { runOauthCandidatesSuite } from './suites/oauth-candidates.test.js';
 import { runOauthModelNormalizationSuite } from './suites/oauth-model-normalization.test.js';
 import { runPlanNormalizationSuite } from './suites/plan-normalization.test.js';
+import { runRecordingSummarySuite } from './suites/recording-summary.test.js';
+import { runReportImagesSuite } from './suites/report-images.test.js';
 import { runRetryHelpersSuite } from './suites/retry-helpers.test.js';
 import { runRuntimeMessagesSuite } from './suites/runtime-messages.test.js';
 import { runRuntimeProfileRoutingSuite } from './suites/runtime-profile-routing.test.js';
 import { runThinkingExtractionSuite } from './suites/thinking-extraction.test.js';
 import { runToolDefinitionsSuite } from './suites/tool-definitions.test.js';
 import { runToolSchemaConversionSuite } from './suites/tool-schema-conversion.test.js';
+import { runXmlToolParserSuite } from './suites/xml-tool-parser.test.js';
 
-function main() {
+export function runUnitTests() {
   log('╔════════════════════════════════════════╗', 'info');
   log('║       Unit Tests - Browser Tools       ║', 'info');
   log('╚════════════════════════════════════════╝', 'info');
@@ -47,12 +53,21 @@ function main() {
   runConversationCompactionSuite(runner);
   runCompactionStressTestV2Suite(runner);
   runThinkingExtractionSuite(runner);
+  runMessageUtilsSuite(runner);
+  runModelListingSuite(runner);
+  runReportImagesSuite(runner);
+  runRecordingSummarySuite(runner);
   runPlanNormalizationSuite(runner);
   runRetryHelpersSuite(runner);
   runRuntimeMessagesSuite(runner);
+  runXmlToolParserSuite(runner);
 
-  const success = runner.printSummary();
-  process.exit(success ? 0 : 1);
+  return runner.printSummary();
 }
 
-main();
+const isMain = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
+
+if (isMain) {
+  const success = runUnitTests();
+  process.exit(success ? 0 : 1);
+}

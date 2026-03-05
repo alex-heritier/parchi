@@ -146,6 +146,7 @@ const run = async () => {
       path.join(rootDir, 'tests', 'run-tests.ts'),
       path.join(rootDir, 'tests', 'validate-extension.ts'),
       path.join(rootDir, 'tests', 'unit', 'run-unit-tests.ts'),
+      path.join(rootDir, 'tests', 'integration', 'run-integration-tests.ts'),
       path.join(rootDir, 'tests', 'e2e', 'run-e2e.ts'),
       path.join(rootDir, 'tests', 'e2e', 'test-browser-tools.ts'),
       path.join(rootDir, 'tests', 'api', 'run-api-tests.ts'),

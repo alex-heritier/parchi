@@ -1,4 +1,7 @@
-import { normalizeOAuthModelIdForProvider } from '../../../packages/extension/oauth/model-normalization.js';
+import {
+  normalizeOAuthModelIdForProvider,
+  normalizeOAuthModelIdsForProvider,
+} from '../../../packages/extension/oauth/model-normalization.js';
 import { type TestRunner, log } from '../shared/runner.js';
 
 export function runOauthModelNormalizationSuite(runner: TestRunner) {
@@ -27,5 +30,14 @@ export function runOauthModelNormalizationSuite(runner: TestRunner) {
   runner.test('Copilot shorthand Anthropic names normalize to claude-* slugs', () => {
     runner.assertEqual(normalizeOAuthModelIdForProvider('copilot-oauth', 'copilot/sonnet-4.6'), 'claude-sonnet-4.6');
     runner.assertEqual(normalizeOAuthModelIdForProvider('copilot-oauth', 'opus-4.6'), 'claude-opus-4.6');
+  });
+
+  runner.test('Normalization handles empty provider keys, empty models, and deduplicates batches', () => {
+    runner.assertEqual(normalizeOAuthModelIdForProvider('', 'gpt-4.1'), 'gpt-4.1');
+    runner.assertEqual(normalizeOAuthModelIdForProvider('copilot-oauth', 'copilot/'), '');
+    runner.assertEqual(normalizeOAuthModelIdForProvider('copilot-oauth', ''), '');
+    runner.assertEqual(normalizeOAuthModelIdsForProvider('copilot-oauth', ['copilot/gpt-4o', 'gpt-4o', '']), [
+      'gpt-4o',
+    ]);
   });
 }

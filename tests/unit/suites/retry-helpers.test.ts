@@ -41,4 +41,26 @@ export function runRetryHelpersSuite(runner: TestRunner) {
     runner.assertFalse(isValidFinalResponse('Stop here.', { quitPhrases: ['stop here'] }));
     runner.assertTrue(isValidFinalResponse('Stop here.'), 'Default phrases should not block custom text');
   });
+
+  runner.test('isValidFinalResponse supports allowEmpty and rejects runaway repetition', () => {
+    runner.assertTrue(isValidFinalResponse('', { allowEmpty: true }), 'Empty response can be allowed explicitly');
+
+    const repeated = Array.from({ length: 8 }, () => 'This sentence repeats far too much and should be rejected.').join(
+      ' ',
+    );
+    runner.assertFalse(isValidFinalResponse(repeated), 'Runaway repetition should be rejected');
+    runner.assertFalse(isValidFinalResponse(123), 'Non-string responses should be rejected');
+  });
+
+  runner.test('createExponentialBackoff falls back to defaults for non-finite options', () => {
+    const backoff = createExponentialBackoff({
+      baseMs: Number.NaN,
+      maxMs: Number.NaN,
+      jitter: Number.NaN,
+      rng: () => 0.5,
+    });
+
+    runner.assertEqual(backoff(1), 500);
+    runner.assertEqual(backoff(5), 8000);
+  });
 }
