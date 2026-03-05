@@ -11,11 +11,11 @@ Chat-driven browser automation that lives in your sidebar. Navigate, read, click
 [![Chrome MV3](https://img.shields.io/badge/Chrome-MV3-4285F4?logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/)
 [![Firefox](https://img.shields.io/badge/Firefox-109%2B-FF7139?logo=firefox&logoColor=white)](https://www.mozilla.org/firefox/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-a5b4fc.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.4.10-6366f1.svg)]()
+[![Version](https://img.shields.io/badge/version-0.4.41-6366f1.svg)]()
 
 <br />
 
-[Installation](#-installation) · [Setup](#-setup-your-ai-provider) · [Features](#-features) · [Use Your Subscription](#-use-your-existing-ai-subscription) · [Relay CLI](#-relay-daemon--cli)
+[Installation](#-installation) · [Setup](#-setup-your-ai-provider) · [Features](#-features) · [Docs](docs/README.md) · [Relay CLI](#-relay-daemon--cli)
 
 </div>
 
@@ -350,6 +350,12 @@ parchi electron click @e5
 | `packages/shared/` | Shared plans, prompts, schemas, and message types |
 | `packages/website/` | Static website + billing pages |
 
+**More detail:**
+
+- [`docs/README.md`](docs/README.md)
+- [`docs/agent-pipeline.md`](docs/agent-pipeline.md)
+- [`docs/tab-process-performance-playbook.md`](docs/tab-process-performance-playbook.md)
+
 ---
 
 ## 🔨 Development
@@ -361,6 +367,9 @@ npm run typecheck             # repo-wide type checking
 npm run lint                  # biome linter
 npm run lint:fix              # auto-fix lint issues
 npm run test:unit             # run unit tests
+npm run test:integration      # run headless integration tests
+npm run test:e2e              # run browser E2E harness
+npm run check:repo-standards  # enforce changed-file guardrails
 npm run perf:tabs             # sample Firefox/Chrome tab CPU + RAM
 npm run backend:dev           # run Convex dev backend workspace
 npm run dev -w @parchi/website  # run website workspace locally
@@ -380,6 +389,8 @@ npm run build:firefox:xpi   # package as .xpi for distribution
 ```bash
 TAB_AUDIT_SAMPLES=6 TAB_AUDIT_INTERVAL_MS=10000 npm run perf:tabs
 ```
+
+The audit now includes **Parchi-attributed Firefox totals** and **RSS/CPU slope** so you can separate overall browser pressure from likely extension pressure.
 
 Use the full workflow in [`docs/tab-process-performance-playbook.md`](docs/tab-process-performance-playbook.md) to run active/idle audits and validate regressions in Firefox + Chrome.
 
