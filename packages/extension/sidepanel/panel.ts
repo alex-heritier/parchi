@@ -1,5 +1,7 @@
 import './ui/panel-modules.js';
 import './ui/account/panel-account.js';
+import { hydrateSessionHistoryStore, startSessionHistoryStoreSync } from '../state/stores/session-history-store.js';
+import { hydrateSettingsStore, startSettingsStoreSync } from '../state/stores/settings-store.js';
 import { loadPanelLayout } from './ui/core/layout-loader.js';
 import { SidePanelUI } from './ui/core/panel-ui.js';
 
@@ -7,6 +9,10 @@ declare const __PERF_DEBUG__: boolean;
 
 const init = async () => {
   await loadPanelLayout();
+  startSettingsStoreSync();
+  startSessionHistoryStoreSync();
+  void hydrateSettingsStore();
+  void hydrateSessionHistoryStore();
   const ui = new SidePanelUI();
   const debugWindow = window as Window & { sidePanelUI?: SidePanelUI; __PERF_DEBUG__?: boolean };
   debugWindow.sidePanelUI = ui;

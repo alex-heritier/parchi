@@ -1,7 +1,7 @@
-import { PARCHI_STORAGE_KEYS } from '@parchi/shared';
 import { normalizeConversationHistory } from '../../ai/message-schema.js';
 import type { Message } from '../../ai/message-schema.js';
 import { resolveLanguageModel } from '../../ai/sdk-client.js';
+import { readSettingsSnapshot } from '../../state/persistence/settings-repository.js';
 import {
   hasOwnApiKey,
   injectOAuthTokens,
@@ -57,7 +57,7 @@ export async function processContextCompaction(
   }
 
   try {
-    const settings = await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[]);
+    const settings = await readSettingsSnapshot();
     const activeProfileName = settings.activeConfig || 'default';
     const orchestratorProfileName = settings.orchestratorProfile || activeProfileName;
     const orchestratorEnabled = settings.useOrchestrator === true;

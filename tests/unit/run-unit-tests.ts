@@ -27,6 +27,7 @@ import { runReportImagesSuite } from './suites/report-images.test.js';
 import { runRetryHelpersSuite } from './suites/retry-helpers.test.js';
 import { runRuntimeMessagesSuite } from './suites/runtime-messages.test.js';
 import { runRuntimeProfileRoutingSuite } from './suites/runtime-profile-routing.test.js';
+import { runStatePersistenceSuite } from './suites/state-persistence.test.js';
 import { runThinkingExtractionSuite } from './suites/thinking-extraction.test.js';
 import { runToolDefinitionsSuite } from './suites/tool-definitions.test.js';
 import { runToolSchemaConversionSuite } from './suites/tool-schema-conversion.test.js';
@@ -62,6 +63,7 @@ export function runUnitTests() {
   runPlanNormalizationSuite(runner);
   runRetryHelpersSuite(runner);
   runRuntimeMessagesSuite(runner);
+  runStatePersistenceSuite(runner);
   runXmlToolParserSuite(runner);
 
   return runner.printSummary();
