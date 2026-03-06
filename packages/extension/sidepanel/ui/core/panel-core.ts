@@ -711,6 +711,23 @@ sidePanelProto.insertStoppedDivider = function insertStoppedDivider() {
 };
 
 sidePanelProto.recoverFromStuckState = function recoverFromStuckState() {
+  if (!this.lifecyclePort) {
+    this.connectLifecyclePort?.();
+  }
+  const backgroundReachable = Boolean(this.lifecyclePort);
+  this._lastRuntimeMessageAt = Date.now();
+
+  if (backgroundReachable) {
+    this.showErrorBanner('No runtime updates for 90s. The model may still be working.', {
+      category: 'timeout',
+      action: 'Wait, or press Stop if the run is hung.',
+    });
+    if (!this.thinkingTimerId) {
+      this.updateStatus('Waiting on model…', 'active');
+    }
+    return;
+  }
+
   this.stopWatchdog();
   this.stopThinkingTimer?.();
   this.stopRunTimer?.();
@@ -724,11 +741,11 @@ sidePanelProto.recoverFromStuckState = function recoverFromStuckState() {
   this.queuedMessage = null;
   this.updateActivityState();
   this.finishStreamingMessage();
-  this.showErrorBanner('Connection lost — the background service may have restarted. You can send a new message.', {
+  this.showErrorBanner('Run interrupted — the background service is unavailable. You can send the message again.', {
     category: 'timeout',
     action: 'Try sending your message again.',
   });
-  this.updateStatus('Disconnected', 'error');
+  this.updateStatus('Interrupted', 'warning');
 };
 
 sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any) {
