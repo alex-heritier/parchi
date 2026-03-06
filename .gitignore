@@ -55,6 +55,8 @@ tmp/
 temp/
 *.tmp
 test-output/
+temp_pi_agent_core/
+temp_pi_ai/
 
 
 # Vendored tarballs
