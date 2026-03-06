@@ -1,19 +1,16 @@
 import { createMessage, normalizeConversationHistory } from '../../../ai/message-schema.js';
 import type { Message } from '../../../ai/message-schema.js';
 import { dedupeThinking, extractThinking } from '../../../ai/message-utils.js';
+import {
+  clearSessionHistoryStore,
+  deleteSessionHistoryEntry,
+  getSessionHistoryEntries,
+  hydrateSessionHistoryStore,
+  upsertSessionHistoryEntry,
+} from '../../../state/stores/session-history-store.js';
 import { clampContextHistory, clearReportImages, clearToolCallViews } from '../core/panel-session-memory.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
-
-const normalizeStoredSessions = (raw: any): any[] => {
-  if (Array.isArray(raw)) {
-    return raw.filter(Boolean);
-  }
-  if (raw && typeof raw === 'object') {
-    return Object.values(raw).filter(Boolean);
-  }
-  return [];
-};
 
 const normalizeTranscript = (value: any): any[] => {
   if (Array.isArray(value)) return value;
@@ -60,13 +57,8 @@ sidePanelProto.persistHistory = async function persistHistory() {
   };
 
   try {
-    const existing = await chrome.storage.local.get(['chatSessions']);
-    const sessions = normalizeStoredSessions(existing.chatSessions);
-    const filtered = sessions.filter((s: any) => s?.id !== entry.id);
-    filtered.unshift(entry);
-    const trimmed = filtered.slice(0, 50); // Keep more sessions
-    await chrome.storage.local.set({ chatSessions: trimmed });
-    this.loadHistoryList();
+    await upsertSessionHistoryEntry(entry);
+    void this.loadHistoryList();
   } catch (e) {
     console.error('Failed to persist history:', e);
   }
@@ -107,8 +99,8 @@ sidePanelProto.loadHistoryList = async function loadHistoryList() {
   }
 
   try {
-    const { chatSessions } = await chrome.storage.local.get(['chatSessions']);
-    const sessions = normalizeStoredSessions(chatSessions);
+    await hydrateSessionHistoryStore();
+    const sessions = getSessionHistoryEntries();
     container.innerHTML = '';
 
     if (!sessions.length) {
@@ -322,11 +314,8 @@ sidePanelProto.loadSession = function loadSession(session: any) {
 
 sidePanelProto.deleteSession = async function deleteSession(sessionId: string) {
   try {
-    const { chatSessions } = await chrome.storage.local.get(['chatSessions']);
-    const sessions = normalizeStoredSessions(chatSessions);
-    const filtered = sessions.filter((s: any) => s?.id !== sessionId);
-    await chrome.storage.local.set({ chatSessions: filtered });
-    this.loadHistoryList();
+    await deleteSessionHistoryEntry(sessionId);
+    void this.loadHistoryList();
   } catch (e) {
     console.error('Failed to delete session:', e);
   }
@@ -339,8 +328,8 @@ sidePanelProto.clearAllHistory = async function clearAllHistory() {
   if (this._clearHistoryPendingAt && now - this._clearHistoryPendingAt < 3000) {
     this._clearHistoryPendingAt = 0;
     try {
-      await chrome.storage.local.set({ chatSessions: [] });
-      this.loadHistoryList();
+      await clearSessionHistoryStore();
+      void this.loadHistoryList();
       this.updateStatus('History cleared', 'success');
     } catch (e) {
       console.error('Failed to clear history:', e);

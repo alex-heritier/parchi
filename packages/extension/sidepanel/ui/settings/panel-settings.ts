@@ -1,5 +1,11 @@
 import { DEFAULT_AGENT_SYSTEM_PROMPT } from '@parchi/shared';
-import { PARCHI_STORAGE_KEYS } from '@parchi/shared';
+import {
+  buildSettingsStoreExport,
+  hydrateSettingsStore,
+  importSettingsToStore,
+  patchSettingsStoreSnapshot,
+  replaceSettingsStoreSnapshot,
+} from '../../../state/stores/settings-store.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
@@ -38,7 +44,7 @@ sidePanelProto.applyUiZoom = function applyUiZoom(value: number, { persist = tru
   if (this.elements.uiZoom) this.elements.uiZoom.value = clamped.toFixed(2);
   if (this.elements.uiZoomValue) this.elements.uiZoomValue.textContent = `${Math.round(clamped * 100)}%`;
   if (persist) {
-    chrome.storage.local.set({ uiZoom: clamped }).catch(() => {});
+    void patchSettingsStoreSnapshot({ uiZoom: clamped }).catch(() => {});
   }
 };
 
@@ -52,7 +58,7 @@ sidePanelProto.applyTypography = function applyTypography(preset: string, style:
   if (this.elements.fontPreset) this.elements.fontPreset.value = nextPreset;
   if (this.elements.fontStylePreset) this.elements.fontStylePreset.value = nextStyle;
   if (persist) {
-    chrome.storage.local.set({ fontPreset: nextPreset, fontStylePreset: nextStyle }).catch(() => {});
+    void patchSettingsStoreSnapshot({ fontPreset: nextPreset, fontStylePreset: nextStyle }).catch(() => {});
   }
 };
 
@@ -240,7 +246,7 @@ sidePanelProto.createProfileFromInput = function createProfileFromInput() {
 sidePanelProto.loadSettings = async function loadSettings() {
   let settings: Record<string, any> = {};
   try {
-    settings = await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[]);
+    settings = await hydrateSettingsStore();
   } catch (error) {
     console.error('[Parchi] Failed to load settings from storage:', error);
     this.updateStatus('Failed to load settings', 'error');
@@ -391,12 +397,8 @@ sidePanelProto.saveSettings = async function saveSettings() {
 
 sidePanelProto.exportSettings = async function exportSettings() {
   try {
-    const settings = await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[]);
-    const payload = {
-      ...settings,
-      exportedAt: new Date().toISOString(),
-      exportVersion: 1,
-    };
+    const settings = await hydrateSettingsStore();
+    const payload = buildSettingsStoreExport(settings);
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: 'application/json',
     });
@@ -419,16 +421,7 @@ sidePanelProto.importSettings = async function importSettings(event: Event) {
   try {
     const text = await file.text();
     const data = JSON.parse(text);
-    const payload: Record<string, any> = {};
-    (PARCHI_STORAGE_KEYS as unknown as string[]).forEach((key) => {
-      if (data[key] !== undefined) {
-        payload[key] = data[key];
-      }
-    });
-    if (payload.configs && typeof payload.configs !== 'object') {
-      throw new Error('Invalid configs payload');
-    }
-    await chrome.storage.local.set(payload);
+    await importSettingsToStore(data);
     await this.loadSettings();
     this.renderProfileGrid();
     this.updateStatus('Settings imported successfully', 'success');
@@ -509,7 +502,7 @@ sidePanelProto.persistAllSettings = async function persistAllSettings({ silent =
       activeConfig: this.currentConfig,
       configs: this.configs,
     };
-    await chrome.storage.local.set(payload);
+    await replaceSettingsStoreSnapshot(payload);
     this.updateContextUsage?.();
     if (!silent) {
       this.updateStatus('Settings saved successfully', 'success');
@@ -552,7 +545,7 @@ sidePanelProto.setTheme = function setTheme(id: string) {
   this.currentTheme = id;
   applyTheme(id);
   this.renderThemeGrid();
-  chrome.storage.local.set({ theme: id }).catch(() => {});
+  void patchSettingsStoreSnapshot({ theme: id }).catch(() => {});
 };
 
 sidePanelProto.updateScreenshotToggleState = function updateScreenshotToggleState() {

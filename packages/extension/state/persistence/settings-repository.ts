@@ -1,0 +1,80 @@
+import { PARCHI_STORAGE_KEYS } from '@parchi/shared';
+
+export type SettingsSnapshot = Record<string, any>;
+
+const SETTINGS_KEYS = [...PARCHI_STORAGE_KEYS] as string[];
+
+const asRecord = (value: unknown): Record<string, any> => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return value as Record<string, any>;
+};
+
+export function pickSettingsSnapshot(input: unknown): SettingsSnapshot {
+  const source = asRecord(input);
+  const snapshot: SettingsSnapshot = {};
+  for (const key of SETTINGS_KEYS) {
+    if (source[key] !== undefined) snapshot[key] = source[key];
+  }
+  return snapshot;
+}
+
+export function mergeSettingsSnapshot(current: SettingsSnapshot, patch: SettingsSnapshot): SettingsSnapshot {
+  return {
+    ...pickSettingsSnapshot(current),
+    ...pickSettingsSnapshot(patch),
+  };
+}
+
+export function sanitizeImportedSettings(input: unknown): SettingsSnapshot {
+  const snapshot = pickSettingsSnapshot(input);
+  if (snapshot.configs !== undefined) {
+    const configs = snapshot.configs;
+    if (!configs || typeof configs !== 'object' || Array.isArray(configs)) {
+      throw new Error('Invalid configs payload');
+    }
+  }
+  return snapshot;
+}
+
+export async function readSettingsSnapshot(): Promise<SettingsSnapshot> {
+  const stored = await chrome.storage.local.get(SETTINGS_KEYS);
+  return pickSettingsSnapshot(stored);
+}
+
+export async function writeSettingsSnapshot(snapshot: SettingsSnapshot): Promise<SettingsSnapshot> {
+  const next = pickSettingsSnapshot(snapshot);
+  await chrome.storage.local.set(next);
+  return next;
+}
+
+export async function patchSettingsSnapshot(patch: SettingsSnapshot): Promise<SettingsSnapshot> {
+  const next = pickSettingsSnapshot(patch);
+  await chrome.storage.local.set(next);
+  return next;
+}
+
+export function createSettingsExportPayload(snapshot: SettingsSnapshot): SettingsSnapshot {
+  return {
+    ...pickSettingsSnapshot(snapshot),
+    exportedAt: new Date().toISOString(),
+    exportVersion: 1,
+  };
+}
+
+export function subscribeToSettingsChanges(listener: (patch: SettingsSnapshot) => void): () => void {
+  const handleChanges = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
+    if (areaName !== 'local') return;
+    const patch: SettingsSnapshot = {};
+    for (const key of SETTINGS_KEYS) {
+      const change = changes[key];
+      if (!change) continue;
+      patch[key] = change.newValue;
+    }
+    if (Object.keys(patch).length > 0) {
+      listener(pickSettingsSnapshot(patch));
+    }
+  };
+
+  chrome.storage.onChanged.addListener(handleChanges);
+  return () => chrome.storage.onChanged.removeListener(handleChanges);
+}

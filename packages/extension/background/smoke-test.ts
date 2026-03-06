@@ -1,11 +1,7 @@
-import { PARCHI_STORAGE_KEYS } from '@parchi/shared';
 import { streamText } from 'ai';
 import { extractTextFromResponseMessages } from '../ai/message-utils.js';
-import {
-  buildCodexOAuthProviderOptions,
-  isCodexOAuthProvider,
-  resolveLanguageModel,
-} from '../ai/sdk-client.js';
+import { buildCodexOAuthProviderOptions, isCodexOAuthProvider, resolveLanguageModel } from '../ai/sdk-client.js';
+import { readSettingsSnapshot } from '../state/persistence/settings-repository.js';
 import {
   hasOwnApiKey,
   injectOAuthTokens,
@@ -67,9 +63,7 @@ export async function runApiSmokeTest(
       messages: [{ role: 'user', content: prompt }],
       maxOutputTokens: smokeUsesCodexOAuth ? undefined : 64,
       temperature: 0,
-      providerOptions: smokeUsesCodexOAuth
-        ? buildCodexOAuthProviderOptions('You are a concise assistant.')
-        : undefined,
+      providerOptions: smokeUsesCodexOAuth ? buildCodexOAuthProviderOptions('You are a concise assistant.') : undefined,
     });
 
     const [text, responseMessages, usage] = await Promise.all([
@@ -109,7 +103,7 @@ export async function generateWorkflowPrompt(
   maxOutputTokens?: number,
 ): Promise<{ prompt: string; error?: string }> {
   try {
-    const settings = await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[]);
+    const settings = await readSettingsSnapshot();
     const runtimeProfile = resolveRuntimeModelProfile(
       {
         provider: settings.provider,
@@ -151,9 +145,7 @@ Rules:
       ],
       maxOutputTokens: workflowUsesCodexOAuth ? undefined : outputLimit,
       temperature: 0.3,
-      providerOptions: workflowUsesCodexOAuth
-        ? buildCodexOAuthProviderOptions(workflowSystemPrompt)
-        : undefined,
+      providerOptions: workflowUsesCodexOAuth ? buildCodexOAuthProviderOptions(workflowSystemPrompt) : undefined,
     });
 
     const text = typeof (await result.text) === 'string' ? (await result.text).trim() : '';

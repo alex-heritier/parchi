@@ -1,5 +1,5 @@
-import { PARCHI_STORAGE_KEYS } from '@parchi/shared';
 import { buildToolSet, resolveLanguageModel } from '../../ai/sdk-client.js';
+import { patchSettingsSnapshot, readSettingsSnapshot } from '../../state/persistence/settings-repository.js';
 import {
   applyConvexProxyProfile,
   hasOwnApiKey,
@@ -36,7 +36,7 @@ export async function prepareAgentLoopRun(
 ): Promise<PreparedAgentLoopRun | PreparedAgentLoopBlocked> {
   const sessionState = ctx.getSessionState(sessionId);
   const browserTools = ctx.getBrowserTools(sessionId);
-  const settings = (await chrome.storage.local.get(PARCHI_STORAGE_KEYS as unknown as string[])) as AgentSettings;
+  const settings = (await readSettingsSnapshot()) as AgentSettings;
 
   settings.enableScreenshots ??= true;
   settings.sendScreenshotsAsImages ??= false;
@@ -267,7 +267,7 @@ export async function prepareAgentLoopRun(
       const trimmed = String(nextModelId || '').trim();
       if (!trimmed) return;
       try {
-        const stored = await chrome.storage.local.get(['activeConfig', 'configs', 'model']);
+        const stored = await readSettingsSnapshot();
         const configName = String(stored.activeConfig || settings.activeConfig || 'default');
         const configs =
           stored.configs && typeof stored.configs === 'object' && !Array.isArray(stored.configs)
@@ -279,7 +279,7 @@ export async function prepareAgentLoopRun(
             : {};
         activeConfig.model = trimmed;
         configs[configName] = activeConfig;
-        await chrome.storage.local.set({ model: trimmed, configs });
+        await patchSettingsSnapshot({ model: trimmed, configs });
       } catch {}
     },
     captureErrorClassificationContext() {
