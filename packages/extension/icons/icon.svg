@@ -1,12 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Parchi mascot logo">
   <defs>
-    <radialGradient id="bg" cx="36%" cy="30%" r="85%">
-      <stop offset="0%" stop-color="#2b0b55"/>
-      <stop offset="62%" stop-color="#120226"/>
-      <stop offset="100%" stop-color="#05020f"/>
+    <radialGradient id="bg" cx="38%" cy="30%" r="84%">
+      <stop offset="0%" stop-color="#2a0a54"/>
+      <stop offset="70%" stop-color="#130227"/>
+      <stop offset="100%" stop-color="#06020f"/>
     </radialGradient>
-    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="3.8" result="blur"/>
+    <linearGradient id="buttonGlow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6f34e8"/>
+      <stop offset="100%" stop-color="#b56dff"/>
+    </linearGradient>
+    <linearGradient id="blob" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0%" stop-color="#140a27"/>
+      <stop offset="100%" stop-color="#0a0418"/>
+    </linearGradient>
+    <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
       <feMerge>
         <feMergeNode in="blur"/>
         <feMergeNode in="SourceGraphic"/>
@@ -16,28 +24,27 @@
 
   <rect width="128" height="128" rx="26" fill="url(#bg)"/>
 
-  <g filter="url(#glow)">
-    <g transform="translate(10 8)">
-      <g transform="rotate(-20 32 88)">
-        <rect x="6" y="78" width="42" height="22" rx="7" fill="#12081f" stroke="#8f52ff" stroke-width="2"/>
-        <rect x="11" y="82" width="32" height="14" rx="5" fill="#4b1ca1" stroke="#c88cff" stroke-width="1.6"/>
-        <ellipse cx="26" cy="89" rx="7" ry="4.5" fill="#12081f" stroke="#8f52ff" stroke-width="1.4"/>
-      </g>
-
-      <circle cx="70" cy="48" r="22" fill="#12081f" stroke="#8f52ff" stroke-width="2.2"/>
-      <circle cx="76" cy="80" r="21" fill="#12081f" stroke="#8f52ff" stroke-width="2.2"/>
-      <circle cx="51" cy="81" r="8" fill="#12081f" stroke="#8f52ff" stroke-width="2"/>
-      <circle cx="101" cy="84" r="7.5" fill="#12081f" stroke="#8f52ff" stroke-width="2"/>
-      <ellipse cx="95" cy="98" rx="6.5" ry="4.2" fill="#12081f" stroke="#8f52ff" stroke-width="1.8"/>
-      <ellipse cx="56" cy="100" rx="5.8" ry="3.8" fill="#12081f" stroke="#8f52ff" stroke-width="1.6" opacity="0.7"/>
-
-      <ellipse cx="66" cy="35" rx="7" ry="4" fill="#cf8eff" opacity="0.8"/>
-      <circle cx="60" cy="44" r="1.4" fill="#cf8eff" opacity="0.7"/>
-      <circle cx="52" cy="50" r="1.2" fill="#cf8eff" opacity="0.5"/>
-
-      <circle cx="61" cy="50" r="2.6" fill="#d79cff"/>
-      <circle cx="80" cy="50" r="2.6" fill="#d79cff"/>
-      <path d="M65 59c3.2 3.6 8.8 3.6 12 0" fill="none" stroke="#d79cff" stroke-width="2.1" stroke-linecap="round"/>
+  <g filter="url(#softGlow)">
+    <g transform="rotate(-28 31 94)">
+      <rect x="11" y="83" width="31" height="18" rx="6" fill="#170a2f"/>
+      <rect x="14.5" y="86.5" width="24" height="11" rx="4.2" fill="url(#buttonGlow)"/>
     </g>
+
+    <circle cx="68" cy="54" r="21" fill="url(#blob)"/>
+    <ellipse cx="77" cy="89" rx="27" ry="30" fill="url(#blob)"/>
+    <ellipse cx="55" cy="90" rx="7.8" ry="8.8" fill="#0c051b"/>
+    <ellipse cx="95" cy="92" rx="8" ry="8.8" fill="#0c051b"/>
+    <ellipse cx="95" cy="108" rx="6.6" ry="4.1" fill="#10061f" opacity="0.9"/>
+
+    <path d="M55 48a21 21 0 0 1 29-10" fill="none" stroke="#9b63ff" stroke-opacity="0.75" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M61 77a30 30 0 0 1 31-9" fill="none" stroke="#7e49e8" stroke-opacity="0.45" stroke-width="1.6" stroke-linecap="round"/>
+
+    <ellipse cx="68" cy="42" rx="7" ry="4" fill="#edc4ff" fill-opacity="0.45"/>
+    <circle cx="59.5" cy="51" r="1.4" fill="#eab5ff" fill-opacity="0.32"/>
+    <circle cx="83" cy="45" r="1" fill="#eab5ff" fill-opacity="0.22"/>
+
+    <circle cx="58" cy="55" r="3.1" fill="#e3a4ff"/>
+    <circle cx="77" cy="55" r="3.1" fill="#e3a4ff"/>
+    <path d="M61 64c3.2 3.8 9 3.8 12.2 0" fill="none" stroke="#e3a4ff" stroke-width="2.2" stroke-linecap="round"/>
   </g>
 </svg>
