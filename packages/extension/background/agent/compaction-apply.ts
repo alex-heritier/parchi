@@ -7,6 +7,15 @@ import { captureCompaction, captureMessage } from '../telemetry.js';
 import type { CompactionCheckSnapshot, RunContextCompactionOptions } from './compaction-shared.js';
 import { buildToolTraceMessage, messageSignature, toContentPreview } from './compaction-trace.js';
 
+function isSafeAnchorMessage(message: Message | null | undefined): message is Message {
+  if (!message) return false;
+  if (message.role === 'tool') return false;
+  if (message.role === 'assistant' && Array.isArray(message.toolCalls) && message.toolCalls.length > 0) {
+    return false;
+  }
+  return true;
+}
+
 export async function applyCompactionResult(
   ctx: ServiceContext,
   sessionState: SessionState,
@@ -29,14 +38,8 @@ export async function applyCompactionResult(
     source: options.source || 'auto',
   };
 
-  const firstAnchor =
-    nextHistory.find((message) => message.role !== 'system') ||
-    nextHistory.find((message) => message.role === 'system' && message.meta?.kind !== 'summary') ||
-    null;
-  const lastAnchor =
-    [...nextHistory].reverse().find((message) => message.role !== 'system') ||
-    [...nextHistory].reverse().find((message) => message.role === 'system' && message.meta?.kind !== 'summary') ||
-    null;
+  const firstAnchor = nextHistory.find((message) => isSafeAnchorMessage(message)) || null;
+  const lastAnchor = [...nextHistory].reverse().find((message) => isSafeAnchorMessage(message)) || null;
   const toolTraceMessage = buildToolTraceMessage(nextHistory);
   const latestUserMessage = [...nextHistory].reverse().find((message) => message.role === 'user');
   const continuationMessage: Message = {

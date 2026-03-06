@@ -69,7 +69,7 @@ export function runModelMessageConvertSuite(runner: TestRunner) {
     runner.assertEqual(toolMessages.length, 0, 'Unknown tool_call_id entries should be dropped');
   });
 
-  runner.test('Assistant tool calls without matching tool results are excluded', () => {
+  runner.test('Assistant tool call groups are dropped unless every tool result stays contiguous', () => {
     const history: Message[] = [
       {
         role: 'assistant',
@@ -94,8 +94,42 @@ export function runModelMessageConvertSuite(runner: TestRunner) {
       .filter((part: any) => part?.type === 'tool-call')
       .map((part: any) => String(part.toolCallId || ''));
 
-    runner.assertTrue(toolCallIds.includes('present:1'), 'Expected matched tool call to remain');
+    runner.assertFalse(
+      toolCallIds.includes('present:1'),
+      'Partial tool-call groups should be removed to avoid invalid assistant/tool ordering',
+    );
     runner.assertFalse(toolCallIds.includes('missing:2'), 'Expected orphan tool call to be removed');
+  });
+
+  runner.test('Non-adjacent tool results are stripped to avoid invalid assistant/tool ordering', () => {
+    const history: Message[] = [
+      {
+        role: 'assistant',
+        content: 'Calling tool',
+        toolCalls: [{ id: 'tool-1', name: 'click', args: { selector: '#go' } }],
+      },
+      {
+        role: 'system',
+        content: 'Compaction checkpoint',
+      },
+      {
+        role: 'tool',
+        toolCallId: 'tool-1',
+        toolName: 'click',
+        content: { success: true },
+      },
+    ];
+
+    const messages = toModelMessages(history);
+    const assistant = messages.find((msg) => msg.role === 'assistant') as any;
+    const assistantContent = Array.isArray(assistant?.content) ? assistant.content : [];
+
+    runner.assertEqual(messages.filter((msg) => msg.role === 'tool').length, 0);
+    runner.assertEqual(
+      assistantContent.filter((part: any) => part?.type === 'tool-call').length,
+      0,
+      'Tool calls should be removed when tool results are no longer adjacent',
+    );
   });
 
   runner.test('toModelMessages normalizes user/system payloads and direct tool messages', () => {

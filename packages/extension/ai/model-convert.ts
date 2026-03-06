@@ -13,38 +13,16 @@ import type { Message, MessageContent } from './message-schema.js';
 export function toModelMessages(history: Message[] = []): ModelMessage[] {
   const normalized = Array.isArray(history) ? history : [];
 
-  // Collect all tool call IDs declared by assistant messages.
-  const assistantToolCallIds = new Set<string>();
-  for (const msg of normalized) {
-    if (msg.role === 'assistant' && Array.isArray(msg.toolCalls)) {
-      for (const call of msg.toolCalls) {
-        if (call.id) assistantToolCallIds.add(call.id);
-      }
-    }
-  }
-
   const expanded = normalized.flatMap((msg) => {
     if (msg.role !== 'tool') return [msg];
     return expandToolMessage(msg);
   });
-
-  // Only keep tool result IDs that map to assistant-declared tool calls.
-  const validToolResultIds = new Set<string>();
-  for (const msg of expanded) {
-    if (msg.role !== 'tool') continue;
-    const id = msg.toolCallId || msg.tool_call_id;
-    if (!id || !assistantToolCallIds.has(id)) continue;
-    validToolResultIds.add(id);
-  }
+  const { validToolCallIds, validToolIndexes } = resolveValidToolCallAdjacency(expanded);
 
   return expanded
-    .filter((msg) => {
+    .filter((msg, index) => {
       if (!msg || !msg.role) return false;
-      // Drop tool result messages whose toolCallId doesn't match a declared assistant tool call.
-      if (msg.role === 'tool') {
-        const id = msg.toolCallId || msg.tool_call_id;
-        if (!id || !validToolResultIds.has(id)) return false;
-      }
+      if (msg.role === 'tool' && !validToolIndexes.has(index)) return false;
       return true;
     })
     .map((msg) => {
@@ -57,7 +35,7 @@ export function toModelMessages(history: Message[] = []): ModelMessage[] {
       if (msg.role === 'assistant') {
         return {
           role: 'assistant',
-          content: normalizeAssistantContent(msg, validToolResultIds),
+          content: normalizeAssistantContent(msg, validToolCallIds),
         } as ModelMessage;
       }
       if (msg.role === 'system') {
@@ -71,6 +49,37 @@ export function toModelMessages(history: Message[] = []): ModelMessage[] {
         content: normalizeUserContent(msg.content),
       };
     });
+}
+
+function resolveValidToolCallAdjacency(messages: Message[]) {
+  const validToolCallIds = new Set<string>();
+  const validToolIndexes = new Set<number>();
+
+  for (let index = 0; index < messages.length; index += 1) {
+    const message = messages[index];
+    if (message.role !== 'assistant' || !Array.isArray(message.toolCalls) || message.toolCalls.length === 0) continue;
+
+    const expectedIds = new Set(message.toolCalls.map((call) => String(call?.id || '').trim()).filter(Boolean));
+    if (expectedIds.size === 0) continue;
+
+    const matchedIds = new Set<string>();
+    const matchedIndexes: number[] = [];
+
+    for (let cursor = index + 1; cursor < messages.length; cursor += 1) {
+      const next = messages[cursor];
+      if (next.role !== 'tool') break;
+      const toolCallId = String(next.toolCallId || next.tool_call_id || '').trim();
+      if (!toolCallId || !expectedIds.has(toolCallId)) continue;
+      matchedIds.add(toolCallId);
+      matchedIndexes.push(cursor);
+    }
+
+    if (matchedIds.size !== expectedIds.size) continue;
+    for (const toolCallId of matchedIds) validToolCallIds.add(toolCallId);
+    matchedIndexes.forEach((toolIndex) => validToolIndexes.add(toolIndex));
+  }
+
+  return { validToolCallIds, validToolIndexes };
 }
 
 function normalizeToolContent(message: Message): ToolContent {
