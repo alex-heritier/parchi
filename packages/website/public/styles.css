@@ -81,6 +81,13 @@ body {
 .logo-icon {
   font-size: 22px;
 }
+.logo-mark {
+  width: 28px;
+  height: 28px;
+  display: block;
+  border-radius: 8px;
+  box-shadow: 0 0 24px rgb(144 90 255 / 0.28);
+}
 .nav-links {
   display: flex;
   align-items: center;
