@@ -22,6 +22,8 @@ Thumbs.db
 *.swp
 *.swo
 *~
+.wrangler/
+.pi/
 
 # Logs
 *.log
