@@ -138,6 +138,9 @@ export type SubagentStart = RuntimeMessageBase & {
   id: string;
   name: string;
   tasks?: string[];
+  tabId?: number;
+  profile?: string;
+  whiteboardKeys?: string[];
   parentRunId?: string;
 };
 
@@ -191,6 +194,8 @@ export type SubagentComplete = RuntimeMessageBase & {
   id: string;
   success: boolean;
   summary?: string;
+  tabId?: number;
+  profile?: string;
   parentRunId?: string;
 };
 

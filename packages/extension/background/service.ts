@@ -1,14 +1,12 @@
 import { APICallError } from '@ai-sdk/provider';
 import { generateText, stepCountIs, streamText } from 'ai';
+import type { WhiteboardEntry } from '../../shared/src/orchestrator.js';
 import { buildRunPlan } from '../../shared/src/plan.js';
 import type { RunPlan } from '../../shared/src/plan.js';
+import type { ComposedSkill } from '../../shared/src/recording.js';
 import { RUNTIME_MESSAGE_SCHEMA_VERSION } from '../../shared/src/runtime-messages.js';
 import { PARCHI_STORAGE_KEYS } from '../../shared/src/settings.js';
-import {
-  getRuntimeFeatureFlags,
-  setupActionClickOpensPanel,
-  setupKimiUserAgentHeaderSupport,
-} from './browser-compat.js';
+import type { ToolDefinition } from '../../shared/src/tools.js';
 import {
   DEFAULT_COMPACTION_SETTINGS,
   SUMMARIZATION_PROMPT,
@@ -27,13 +25,22 @@ import type { Message, ToolCall } from '../ai/message-schema.js';
 import { extractTextFromResponseMessages, extractThinking } from '../ai/message-utils.js';
 import { toModelMessages } from '../ai/model-convert.js';
 import { isValidFinalResponse } from '../ai/retry-engine.js';
-import { buildToolSet, describeImageWithModel, normalizeOpenRouterModelId, resolveLanguageModel } from '../ai/sdk-client.js';
+import {
+  buildToolSet,
+  describeImageWithModel,
+  normalizeOpenRouterModelId,
+  resolveLanguageModel,
+} from '../ai/sdk-client.js';
 import { refreshRuntimeAuthSession } from '../convex/client.js';
-import type { ComposedSkill } from '../../shared/src/recording.js';
 import { RecordingCoordinator } from '../recording/recording-coordinator.js';
 import { RelayBridge } from '../relay/relay-bridge.js';
 import { BrowserTools } from '../tools/browser-tools.js';
 import { getActiveTab } from '../utils/active-tab.js';
+import {
+  getRuntimeFeatureFlags,
+  setupActionClickOpensPanel,
+  setupKimiUserAgentHeaderSupport,
+} from './browser-compat.js';
 
 type RunMeta = {
   runId: string;
@@ -57,6 +64,7 @@ type SessionState = {
   currentPlan: RunPlan | null;
   subAgentCount: number;
   subAgentProfileCursor: number;
+  whiteboard: Map<string, WhiteboardEntry>;
   lastBrowserAction: string | null;
   awaitingVerification: boolean;
   currentStepVerified: boolean;
@@ -256,9 +264,10 @@ export class BackgroundService {
           if (!message || typeof message !== 'object') return;
           if (message.type !== 'stop_run') return;
           const sessionId = typeof (message as any).sessionId === 'string' ? (message as any).sessionId : '';
-          const note = typeof (message as any).note === 'string' && (message as any).note.trim()
-            ? String((message as any).note)
-            : 'Stopped';
+          const note =
+            typeof (message as any).note === 'string' && (message as any).note.trim()
+              ? String((message as any).note)
+              : 'Stopped';
           const stopped = sessionId ? this.stopRunBySession(sessionId, note) : false;
           if (!stopped) {
             this.stopAllSidepanelRuns(note);
@@ -435,8 +444,7 @@ export class BackgroundService {
 
         case 'stop_run': {
           const sessionId = typeof message.sessionId === 'string' ? message.sessionId : '';
-          const note =
-            typeof message.note === 'string' && message.note.trim() ? message.note.trim() : 'Stopped';
+          const note = typeof message.note === 'string' && message.note.trim() ? message.note.trim() : 'Stopped';
           const stopped = sessionId ? this.stopRunBySession(sessionId, note) : false;
           if (!stopped) {
             this.stopAllSidepanelRuns(note);
@@ -680,9 +688,11 @@ export class BackgroundService {
       const streamEnabled = settings.streamResponses !== false && settings.streamResponses !== 'false';
       const showThinking = settings.showThinking !== false && settings.showThinking !== 'false';
       const enableAnthropicThinking =
-        showThinking && (orchestratorProfile.provider === 'anthropic' || orchestratorProfile.provider === 'kimi' ||
-        ((orchestratorProfile.provider === 'openrouter' || orchestratorProfile.provider === 'parchi') &&
-          /claude/i.test(orchestratorProfile.model || '')));
+        showThinking &&
+        (orchestratorProfile.provider === 'anthropic' ||
+          orchestratorProfile.provider === 'kimi' ||
+          ((orchestratorProfile.provider === 'openrouter' || orchestratorProfile.provider === 'parchi') &&
+            /claude/i.test(orchestratorProfile.model || '')));
 
       const [activeTab] = await chrome.tabs.query({
         active: true,
@@ -736,16 +746,15 @@ export class BackgroundService {
         lastContentText !== enrichedUserMessage;
       const shouldAppendUserMessage =
         !!trimmedUserMessage &&
-        (!lastMessage || lastMessage.role !== 'user' || (lastContentText !== enrichedUserMessage &&
-          !shouldReplaceLastUserMessage));
+        (!lastMessage ||
+          lastMessage.role !== 'user' ||
+          (lastContentText !== enrichedUserMessage && !shouldReplaceLastUserMessage));
       const historyWithUserMessage = shouldReplaceLastUserMessage
         ? [...historyInput.slice(0, -1), { role: 'user' as const, content: enrichedUserMessage }]
         : shouldAppendUserMessage
           ? [...historyInput, { role: 'user' as const, content: enrichedUserMessage }]
           : historyInput;
-      const normalizedHistory = normalizeConversationHistory(
-        historyWithUserMessage,
-      );
+      const normalizedHistory = normalizeConversationHistory(historyWithUserMessage);
       let activeModelId = String(orchestratorProfile.model || settings.model || '').trim();
       let model = resolveLanguageModel(orchestratorProfile);
       const modelRetryOrder = [activeModelId];
@@ -816,6 +825,7 @@ export class BackgroundService {
             runMeta,
             settings,
             visionProfile,
+            actor: 'assistant',
           },
           options.toolCallId,
         ),
@@ -967,7 +977,12 @@ export class BackgroundService {
 
         const result = streamText({
           model,
-          system: this.enhanceSystemPrompt(orchestratorProfile.systemPrompt || '', context, sessionState, matchedSkills),
+          system: this.enhanceSystemPrompt(
+            orchestratorProfile.systemPrompt || '',
+            context,
+            sessionState,
+            matchedSkills,
+          ),
           messages: modelMessages,
           tools: toolSet,
           abortSignal,
@@ -1164,6 +1179,7 @@ export class BackgroundService {
                 runMeta,
                 settings,
                 visionProfile,
+                actor: 'assistant',
               },
               toolCallId,
             );
@@ -1248,7 +1264,12 @@ export class BackgroundService {
 
             const finalizeResult = await generateText({
               model,
-              system: this.enhanceSystemPrompt(orchestratorProfile.systemPrompt || '', context, sessionState, matchedSkills),
+              system: this.enhanceSystemPrompt(
+                orchestratorProfile.systemPrompt || '',
+                context,
+                sessionState,
+                matchedSkills,
+              ),
               messages: [
                 ...toModelMessages(currentHistory),
                 {
@@ -1614,6 +1635,7 @@ Rules:
       runMeta: RunMeta;
       settings: Record<string, any>;
       visionProfile?: Record<string, any> | null;
+      actor?: 'assistant' | 'subagent';
     },
     toolCallId?: string,
   ) {
@@ -1737,6 +1759,58 @@ Rules:
       return result;
     }
 
+    if (toolName === 'whiteboard_get') {
+      const key = String(args?.key || '').trim();
+      if (!key) {
+        const errorResult = {
+          success: false,
+          error: 'Missing key.',
+        };
+        sendResult(errorResult);
+        return errorResult;
+      }
+      const entry = this.getWhiteboardEntry(sessionState, key);
+      const result = entry
+        ? { success: true, found: true, entry: { ...entry }, availableKeys: Array.from(sessionState.whiteboard.keys()) }
+        : { success: true, found: false, key, availableKeys: Array.from(sessionState.whiteboard.keys()) };
+      sendResult(result);
+      return result;
+    }
+
+    if (toolName === 'whiteboard_set') {
+      const key = String(args?.key || '').trim();
+      if (!key) {
+        const errorResult = {
+          success: false,
+          error: 'Missing key.',
+        };
+        sendResult(errorResult);
+        return errorResult;
+      }
+      const entry = this.setWhiteboardEntry(sessionState, key, args?.value, {
+        updatedBy: options.actor === 'subagent' ? 'subagent' : 'assistant',
+        note: typeof args?.note === 'string' ? args.note : undefined,
+        merge: args?.merge === true,
+      });
+      const result = {
+        success: true,
+        entry,
+        entryCount: sessionState.whiteboard.size,
+      };
+      sendResult(result);
+      return result;
+    }
+
+    if (toolName === 'whiteboard_list') {
+      const result = {
+        success: true,
+        entries: this.getWhiteboardEntries(sessionState),
+        entryCount: sessionState.whiteboard.size,
+      };
+      sendResult(result);
+      return result;
+    }
+
     if (toolName === 'list_report_images') {
       const images = this.getReportImageSummary(sessionState);
       const result = {
@@ -1750,19 +1824,13 @@ Rules:
     }
 
     if (toolName === 'select_report_images') {
-      const rawIds = Array.isArray(args?.imageIds)
-        ? args.imageIds
-        : Array.isArray(args?.ids)
-          ? args.ids
-          : [];
+      const rawIds = Array.isArray(args?.imageIds) ? args.imageIds : Array.isArray(args?.ids) ? args.ids : [];
       const imageIds = rawIds
         .map((value: unknown) => String(value || '').trim())
         .filter((value: string) => value.length > 0);
       const requestedMode = String(args?.mode || '').toLowerCase();
       const mode: 'replace' | 'add' | 'remove' | 'clear' =
-        requestedMode === 'add' || requestedMode === 'remove' || requestedMode === 'clear'
-          ? requestedMode
-          : 'replace';
+        requestedMode === 'add' || requestedMode === 'remove' || requestedMode === 'clear' ? requestedMode : 'replace';
 
       const images = this.applyReportImageSelection(sessionState, imageIds, mode);
       const selectedImageIds = Array.from(sessionState.selectedReportImageIds);
@@ -1858,7 +1926,7 @@ Rules:
     }
 
     // Track state for enforcement - only set awaiting if tool succeeded
-    const browserActions = ['navigate', 'click', 'type', 'scroll', 'pressKey'];
+    const browserActions = ['navigate', 'click', 'clickAt', 'type', 'scroll', 'pressKey'];
     if (browserActions.includes(toolName) && finalResult?.success !== false) {
       sessionState.lastBrowserAction = toolName;
       sessionState.awaitingVerification = true;
@@ -1868,11 +1936,7 @@ Rules:
       sessionState.currentStepVerified = true;
     }
 
-    if (
-      toolName === 'screenshot' &&
-      finalResult?.success &&
-      finalResult.dataUrl
-    ) {
+    if (toolName === 'screenshot' && finalResult?.success && finalResult.dataUrl) {
       if (options.settings?.visionBridge && options.visionProfile?.apiKey) {
         try {
           const description = await describeImageWithModel({
@@ -2171,11 +2235,119 @@ Rules:
     });
   }
 
+  getWhiteboardToolDefinitions(): ToolDefinition[] {
+    return [
+      {
+        name: 'whiteboard_get',
+        description: 'Read a value from shared orchestrator memory by key.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            key: {
+              type: 'string',
+              description: 'Whiteboard key to read.',
+            },
+          },
+          required: ['key'],
+        },
+      },
+      {
+        name: 'whiteboard_set',
+        description: 'Write a value to shared orchestrator memory so later steps or sub-agents can reuse it.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            key: {
+              type: 'string',
+              description: 'Whiteboard key to write.',
+            },
+            value: {
+              description: 'Structured value to store at this key.',
+            },
+            note: {
+              type: 'string',
+              description: 'Optional note describing the source or meaning of this value.',
+            },
+            merge: {
+              type: 'boolean',
+              description: 'If true and both old/new values are objects, perform a shallow merge.',
+            },
+          },
+          required: ['key', 'value'],
+        },
+      },
+      {
+        name: 'whiteboard_list',
+        description: 'List all shared whiteboard keys and their latest values.',
+        input_schema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+    ];
+  }
+
+  private getWhiteboardEntries(sessionState: SessionState) {
+    return Array.from(sessionState.whiteboard.values()).map((entry) => ({ ...entry }));
+  }
+
+  private getWhiteboardEntry(sessionState: SessionState, key: string) {
+    return sessionState.whiteboard.get(key) || null;
+  }
+
+  private setWhiteboardEntry(
+    sessionState: SessionState,
+    key: string,
+    value: unknown,
+    options: { updatedBy?: WhiteboardEntry['updatedBy']; note?: string; merge?: boolean } = {},
+  ) {
+    const existing = sessionState.whiteboard.get(key);
+    const shouldMerge =
+      options.merge &&
+      existing?.value &&
+      typeof existing.value === 'object' &&
+      !Array.isArray(existing.value) &&
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value);
+    const nextValue = shouldMerge
+      ? { ...(existing?.value as Record<string, unknown>), ...(value as Record<string, unknown>) }
+      : value;
+    const entry: WhiteboardEntry = {
+      key,
+      value: nextValue,
+      updatedAt: Date.now(),
+      updatedBy: options.updatedBy || 'assistant',
+      note: options.note?.trim() || undefined,
+    };
+    sessionState.whiteboard.set(key, entry);
+    return entry;
+  }
+
+  private serializeWhiteboardForPrompt(sessionState: SessionState, requestedKeys?: string[]) {
+    const requested = Array.isArray(requestedKeys)
+      ? requestedKeys.map((value) => String(value || '').trim()).filter(Boolean)
+      : [];
+    const entries = requested.length
+      ? requested
+          .map((key) => this.getWhiteboardEntry(sessionState, key))
+          .filter((entry): entry is WhiteboardEntry => Boolean(entry))
+      : this.getWhiteboardEntries(sessionState);
+    if (!entries.length) return '';
+    return entries
+      .map((entry) => {
+        const serializedValue = typeof entry.value === 'string' ? entry.value : JSON.stringify(entry.value);
+        return `- ${entry.key} (${entry.updatedBy}${entry.note ? `; ${entry.note}` : ''}): ${serializedValue}`;
+      })
+      .join('\n');
+  }
+
   getToolPermissionCategory(toolName) {
     const mapping = {
       navigate: 'navigate',
       openTab: 'navigate',
       click: 'interact',
+      clickAt: 'interact',
       type: 'interact',
       pressKey: 'interact',
       scroll: 'interact',
@@ -2332,6 +2504,7 @@ Rules:
       currentPlan: null,
       subAgentCount: 0,
       subAgentProfileCursor: 0,
+      whiteboard: new Map(),
       lastBrowserAction: null,
       awaitingVerification: false,
       currentStepVerified: false,
@@ -2427,19 +2600,22 @@ Rules:
         .map((skill) => ({
           name: skill.name,
           description: skill.description,
-          steps: skill.steps
-            .map((s, i) => `${i + 1}. ${s.tool}(${JSON.stringify(s.args)})`)
-            .join('\n'),
+          steps: skill.steps.map((s, i) => `${i + 1}. ${s.tool}(${JSON.stringify(s.args)})`).join('\n'),
         }));
     } catch {
       return [];
     }
   }
 
-  enhanceSystemPrompt(basePrompt: string, context, sessionState: SessionState, matchedSkills: Array<{ name: string; description: string; steps: string }> = []) {
+  enhanceSystemPrompt(
+    basePrompt: string,
+    context,
+    sessionState: SessionState,
+    matchedSkills: Array<{ name: string; description: string; steps: string }> = [],
+  ) {
     const tabsSection =
       Array.isArray(context.availableTabs) && context.availableTabs.length
-        ? `Tabs selected (${context.availableTabs.length}). You MUST only act on these tabs (session tabs). Always pass tabId from this list to navigate/click/type/pressKey/scroll/getContent/screenshot.\n${context.availableTabs
+        ? `Tabs selected (${context.availableTabs.length}). You MUST only act on these tabs (session tabs). Always pass tabId from this list to navigate/click/clickAt/type/pressKey/scroll/getContent/findHtml/screenshot/watchVideo/getVideoInfo.\n${context.availableTabs
             .map((tab) => `  - [${tab.id}] ${tab.title || 'Untitled'} - ${tab.url}`)
             .join('\n')}`
         : 'No tabs selected; tools will fail until the user selects at least one tab in the UI.';
@@ -2481,8 +2657,12 @@ If vision tools are enabled, use them when visual structure or media context can
       : '<vision_tools>Vision-capable tools are disabled for this model.</vision_tools>';
     const orchestratorToolSection = context.orchestratorEnabled
       ? availableToolNames.includes('spawn_subagent')
-        ? '<orchestrator_tools>Orchestrator tools enabled: spawn_subagent, subagent_complete. Use spawn_subagent for focused parallel work, and have each sub-agent report via subagent_complete.</orchestrator_tools>'
+        ? '<orchestrator_tools>Orchestrator tools enabled: spawn_subagent, subagent_complete, whiteboard_get, whiteboard_set, whiteboard_list. Use whiteboard tools for shared memory, and pin sub-agents to specific session tabs with spawn_subagent({ tabId, ... }) when you want isolated execution.</orchestrator_tools>'
         : '<orchestrator_tools>Orchestrator mode is enabled.</orchestrator_tools>'
+      : '';
+    const whiteboardSnapshot = this.serializeWhiteboardForPrompt(sessionState);
+    const whiteboardSection = whiteboardSnapshot
+      ? `<whiteboard>Shared memory currently contains:\n${whiteboardSnapshot}\n</whiteboard>`
       : '';
 
     // Build state section with enforcement - tracks exactly what model needs to do next
@@ -2498,7 +2678,7 @@ If vision tools are enabled, use them when visual structure or media context can
 
 REQUIRED NEXT CALL: ${requiredNextCall}
 
-You CANNOT call navigate, click, type, scroll, or pressKey until you call set_plan.
+You CANNOT call navigate, click, clickAt, type, scroll, or pressKey until you call set_plan.
 Create 3-6 specific action steps, then proceed.
 </execution_state>`;
     } else {
@@ -2555,16 +2735,19 @@ After marking step ${currentIndex} done, proceed to step ${currentIndex + 1}.
       }
     }
 
-    const skillSection = matchedSkills.length > 0
-      ? `<available_skills>\nSite-matched skills for ${context.currentUrl}:\n${matchedSkills.map((s) =>
-          `- ${s.name}: ${s.description}\n  Steps: ${s.steps}`).join('\n')}\n</available_skills>`
-      : '';
+    const skillSection =
+      matchedSkills.length > 0
+        ? `<available_skills>\nSite-matched skills for ${context.currentUrl}:\n${matchedSkills
+            .map((s) => `- ${s.name}: ${s.description}\n  Steps: ${s.steps}`)
+            .join('\n')}\n</available_skills>`
+        : '';
 
     return `${basePrompt}
  ${stateSection}${thinkingSection}
 ${toolCatalogSection}
 ${visionToolSection}
 ${orchestratorToolSection}
+${whiteboardSection ? `\n${whiteboardSection}` : ''}
 ${skillSection ? `\n${skillSection}` : ''}
 
  <browser_context>
@@ -2637,7 +2820,9 @@ When a tool fails:
   }
 
   async refreshConvexProxyAuthSession(settings: Record<string, any>, options: { force?: boolean } = {}) {
-    const mode = String(settings.accountModeChoice || '').trim().toLowerCase();
+    const mode = String(settings.accountModeChoice || '')
+      .trim()
+      .toLowerCase();
     if (mode !== 'paid') return false;
     if (!this.resolveConvexProxyBaseUrl(settings)) return false;
 
@@ -2657,10 +2842,13 @@ When a tool fails:
 
   applyConvexProxyProfile(profile: Record<string, any>, settings: Record<string, any>) {
     const preferredProvider =
-      profile?.provider === 'kimi' ? 'kimi'
-      : profile?.provider === 'anthropic' ? 'anthropic'
-      : profile?.provider === 'openrouter' || profile?.provider === 'parchi' ? 'openrouter'
-      : 'openai';
+      profile?.provider === 'kimi'
+        ? 'kimi'
+        : profile?.provider === 'anthropic'
+          ? 'anthropic'
+          : profile?.provider === 'openrouter' || profile?.provider === 'parchi'
+            ? 'openrouter'
+            : 'openai';
     const requestedModel = String(profile?.model || settings.model || '').trim();
     const normalizedModel = this.normalizeProxyModelId(preferredProvider, requestedModel);
     const proxyBaseUrl = this.resolveConvexProxyBaseUrl(settings);
@@ -2702,7 +2890,8 @@ When a tool fails:
         allowed: false,
         route: 'none',
         profile,
-        errorMessage: 'Paid access is selected but auth is missing. Sign in again in Account & Billing, then click Refresh.',
+        errorMessage:
+          'Paid access is selected but auth is missing. Sign in again in Account & Billing, then click Refresh.',
       };
     }
     return {
@@ -2881,6 +3070,7 @@ When a tool fails:
         profileSchema.enum = teamNames;
       }
       tools = tools.concat([
+        ...this.getWhiteboardToolDefinitions(),
         {
           name: 'spawn_subagent',
           description: 'Start a focused sub-agent with its own goal, prompt, and optional profile override.',
@@ -2900,6 +3090,19 @@ When a tool fails:
               goal: {
                 type: 'string',
                 description: 'Single goal string if tasks not provided',
+              },
+              name: {
+                type: 'string',
+                description: 'Optional label for the sub-agent.',
+              },
+              tabId: {
+                type: 'number',
+                description: 'Optional session tab id to pin this sub-agent to.',
+              },
+              whiteboardKeys: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Optional whiteboard keys this sub-agent should prioritize reading.',
               },
             },
           },
@@ -2923,6 +3126,7 @@ When a tool fails:
 
   async handleSpawnSubagent(runMeta: RunMeta, args, settings: Record<string, any>) {
     const sessionState = this.getSessionState(runMeta.sessionId);
+    const browserTools = this.getBrowserTools(runMeta.sessionId);
     if (sessionState.subAgentCount >= 10) {
       return {
         success: false,
@@ -2943,6 +3147,15 @@ When a tool fails:
       profileName = settings?.activeConfig || 'default';
     }
     const profileSettings = this.resolveProfile(settings || {}, profileName);
+    const rawLockedTabId = typeof args?.tabId === 'number' ? args.tabId : Number(args?.tabId);
+    const lockedTabId = Number.isFinite(rawLockedTabId) ? rawLockedTabId : null;
+    const sessionTabIds = new Set(browserTools.getSessionTabSummaries().map((tab) => tab.id));
+    if (lockedTabId !== null && !sessionTabIds.has(lockedTabId)) {
+      return {
+        success: false,
+        error: `Cannot pin sub-agent to tab ${lockedTabId}. It is not part of the current session tabs.`,
+      };
+    }
 
     const subagentName = args.name || `Sub-Agent ${sessionState.subAgentCount}`;
     this.sendRuntime(runMeta, {
@@ -2950,25 +3163,78 @@ When a tool fails:
       id: subagentId,
       name: subagentName,
       tasks: args.tasks || [args.goal || args.task || 'Task'],
+      tabId: lockedTabId ?? undefined,
+      profile: profileName,
+      whiteboardKeys: Array.isArray(args?.whiteboardKeys) ? args.whiteboardKeys : undefined,
     });
 
     try {
+      const pinnedToolBlocklist = new Set([
+        'openTab',
+        'closeTab',
+        'switchTab',
+        'focusTab',
+        'groupTabs',
+        'getTabs',
+        'describeSessionTabs',
+      ]);
+      const browserScopedTools = new Set([
+        'navigate',
+        'click',
+        'clickAt',
+        'type',
+        'pressKey',
+        'scroll',
+        'getContent',
+        'findHtml',
+        'screenshot',
+        'watchVideo',
+        'getVideoInfo',
+      ]);
+      const whiteboardContext = this.serializeWhiteboardForPrompt(sessionState, args?.whiteboardKeys);
       const subAgentSystemPrompt = `${args.prompt || 'You are a focused sub-agent working under an orchestrator. Be concise and tool-driven.'}
+${lockedTabId !== null ? `You are pinned to tabId ${lockedTabId}. Do not open, close, switch, focus, group, or inspect any other tabs.` : ''}
+${whiteboardContext ? `Shared whiteboard context:\n${whiteboardContext}` : 'Shared whiteboard context is currently empty.'}
+Use whiteboard_get to read shared context and whiteboard_set to publish durable outputs for sibling tasks.
 Always cite evidence from tools. Finish by calling subagent_complete with a short summary and any structured findings.`;
 
-      const tools = this.getToolsForSession(profileSettings, false, [], this.isVisionModelProfile(profileSettings));
-      const toolSet = buildToolSet(tools, async (toolName, toolArgs, options) =>
-        this.executeToolByName(
+      let tools = this.getToolsForSession(profileSettings, false, [], this.isVisionModelProfile(profileSettings));
+      tools = tools.concat(this.getWhiteboardToolDefinitions());
+      tools = tools.filter((tool) => !pinnedToolBlocklist.has(tool.name) || lockedTabId === null);
+      const toolSet = buildToolSet(tools, async (toolName, toolArgs, options) => {
+        const nextArgs = toolArgs && typeof toolArgs === 'object' && !Array.isArray(toolArgs) ? { ...toolArgs } : {};
+        if (lockedTabId !== null) {
+          if (pinnedToolBlocklist.has(toolName)) {
+            return {
+              success: false,
+              error: `Sub-agent is pinned to tab ${lockedTabId}; tool ${toolName} is not available in pinned mode.`,
+            };
+          }
+          if (browserScopedTools.has(toolName)) {
+            if (
+              typeof (nextArgs as Record<string, any>).tabId === 'number' &&
+              (nextArgs as Record<string, any>).tabId !== lockedTabId
+            ) {
+              return {
+                success: false,
+                error: `Sub-agent is pinned to tab ${lockedTabId}; received mismatched tabId ${(nextArgs as Record<string, any>).tabId}.`,
+              };
+            }
+            (nextArgs as Record<string, any>).tabId = lockedTabId;
+          }
+        }
+        return this.executeToolByName(
           toolName,
-          toolArgs,
+          nextArgs,
           {
             runMeta,
             settings: settings || {},
-            visionProfile: null,
+            visionProfile: this.isVisionModelProfile(profileSettings) ? profileSettings : null,
+            actor: 'subagent',
           },
           options.toolCallId,
-        ),
-      );
+        );
+      });
 
       const taskLines = Array.isArray(args.tasks)
         ? args.tasks.map((t, idx) => `${idx + 1}. ${t}`).join('\n')
@@ -3012,6 +3278,8 @@ Always cite evidence from tools. Finish by calling subagent_complete with a shor
         id: subagentId,
         success: true,
         summary,
+        tabId: lockedTabId ?? undefined,
+        profile: profileName,
       });
 
       return {
@@ -3021,6 +3289,8 @@ Always cite evidence from tools. Finish by calling subagent_complete with a shor
         name: subagentName,
         summary,
         tasks: taskLines,
+        tabId: lockedTabId ?? undefined,
+        profile: profileName,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error ?? 'Unknown error');
@@ -3031,6 +3301,8 @@ Always cite evidence from tools. Finish by calling subagent_complete with a shor
         id: subagentId,
         success: false,
         summary: `Sub-agent failed: ${errorMessage}`,
+        tabId: lockedTabId ?? undefined,
+        profile: profileName,
       });
 
       return {
@@ -3040,6 +3312,8 @@ Always cite evidence from tools. Finish by calling subagent_complete with a shor
         name: subagentName,
         error: errorMessage,
         summary: `Sub-agent failed: ${errorMessage}`,
+        tabId: lockedTabId ?? undefined,
+        profile: profileName,
       };
     }
   }

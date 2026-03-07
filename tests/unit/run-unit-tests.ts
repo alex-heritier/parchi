@@ -12,16 +12,23 @@ import {
   estimateContextTokens,
   shouldCompact,
 } from '../../packages/extension/ai/compaction.js';
+import { classifyApiError } from '../../packages/extension/ai/error-classifier.js';
 import {
   createMessage,
   normalizeConversationHistory,
   toProviderMessages,
 } from '../../packages/extension/ai/message-schema.js';
-import { classifyApiError } from '../../packages/extension/ai/error-classifier.js';
 import type { Message } from '../../packages/extension/ai/message-schema.js';
 import { extractThinking } from '../../packages/extension/ai/message-utils.js';
 import { createExponentialBackoff, isValidFinalResponse } from '../../packages/extension/ai/retry-engine.js';
 
+import {
+  buildOrchestratorPlan,
+  getReadyOrchestratorTaskIds,
+  isOrchestratorTaskTerminal,
+  normalizeOrchestratorTaskStatus,
+  normalizeOrchestratorTasks,
+} from '../../packages/shared/src/orchestrator.js';
 import { buildRunPlan, normalizePlanStatus, normalizePlanSteps } from '../../packages/shared/src/plan.js';
 import type { RunPlan } from '../../packages/shared/src/plan.js';
 import { RUNTIME_MESSAGE_SCHEMA_VERSION, isRuntimeMessage } from '../../packages/shared/src/runtime-messages.js';
@@ -354,7 +361,11 @@ function testApiErrorClassification(runner: TestRunner) {
       responseBody: '{"error":"Insufficient credits. Purchase credits to continue."}',
     });
     runner.assertEqual(classified.category, 'auth');
-    runner.assertTrue(String(classified.action || '').toLowerCase().includes('account & billing'));
+    runner.assertTrue(
+      String(classified.action || '')
+        .toLowerCase()
+        .includes('account & billing'),
+    );
   });
 
   runner.test('Managed proxy auth errors avoid BYOK-only guidance', () => {
@@ -364,8 +375,16 @@ function testApiErrorClassification(runner: TestRunner) {
       responseBody: '{"error":"Unauthorized at /ai-proxy/openrouter/v1/chat/completions"}',
     });
     runner.assertEqual(classified.category, 'auth');
-    runner.assertTrue(String(classified.message || '').toLowerCase().includes('managed runtime'));
-    runner.assertFalse(String(classified.action || '').toLowerCase().includes('check your api key in settings'));
+    runner.assertTrue(
+      String(classified.message || '')
+        .toLowerCase()
+        .includes('managed runtime'),
+    );
+    runner.assertFalse(
+      String(classified.action || '')
+        .toLowerCase()
+        .includes('check your api key in settings'),
+    );
   });
 
   runner.test('Paid/parchi auth errors avoid BYOK guidance even without ai-proxy text', () => {
@@ -383,8 +402,16 @@ function testApiErrorClassification(runner: TestRunner) {
       },
     );
     runner.assertEqual(classified.category, 'auth');
-    runner.assertTrue(String(classified.message || '').toLowerCase().includes('managed runtime'));
-    runner.assertFalse(String(classified.action || '').toLowerCase().includes('check your api key in settings'));
+    runner.assertTrue(
+      String(classified.message || '')
+        .toLowerCase()
+        .includes('managed runtime'),
+    );
+    runner.assertFalse(
+      String(classified.action || '')
+        .toLowerCase()
+        .includes('check your api key in settings'),
+    );
   });
 
   runner.test('Managed proxy invalid key points to backend OPENROUTER_API_KEY fix', () => {
@@ -402,7 +429,11 @@ function testApiErrorClassification(runner: TestRunner) {
       },
     );
     runner.assertEqual(classified.category, 'auth');
-    runner.assertTrue(String(classified.message || '').toLowerCase().includes('managed runtime key'));
+    runner.assertTrue(
+      String(classified.message || '')
+        .toLowerCase()
+        .includes('managed runtime key'),
+    );
     runner.assertTrue(String(classified.action || '').includes('OPENROUTER_API_KEY'));
   });
 
@@ -419,7 +450,11 @@ function testApiErrorClassification(runner: TestRunner) {
       },
     );
     runner.assertEqual(classified.category, 'auth');
-    runner.assertTrue(String(classified.message || '').toLowerCase().includes('missing server credentials'));
+    runner.assertTrue(
+      String(classified.message || '')
+        .toLowerCase()
+        .includes('missing server credentials'),
+    );
     runner.assertTrue(String(classified.action || '').includes('OPENROUTER_API_KEY'));
   });
 }
@@ -576,7 +611,77 @@ function testPlanNormalization(runner: TestRunner) {
     });
     runner.assertEqual(updated.createdAt, existing.createdAt);
     runner.assertTrue(updated.updatedAt > existing.updatedAt, 'updatedAt should advance');
-    runner.assertEqual(updated.steps[0].title, 'Step two');
+    runner.assertEqual(updated.steps[0].title, 'Step one');
+    runner.assertEqual(updated.steps[1].title, 'Step two');
+  });
+}
+
+// Test Orchestrator Graph Normalization
+function testOrchestratorPlanNormalization(runner: TestRunner) {
+  log('\n=== Testing Orchestrator Graph Normalization ===', 'info');
+
+  runner.test('normalizeOrchestratorTaskStatus handles invalid values', () => {
+    runner.assertEqual(normalizeOrchestratorTaskStatus('completed'), 'completed');
+    runner.assertEqual(normalizeOrchestratorTaskStatus('READY'), 'ready');
+    runner.assertEqual(normalizeOrchestratorTaskStatus('wat'), 'pending');
+  });
+
+  runner.test('normalizeOrchestratorTasks trims fields and removes self dependencies', () => {
+    const tasks = normalizeOrchestratorTasks([
+      {
+        id: 'download',
+        title: '  Download video  ',
+        kind: 'browser',
+        status: 'ready',
+        dependencies: ['download', 'research'],
+        outputs: [{ key: 'videoFile', description: ' Video path ' }],
+      },
+    ]);
+
+    runner.assertEqual(tasks.length, 1);
+    runner.assertEqual(tasks[0].title, 'Download video');
+    runner.assertEqual(tasks[0].dependencies, ['research']);
+    runner.assertEqual(tasks[0].outputs[0]?.description, 'Video path');
+  });
+
+  runner.test('buildOrchestratorPlan clamps concurrency and derives whiteboard keys', () => {
+    const plan = buildOrchestratorPlan({
+      goal: 'Publish a YouTube video',
+      maxConcurrentTabs: 99,
+      assumptions: [' User is logged in '],
+      tasks: [
+        {
+          id: 'download',
+          title: 'Download Riverside export',
+          outputs: [{ key: 'videoFile' }],
+        },
+        {
+          id: 'upload',
+          title: 'Upload to YouTube',
+          dependencies: ['download'],
+          inputs: [{ key: 'videoFile', fromTaskId: 'download' }],
+        },
+      ],
+    });
+
+    runner.assertEqual(plan.maxConcurrentTabs, 5);
+    runner.assertEqual(plan.assumptions, ['User is logged in']);
+    runner.assertTrue(plan.whiteboardKeys.includes('videoFile'), 'Whiteboard keys should include task bindings');
+  });
+
+  runner.test('getReadyOrchestratorTaskIds respects completed dependencies', () => {
+    const plan = buildOrchestratorPlan({
+      goal: 'Launch workflow',
+      tasks: [
+        { id: 'a', title: 'Task A', status: 'completed' },
+        { id: 'b', title: 'Task B', dependencies: ['a'], status: 'pending' },
+        { id: 'c', title: 'Task C', dependencies: ['missing'], status: 'pending' },
+      ],
+    });
+
+    runner.assertEqual(getReadyOrchestratorTaskIds(plan), ['b']);
+    runner.assertTrue(isOrchestratorTaskTerminal('completed'));
+    runner.assertFalse(isOrchestratorTaskTerminal('running'));
   });
 }
 
@@ -745,6 +850,7 @@ function main() {
   testConversationCompaction(runner);
   testThinkingExtraction(runner);
   testPlanNormalization(runner);
+  testOrchestratorPlanNormalization(runner);
   testRetryHelpers(runner);
   testRuntimeMessages(runner);
 
