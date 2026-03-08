@@ -54,6 +54,41 @@ let runtimeConvexUrl = CONVEX_DEPLOYMENT_URL;
 export let convexClient = runtimeConvexUrl ? new ConvexHttpClient(runtimeConvexUrl) : null;
 let lastCreditReconcileAt = 0;
 
+export const isLikelyJwt = (token: unknown): token is string => {
+  const value = String(token || '').trim();
+  if (!value) return false;
+  const parts = value.split('.');
+  if (parts.length !== 3) return false;
+  return parts.every((part) => /^[A-Za-z0-9_-]+$/.test(part) && part.length > 0);
+};
+
+export const isUsableRuntimeJwt = (
+  token: unknown,
+  expiresAt: unknown,
+  options: { minRemainingMs?: number } = {},
+): token is string => {
+  if (!isLikelyJwt(token)) return false;
+  const minRemainingMs = Number(options.minRemainingMs ?? 60_000);
+  const expiresAtMs = Number(expiresAt || 0);
+  if (!Number.isFinite(expiresAtMs) || expiresAtMs <= 0) return false;
+  return expiresAtMs > Date.now() + Math.max(0, minRemainingMs);
+};
+
+const isLikelyAuthFailureError = (error: unknown) => {
+  const record = error && typeof error === 'object' ? (error as Record<string, unknown>) : null;
+  const message = error instanceof Error ? error.message : String(record?.message || error || '');
+  const statusCode = Number(record?.statusCode ?? record?.status ?? 0);
+  const combined = `${message} ${String(record?.responseBody || '')}`.toLowerCase();
+  return (
+    statusCode === 401 ||
+    statusCode === 403 ||
+    combined.includes('unauthorized') ||
+    combined.includes('forbidden') ||
+    combined.includes('authentication') ||
+    combined.includes('could not parse jwt payload')
+  );
+};
+
 const isMissingReconcileFunctionError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error ?? '');
   return (
@@ -163,14 +198,15 @@ const refreshAccessTokenIfNeeded = async (options: { force?: boolean } = {}) => 
 
   const forceRefresh = options.force === true;
   const expiresAt = Number(stored.convexTokenExpiresAt || 0);
-  if (!forceRefresh && Number.isFinite(expiresAt) && expiresAt > Date.now() + 60_000) {
+  const accessTokenUsable = isUsableRuntimeJwt(accessToken, expiresAt);
+  if (!forceRefresh && accessTokenUsable) {
     applyAuthTokenToClient(accessToken);
     return;
   }
 
   const refreshToken = stored.convexRefreshToken;
   if (!refreshToken) {
-    applyAuthTokenToClient(accessToken);
+    await clearAuthStorage();
     return;
   }
 
@@ -178,9 +214,13 @@ const refreshAccessTokenIfNeeded = async (options: { force?: boolean } = {}) => 
     const refreshed = (await convexClient.action(anyApi.auth.signIn, {
       refreshToken,
     })) as AuthSignInResult;
-    await maybePersistAuthResult(refreshed);
+    if (refreshed?.tokens?.token && refreshed?.tokens?.refreshToken) {
+      await maybePersistAuthResult(refreshed);
+      return;
+    }
+    await clearAuthStorage();
   } catch {
-    applyAuthTokenToClient(accessToken);
+    await clearAuthStorage();
   }
 };
 
@@ -207,11 +247,17 @@ export async function refreshRuntimeAuthSession(options: { force?: boolean } = {
   await setStorageDefaults();
   await refreshAccessTokenIfNeeded({ force: options.force === true });
   const stored = await readStoredAuth();
+  const accessToken = String(stored.convexAccessToken || '').trim();
+  const expiresAt = Number(stored.convexTokenExpiresAt || 0);
   return {
-    accessToken: String(stored.convexAccessToken || '').trim(),
+    accessToken: isUsableRuntimeJwt(accessToken, expiresAt, { minRemainingMs: 0 }) ? accessToken : '',
     refreshToken: String(stored.convexRefreshToken || '').trim(),
-    expiresAt: Number(stored.convexTokenExpiresAt || 0),
+    expiresAt,
   };
+}
+
+export async function invalidateRuntimeAuthSession() {
+  await clearAuthStorage();
 }
 
 export const chromeTokenStorage = {
@@ -308,9 +354,13 @@ export async function signInWithOAuth(provider: 'google' | 'github') {
 }
 
 export async function signOutAccount() {
-  await ensureAuthReady();
-  const client = await ensureClient();
-  await client.action(anyApi.auth.signOut, {});
+  try {
+    await ensureAuthReady();
+    const client = await ensureClient();
+    await client.action(anyApi.auth.signOut, {});
+  } catch (error) {
+    if (!isLikelyAuthFailureError(error)) throw error;
+  }
   await clearAuthStorage();
 }
 
@@ -345,7 +395,14 @@ export async function reconcileCreditPurchases({ force = false } = {}) {
 export async function getAuthState(options: { reconcileCredits?: boolean; forceCreditReconcile?: boolean } = {}) {
   await ensureAuthReady();
   const client = await ensureClient();
-  const authenticated = await client.query(anyApi.auth.isAuthenticated, {});
+  let authenticated = false;
+  try {
+    authenticated = await client.query(anyApi.auth.isAuthenticated, {});
+  } catch (error) {
+    if (!isLikelyAuthFailureError(error)) throw error;
+    await clearAuthStorage();
+    return { authenticated: false, user: null, subscription: null };
+  }
   if (!authenticated) {
     await clearAuthStorage();
     return { authenticated: false, user: null, subscription: null };

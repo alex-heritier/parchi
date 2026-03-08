@@ -1,4 +1,5 @@
 import { classifyApiError } from '../../ai/error-classifier.js';
+import { invalidateRuntimeAuthSession } from '../../convex/client.js';
 import { fetchProviderModels } from '../../oauth/manager.js';
 import { refreshConvexProxyAuthSession } from '../model-profiles.js';
 import { runAgentModelPass } from './agent-loop-model-pass.js';
@@ -118,6 +119,10 @@ export async function runAgentModelPassWithFallback(
             });
             continue;
           }
+          await invalidateRuntimeAuthSession();
+          prepared.settings.convexAccessToken = '';
+          prepared.settings.convexRefreshToken = '';
+          prepared.settings.convexTokenExpiresAt = 0;
         }
 
         const isEmptyBody = classified.recoverable && classified.message.includes('empty response body');

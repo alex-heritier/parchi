@@ -3,6 +3,7 @@ import {
   createCreditCheckout,
   getAuthState,
   hasActiveSubscription,
+  isUsableRuntimeJwt,
   manageSubscription,
   signInWithOAuth,
   signInWithPassword,
@@ -483,7 +484,7 @@ sidePanelProto.getSetupFlowState = async function getSetupFlowState() {
     paidProfiles.some((profile) => hasConfiguredModel(profile));
 
   const hasConvexUrl = Boolean(String(stored.convexUrl || CONVEX_DEPLOYMENT_URL || '').trim());
-  const signedInPaid = Boolean(String(stored.convexAccessToken || '').trim());
+  const signedInPaid = isUsableRuntimeJwt(stored.convexAccessToken, stored.convexTokenExpiresAt, { minRemainingMs: 0 });
   const creditCents = Number(stored.convexCreditBalanceCents || 0);
   const hasCredits = Number.isFinite(creditCents) && creditCents > 0;
   const subscriptionPlan = String(stored.convexSubscriptionPlan || '').toLowerCase();
