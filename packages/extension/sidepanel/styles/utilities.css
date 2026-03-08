@@ -185,8 +185,7 @@ select:focus-visible {
 .context-inspector-fab:focus-visible,
 .settings-fab:focus-visible,
 .history-fab:focus-visible,
-.new-session-fab:focus-visible,
-.session-tabs-orb-btn:focus-visible {
+.new-session-fab:focus-visible {
   outline: none;
   box-shadow: none;
 }

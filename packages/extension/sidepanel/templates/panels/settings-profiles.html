@@ -17,50 +17,42 @@
         <span id="profileEditorTitle">Editing: default</span>
     </div>
 
-    <!-- Connection section -->
-    <details class="settings-section profile-editor-section" open>
-        <summary>Connection</summary>
-        <div class="settings-body">
-            <div class="profile-editor-grid">
-                <div class="form-group">
-                    <label for="profileEditorName">Name</label>
-                    <input type="text" id="profileEditorName" placeholder="Profile name" />
-                </div>
-                <div class="form-group">
-                    <label for="profileEditorProvider">Provider</label>
-                    <select id="profileEditorProvider"></select>
-                </div>
-                <div class="form-group">
-                    <label for="profileEditorApiKey">API Key</label>
-                    <input type="password" id="profileEditorApiKey" placeholder="sk-..." />
-                </div>
-                <div class="form-group">
-                    <label for="profileEditorModel">Model</label>
-                    <div class="model-combo-wrap">
-                        <input type="text" id="profileEditorModelInput" list="profileEditorModelList" placeholder="Type or select model..." autocomplete="off" />
-                        <datalist id="profileEditorModelList"></datalist>
-                        <select id="profileEditorModel" class="model-combo-select">
-                            <option value="">Select model...</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group" id="profileEditorEndpointGroup" style="display: none">
-                    <label for="profileEditorEndpoint">Endpoint</label>
-                    <input type="text" id="profileEditorEndpoint" placeholder="https://..." />
-                </div>
-                <div class="form-group full-width">
-                    <label for="profileEditorHeaders">Extra Headers (JSON)</label>
-                    <textarea id="profileEditorHeaders" rows="2" placeholder='{"HTTP-Referer":"https://your.app"}'></textarea>
-                </div>
+    <!-- Connection — always visible, no accordion -->
+    <div class="profile-editor-grid">
+        <div class="form-group">
+            <label for="profileEditorName">Name</label>
+            <input type="text" id="profileEditorName" placeholder="Profile name" />
+        </div>
+        <div class="form-group">
+            <label for="profileEditorProvider">Provider</label>
+            <select id="profileEditorProvider"></select>
+        </div>
+        <div class="form-group">
+            <label for="profileEditorApiKey">API Key</label>
+            <input type="password" id="profileEditorApiKey" placeholder="sk-..." />
+        </div>
+        <div class="form-group">
+            <label for="profileEditorModel">Model</label>
+            <div class="model-combo-wrap">
+                <input type="text" id="profileEditorModelInput" list="profileEditorModelList" placeholder="Type or select model..." autocomplete="off" />
+                <datalist id="profileEditorModelList"></datalist>
+                <select id="profileEditorModel" class="model-combo-select">
+                    <option value="">Select model...</option>
+                </select>
             </div>
         </div>
-    </details>
+        <div class="form-group" id="profileEditorEndpointGroup" style="display: none">
+            <label for="profileEditorEndpoint">Endpoint</label>
+            <input type="text" id="profileEditorEndpoint" placeholder="https://..." />
+        </div>
+    </div>
 
-    <!-- Generation section -->
-    <details class="settings-section profile-editor-section" open>
-        <summary>Generation</summary>
+    <!-- Advanced — collapsed by default -->
+    <details class="settings-section profile-editor-advanced">
+        <summary>Advanced</summary>
         <div class="settings-body">
             <div class="profile-editor-grid">
+                <!-- Generation -->
                 <div class="form-group">
                     <label for="profileEditorTemperature">Temp <span id="profileEditorTemperatureValue">0.7</span></label>
                     <input type="range" id="profileEditorTemperature" min="0" max="2" step="0.1" value="0.7" />
@@ -91,15 +83,7 @@
                         <option value="false">Disabled</option>
                     </select>
                 </div>
-            </div>
-        </div>
-    </details>
-
-    <!-- Abilities section -->
-    <details class="settings-section profile-editor-section">
-        <summary>Abilities</summary>
-        <div class="settings-body">
-            <div class="profile-editor-grid">
+                <!-- Abilities -->
                 <div class="form-group">
                     <label for="profileEditorEnableScreenshots">Screenshots</label>
                     <select id="profileEditorEnableScreenshots">
@@ -142,17 +126,33 @@
                         <option value="false">Disabled</option>
                     </select>
                 </div>
+                <!-- Extra Headers -->
+                <div class="form-group full-width">
+                    <label for="profileEditorHeaders">Extra Headers (JSON)</label>
+                    <textarea id="profileEditorHeaders" rows="2" placeholder='{"HTTP-Referer":"https://your.app"}'></textarea>
+                </div>
+                <!-- System Prompt -->
+                <div class="form-group full-width">
+                    <label for="profileEditorPrompt">System Prompt</label>
+                    <textarea id="profileEditorPrompt" rows="4" class="system-prompt-textarea" placeholder="Leave empty to inherit default prompt..."></textarea>
+                </div>
             </div>
-        </div>
-    </details>
 
-    <!-- System prompt section -->
-    <details class="settings-section profile-editor-section">
-        <summary>System Prompt</summary>
-        <div class="settings-body">
-            <div class="form-group">
-                <textarea id="profileEditorPrompt" rows="4" class="system-prompt-textarea" placeholder="Leave empty to inherit default prompt..."></textarea>
-            </div>
+            <!-- Profile JSON — power user, nested inside Advanced -->
+            <details class="settings-section profile-editor-json-section">
+                <summary>Profile JSON</summary>
+                <div class="settings-body">
+                    <div class="form-group">
+                        <label for="profileJsonEditor">Raw JSON</label>
+                        <textarea id="profileJsonEditor" rows="6" spellcheck="false"></textarea>
+                    </div>
+                    <div class="config-row">
+                        <button id="refreshProfileJsonBtn" class="btn btn-secondary">Refresh</button>
+                        <button id="copyProfileJsonBtn" class="btn btn-secondary">Copy</button>
+                        <button id="applyProfileJsonBtn" class="btn btn-primary">Apply</button>
+                    </div>
+                </div>
+            </details>
         </div>
     </details>
 
@@ -161,18 +161,3 @@
         <button id="saveProfileBtn" class="btn btn-primary">Save</button>
     </div>
 </div>
-
-<details class="settings-section">
-    <summary>Profile JSON</summary>
-    <div class="settings-body">
-        <div class="form-group">
-            <label for="profileJsonEditor">Active Profile JSON</label>
-            <textarea id="profileJsonEditor" rows="6" spellcheck="false"></textarea>
-        </div>
-        <div class="config-row">
-            <button id="refreshProfileJsonBtn" class="btn btn-secondary">Refresh</button>
-            <button id="copyProfileJsonBtn" class="btn btn-secondary">Copy</button>
-            <button id="applyProfileJsonBtn" class="btn btn-primary">Apply</button>
-        </div>
-    </div>
-</details>

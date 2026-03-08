@@ -214,6 +214,23 @@
         <textarea id="orchestratorPromptTextarea" rows="5" class="system-prompt-textarea" placeholder="Leave empty to use orchestrator profile's prompt..."></textarea>
         <small>System prompt for the orchestrator profile.</small>
     </div>
+
+    <div class="settings-divider"></div>
+    <div class="settings-section-label">Orchestration</div>
+    <div class="form-group">
+        <label for="orchestratorEnabledVisible">Enable Orchestrator Mode</label>
+        <select id="orchestratorEnabledVisible">
+            <option value="false">Disabled</option>
+            <option value="true">Enabled</option>
+        </select>
+        <small>Enable multi-agent orchestration with spawn_subagent tool</small>
+    </div>
+    <div class="form-group" id="orchestratorProfileSelectGroup" style="display: none;">
+        <label for="orchestratorProfileVisible">Orchestrator Profile</label>
+        <select id="orchestratorProfileVisible"></select>
+        <small>Profile to use for orchestration tasks (or assign via profile grid)</small>
+    </div>
+
     <div id="visionPromptSection" class="form-group hidden">
         <div class="settings-divider"></div>
         <label for="visionPromptTextarea">Vision Prompt</label>

@@ -135,7 +135,6 @@ sidePanelProto.init = async function init() {
     this.fetchAvailableModels();
     this.updateChatEmptyState?.();
     this.initMascotBubble?.();
-    this.initSessionTabsOrb?.();
     // Prune old traces (>7 days) in background — fire and forget
     pruneOldTraces().catch(() => {});
   } catch (error) {
@@ -347,6 +346,22 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
   this.elements.sendScreenshotsAsImages?.addEventListener('change', () => this.updateScreenshotToggleState());
   this.elements.orchestratorToggle?.addEventListener('change', () => this.updatePromptSections?.());
   this.elements.orchestratorProfile?.addEventListener('change', () => this.updatePromptSections?.());
+
+  // Visible orchestrator controls sync with hidden ones
+  this.elements.orchestratorEnabledVisible?.addEventListener('change', () => {
+    const enabled = this.elements.orchestratorEnabledVisible?.value === 'true';
+    if (this.elements.orchestratorToggle) this.elements.orchestratorToggle.value = enabled ? 'true' : 'false';
+    const profileGroup = this.elements.orchestratorProfileSelectGroup;
+    if (profileGroup) profileGroup.style.display = enabled ? '' : 'none';
+    this.updatePromptSections?.();
+    this.renderProfileGrid?.();
+  });
+  this.elements.orchestratorProfileVisible?.addEventListener('change', () => {
+    const profile = this.elements.orchestratorProfileVisible?.value || '';
+    if (this.elements.orchestratorProfile) this.elements.orchestratorProfile.value = profile;
+    this.updatePromptSections?.();
+    this.renderProfileGrid?.();
+  });
 
   // Auto-save sessions toggle
   this.elements.autoSaveSession?.addEventListener('change', () => {
@@ -595,6 +610,13 @@ export PARCHI_RELAY_PORT="${port}"`;
 
   // Profile editor controls
   this.elements.profileEditorProvider?.addEventListener('change', () => {
+    // Clear model fields whenever the provider changes so a stale model from a
+    // previously-cloned or previously-edited profile never gets saved against
+    // the wrong provider (e.g. gpt-4o saved under anthropic).
+    const modelInput = this.elements.profileEditorModelInput as HTMLInputElement | null;
+    const modelSelect = this.elements.profileEditorModel as HTMLSelectElement | null;
+    if (modelInput) modelInput.value = '';
+    if (modelSelect) modelSelect.value = '';
     this.toggleProfileEditorEndpoint();
     this.refreshModelCatalogForProfileEditor?.();
   });
@@ -1030,34 +1052,6 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
     this.clearErrorBanner();
     this.updateActivityState();
     this.activeToolName = message.tool || null;
-    // Track which tab the model is interacting with.
-    // Many browser tools resolve tabId internally via resolveTabId() so args.tabId
-    // may be missing. Fall back to the session's active tab for known browser tools.
-    const browserTools = [
-      'navigate',
-      'openTab',
-      'click',
-      'clickAt',
-      'type',
-      'pressKey',
-      'scroll',
-      'getContent',
-      'findHtml',
-      'screenshot',
-      'getTabs',
-      'switchTab',
-      'focusTab',
-      'closeTab',
-      'groupTabs',
-      'describeSessionTabs',
-      'watchVideo',
-      'getVideoInfo',
-    ];
-    let toolTabId = typeof message.args?.tabId === 'number' ? message.args.tabId : null;
-    if (!toolTabId && browserTools.includes(message.tool)) {
-      toolTabId = this.sessionTabsState?.activeTabId ?? null;
-    }
-    this.setInteractingTab(toolTabId);
     if (!this.streamingState) {
       this.startStreamingMessage();
     }
@@ -1112,9 +1106,6 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
     this.pendingToolCount = Math.max(0, this.pendingToolCount - 1);
     this.updateActivityState();
     this.activeToolName = null;
-    if (this.pendingToolCount === 0) {
-      this.setInteractingTab(null);
-    }
     if (!this.streamingState) {
       this.startStreamingMessage();
     }
@@ -1302,10 +1293,7 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
     }
     return;
   }
-  if (message.type === 'session_tabs_update') {
-    this.handleSessionTabsUpdate(message);
-    return;
-  }
+
   if (message.type === 'report_image_captured') {
     this.recordReportImage?.(message.image);
     this.updateReportImageSelection?.(message.selectedImageIds || []);

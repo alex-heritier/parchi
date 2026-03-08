@@ -2,8 +2,8 @@ import {
   buildOrchestratorPlan,
   getDispatchableOrchestratorTaskIds,
   getOrchestratorPlanValidationIssues,
-} from '../../packages/shared/src/orchestrator.js';
-import type { OrchestratorPlan } from '../../packages/shared/src/orchestrator.js';
+} from '@parchi/shared';
+import type { OrchestratorPlan } from '@parchi/shared';
 
 type SimSubagentStatus = 'running' | 'completed' | 'failed';
 

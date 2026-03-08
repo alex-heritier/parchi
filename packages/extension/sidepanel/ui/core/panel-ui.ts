@@ -134,13 +134,6 @@ export class SidePanelUI {
   _deleteConfirmAt: number | null;
   timelineCollapsed: boolean;
   currentTheme: string;
-  sessionTabsState: {
-    tabs: Array<{ id: number; title?: string; url?: string; favIconUrl?: string }>;
-    activeTabId: number | null;
-    maxTabs: number;
-    groupTitle?: string;
-    interactingTabId: number | null;
-  };
   workflows: Array<{ id: string; name: string; prompt: string; createdAt: number }>;
   workflowMenuOpen: boolean;
   workflowMenuIndex: number;
@@ -268,13 +261,6 @@ export class SidePanelUI {
     this._deleteConfirmAt = null;
     this.timelineCollapsed = true;
     this.currentTheme = 'void';
-    this.sessionTabsState = {
-      tabs: [],
-      activeTabId: null,
-      maxTabs: 5,
-      groupTitle: undefined,
-      interactingTabId: null,
-    };
     this.workflows = [];
     this.workflowMenuOpen = false;
     this.workflowMenuIndex = -1;

@@ -317,6 +317,15 @@ sidePanelProto.loadSettings = async function loadSettings() {
     this.elements.orchestratorToggle.value =
       settings.useOrchestrator !== undefined ? String(settings.useOrchestrator) : 'false';
   if (this.elements.orchestratorProfile) this.elements.orchestratorProfile.value = settings.orchestratorProfile || '';
+  if (this.elements.orchestratorEnabledVisible)
+    this.elements.orchestratorEnabledVisible.value = this.elements.orchestratorToggle?.value || 'false';
+  const orchEnabled = this.elements.orchestratorToggle?.value === 'true';
+  if (this.elements.orchestratorProfileSelectGroup)
+    this.elements.orchestratorProfileSelectGroup.style.display = orchEnabled ? '' : 'none';
+  if (this.elements.orchestratorProfileVisible) {
+    this.populateOrchestratorProfileSelect?.();
+    this.elements.orchestratorProfileVisible.value = this.elements.orchestratorProfile?.value || '';
+  }
   if (this.elements.showThinking)
     this.elements.showThinking.value = settings.showThinking !== undefined ? String(settings.showThinking) : 'true';
   if (this.elements.streamResponses)

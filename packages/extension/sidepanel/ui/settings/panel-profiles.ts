@@ -158,15 +158,18 @@ sidePanelProto.createNewConfig = async function createNewConfig(name?: string) {
   if (inputA) inputA.value = '';
   if (inputB) inputB.value = '';
 
-  // Clone the current active config so the new profile starts with sane defaults
+  // Start new profiles with blank connection credentials — never clone provider,
+  // apiKey, or model from the active config, since mismatched provider×model
+  // combinations are the #1 source of broken profiles (e.g. gpt-4o saved under
+  // anthropic). Copy only non-sensitive behavioral defaults.
   const current = this.configs[this.currentConfig] || {};
   this.configs[trimmedName] = {
-    provider: current.provider ?? '',
-    apiKey: current.apiKey ?? '',
-    model: current.model ?? '',
-    customEndpoint: current.customEndpoint ?? '',
-    extraHeaders: current.extraHeaders || {},
-    systemPrompt: current.systemPrompt || '',
+    provider: '',
+    apiKey: '',
+    model: '',
+    customEndpoint: '',
+    extraHeaders: {},
+    systemPrompt: '',
     temperature: current.temperature ?? 0.7,
     maxTokens: current.maxTokens || 4096,
     contextLimit: current.contextLimit || 200000,
@@ -249,9 +252,14 @@ sidePanelProto.refreshConfigDropdown = function refreshConfigDropdown() {
 
 sidePanelProto.refreshProfileSelectors = function refreshProfileSelectors() {
   const names = Object.keys(this.configs);
-  const selects = [this.elements.orchestratorProfile, this.elements.visionProfile];
+  const selects = [
+    this.elements.orchestratorProfile,
+    this.elements.visionProfile,
+    this.elements.orchestratorProfileVisible,
+  ];
   selects.forEach((select) => {
     if (!select) return;
+    const currentValue = select.value;
     select.innerHTML = '<option value="">Use active config</option>';
     names.forEach((name) => {
       const option = document.createElement('option');
@@ -260,11 +268,12 @@ sidePanelProto.refreshProfileSelectors = function refreshProfileSelectors() {
       select.appendChild(option);
     });
 
-    const currentValue = select.value;
     if (!currentValue) return;
     if (!names.includes(currentValue)) {
       select.value = '';
+      return;
     }
+    select.value = currentValue;
   });
 };
 
@@ -385,7 +394,22 @@ sidePanelProto.assignProfileRole = function assignProfileRole(profileName: strin
 sidePanelProto.toggleProfileRole = function toggleProfileRole(elementId: string, profileName: string) {
   const element = this.elements[elementId];
   if (!element) return;
-  element.value = element.value === profileName ? '' : profileName;
+  const isSelecting = element.value !== profileName;
+  element.value = isSelecting ? profileName : '';
+  if (elementId === 'orchestratorProfile') {
+    if (this.elements.orchestratorToggle) {
+      this.elements.orchestratorToggle.value = isSelecting ? 'true' : 'false';
+    }
+    if (this.elements.orchestratorEnabledVisible) {
+      this.elements.orchestratorEnabledVisible.value = isSelecting ? 'true' : 'false';
+    }
+    if (this.elements.orchestratorProfileVisible) {
+      this.elements.orchestratorProfileVisible.value = isSelecting ? profileName : '';
+    }
+    if (this.elements.orchestratorProfileSelectGroup) {
+      this.elements.orchestratorProfileSelectGroup.style.display = isSelecting ? '' : 'none';
+    }
+  }
   this.renderProfileGrid();
 };
 

@@ -12,6 +12,7 @@ server/dist/
 *.map
 *.xpi
 
+.env.publish
 # OS files
 .DS_Store
 Thumbs.db

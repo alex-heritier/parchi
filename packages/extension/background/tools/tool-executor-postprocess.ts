@@ -81,20 +81,12 @@ export function applyFailureDedup(
 }
 
 export function broadcastTabStateIfNeeded(
-  ctx: ServiceContext,
-  browserTools: BrowserTools,
+  _ctx: ServiceContext,
+  _browserTools: BrowserTools,
   toolName: string,
-  options: ToolExecutionOptions,
+  _options: ToolExecutionOptions,
 ) {
   if (!TAB_MODIFYING_TOOLS.has(toolName)) return;
-  const state = browserTools.getSessionState();
-  ctx.sendRuntime(options.runMeta, {
-    type: 'session_tabs_update',
-    tabs: state.tabs,
-    activeTabId: state.activeTabId,
-    maxTabs: state.maxTabs,
-    groupTitle: state.groupTitle,
-  });
 }
 
 export function updateVerificationState(sessionState: SessionState, toolName: string, result: unknown) {

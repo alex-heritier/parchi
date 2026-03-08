@@ -43,11 +43,6 @@ export const getSidePanelElements = (): SidePanelElements => ({
   tabList: byId<HTMLElement>('tabList'),
   closeTabSelector: byId<HTMLButtonElement>('closeTabSelector'),
   selectedTabsBar: byId<HTMLElement>('selectedTabsBar'),
-  sessionTabsHud: byId<HTMLElement>('sessionTabsHud'),
-  sessionTabsToggle: byId<HTMLButtonElement>('sessionTabsToggle'),
-  sessionTabsCount: byId<HTMLElement>('sessionTabsCount'),
-  sessionTabsFavicon: byId<HTMLImageElement>('sessionTabsFavicon'),
-  sessionTabsList: byId<HTMLElement>('sessionTabsList'),
   scrollToLatestBtn: byId<HTMLButtonElement>('scrollToLatestBtn'),
   newSessionFab: byId<HTMLButtonElement>('newSessionFab'),
   historyFab: byId<HTMLButtonElement>('historyFab'),
@@ -212,6 +207,9 @@ export const getSidePanelElements = (): SidePanelElements => ({
   // Form elements - Orchestrator
   orchestratorToggle: byId<HTMLInputElement>('orchestratorToggle'),
   orchestratorProfile: byId<HTMLSelectElement>('orchestratorProfile'),
+  orchestratorEnabledVisible: byId<HTMLSelectElement>('orchestratorEnabledVisible'),
+  orchestratorProfileVisible: byId<HTMLSelectElement>('orchestratorProfileVisible'),
+  orchestratorProfileSelectGroup: byId<HTMLElement>('orchestratorProfileSelectGroup'),
 
   // Form elements - System prompt
   systemPrompt: byId<HTMLTextAreaElement>('systemPrompt'),
