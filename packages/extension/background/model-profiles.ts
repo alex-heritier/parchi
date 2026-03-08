@@ -1,5 +1,5 @@
 import { normalizeOpenRouterModelId } from '../ai/sdk-client.js';
-import { refreshRuntimeAuthSession } from '../convex/client.js';
+import { invalidateRuntimeAuthSession, isUsableRuntimeJwt, refreshRuntimeAuthSession } from '../convex/client.js';
 import {
   getAccessToken as getOAuthAccessToken,
   getApiBaseUrl as getOAuthApiBaseUrl,
@@ -69,7 +69,10 @@ export function resolveConvexProxyBaseUrl(settings: Record<string, any> = {}) {
 }
 
 export function canUseConvexProxy(settings: Record<string, any> = {}) {
-  return Boolean(resolveConvexProxyBaseUrl(settings) && String(settings.convexAccessToken || '').trim());
+  return Boolean(
+    resolveConvexProxyBaseUrl(settings) &&
+      isUsableRuntimeJwt(settings.convexAccessToken, settings.convexTokenExpiresAt, { minRemainingMs: 0 }),
+  );
 }
 
 export async function refreshConvexProxyAuthSession(settings: Record<string, any>, options: { force?: boolean } = {}) {
@@ -82,13 +85,22 @@ export async function refreshConvexProxyAuthSession(settings: Record<string, any
   try {
     const session = await refreshRuntimeAuthSession({ force: options.force === true });
     const accessToken = String(session.accessToken || '').trim();
-    if (!accessToken) return false;
+    if (!accessToken) {
+      settings.convexAccessToken = '';
+      settings.convexRefreshToken = '';
+      settings.convexTokenExpiresAt = 0;
+      return false;
+    }
     settings.convexAccessToken = accessToken;
     settings.convexRefreshToken = String(session.refreshToken || '').trim();
     settings.convexTokenExpiresAt = Number(session.expiresAt || 0);
     return true;
   } catch (error) {
     console.warn('[paid-auth] Failed to refresh convex proxy auth session:', error);
+    await invalidateRuntimeAuthSession();
+    settings.convexAccessToken = '';
+    settings.convexRefreshToken = '';
+    settings.convexTokenExpiresAt = 0;
     return false;
   }
 }

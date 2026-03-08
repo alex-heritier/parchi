@@ -105,6 +105,29 @@ export function runApiErrorClassificationSuite(runner: TestRunner) {
     runner.assertTrue(String(classified.action || '').includes('OPENROUTER_API_KEY'));
   });
 
+  runner.test('Managed proxy JWT parse failures classify as auth instead of server', () => {
+    const classified = classifyApiError(
+      {
+        statusCode: 500,
+        message: 'Internal Server Error',
+        responseBody:
+          '{"code":"Server Error: Could not parse JWT payload. Check that the token is a valid JWT format with three base64-encoded parts separated by dots."}',
+      },
+      {
+        route: 'proxy',
+        provider: 'parchi',
+        model: 'moonshotai/kimi-k2.5',
+        useProxy: true,
+      },
+    );
+    runner.assertEqual(classified.category, 'auth');
+    runner.assertTrue(
+      String(classified.message || '')
+        .toLowerCase()
+        .includes('session'),
+    );
+  });
+
   runner.test('Missing managed server key points to backend env setup', () => {
     const classified = classifyApiError(
       {
