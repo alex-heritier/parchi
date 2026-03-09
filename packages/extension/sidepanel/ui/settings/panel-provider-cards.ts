@@ -1,5 +1,6 @@
 import type { ProviderInstance } from '@parchi/shared';
-import { PROVIDER_REGISTRY, getApiKeyProviders } from '../../../ai/providers/registry.js';
+import { PROVIDER_REGISTRY, fetchModelsForProvider, getApiKeyProviders } from '../../../ai/providers/registry.js';
+import { mergeProviderModels } from '../../../state/provider-models.js';
 import {
   buildProviderInstanceId,
   ensureProviderModel,
@@ -25,7 +26,9 @@ sidePanelProto.renderApiProviderGrid = function renderApiProviderGrid() {
   if (!grid) return;
   grid.innerHTML = '';
 
-  const providers = listProviderInstances({ providers: this.providers }).filter((provider) => provider.authType === 'api-key');
+  const providers = listProviderInstances({ providers: this.providers }).filter(
+    (provider) => provider.authType === 'api-key',
+  );
   const configuredTypes = new Set(providers.map((provider) => provider.providerType));
 
   for (const provider of providers) {
@@ -98,7 +101,11 @@ sidePanelProto.openProviderEditor = function openProviderEditor(providerKeyOrId:
   }
   if (this.elements.providerEditorEndpointGroup) {
     this.elements.providerEditorEndpointGroup.style.display =
-      providerType === 'custom' || providerType === 'kimi' || providerType === 'openrouter' || providerType === 'glm' || providerType === 'minimax'
+      providerType === 'custom' ||
+      providerType === 'kimi' ||
+      providerType === 'openrouter' ||
+      providerType === 'glm' ||
+      providerType === 'minimax'
         ? ''
         : 'none';
   }
@@ -117,7 +124,9 @@ sidePanelProto.saveProviderEditorConfig = function saveProviderEditorConfig() {
     return;
   }
 
-  const existing = this._editingProviderId ? getProviderInstance({ providers: this.providers }, this._editingProviderId) : null;
+  const existing = this._editingProviderId
+    ? getProviderInstance({ providers: this.providers }, this._editingProviderId)
+    : null;
   const providerId =
     existing?.id ||
     buildProviderInstanceId({
@@ -127,6 +136,18 @@ sidePanelProto.saveProviderEditorConfig = function saveProviderEditorConfig() {
       apiKey,
       name: def.name,
     });
+  // Always merge definition models with any existing models so the model grid
+  // shows every available model, even if the provider was previously saved with
+  // only a subset.
+  const defModels = (def.models || []).map((m) => ({
+    id: m.id,
+    label: m.label,
+    contextWindow: m.contextWindow,
+    supportsVision: m.supportsVision,
+  }));
+  const existingModels = existing?.models || [];
+  const seen = new Set(defModels.map((m) => m.id));
+  const seedModels = [...defModels, ...existingModels.filter((m: any) => !seen.has(m.id))];
   const provider: ProviderInstance = ensureProviderModel(
     {
       id: providerId,
@@ -137,7 +158,7 @@ sidePanelProto.saveProviderEditorConfig = function saveProviderEditorConfig() {
       customEndpoint: endpoint,
       extraHeaders: existing?.extraHeaders || {},
       isConnected: Boolean(apiKey),
-      models: existing?.models || [],
+      models: seedModels,
       createdAt: Number(existing?.createdAt || Date.now()),
       updatedAt: Date.now(),
       source: existing?.source || 'manual',
@@ -153,8 +174,29 @@ sidePanelProto.saveProviderEditorConfig = function saveProviderEditorConfig() {
   this.closeProviderEditor();
   this.populateProviderDropdown?.();
   this.renderApiProviderGrid();
+  this.renderModelSelectorGrid?.();
   void this.persistAllSettings();
   this.updateStatus(`${def.name} configured`, 'success');
+
+  // Async: fetch full model list from API for providers that support it
+  if (def.supportsModelListing && apiKey) {
+    void (async () => {
+      try {
+        const fetched = await fetchModelsForProvider(def, { type: def.type, apiKey, customEndpoint: endpoint });
+        if (fetched.length > 0) {
+          const updated = {
+            ...this.providers[provider.id],
+            models: mergeProviderModels(provider.providerType, this.providers[provider.id]?.models || [], fetched),
+            updatedAt: Date.now(),
+          };
+          this.providers = { ...(this.providers || {}), [provider.id]: updated };
+          this.renderModelSelectorGrid?.();
+          this.renderApiProviderGrid();
+          void this.persistAllSettings({ silent: true });
+        }
+      } catch {}
+    })();
+  }
 };
 
 sidePanelProto.removeProviderKey = function removeProviderKey(providerId: string) {

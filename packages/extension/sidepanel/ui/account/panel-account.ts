@@ -114,8 +114,24 @@ const hasConfiguredModel = (profile: Record<string, any> | null | undefined) =>
 const hasConfiguredApiKey = (profile: Record<string, any> | null | undefined) =>
   Boolean(String(profile?.apiKey || '').trim());
 
+const isOAuthProvider = (provider: unknown) =>
+  String(provider || '')
+    .trim()
+    .toLowerCase()
+    .endsWith('-oauth');
+
+const hasRunnableExternalProfile = (profile: Record<string, any> | null | undefined) => {
+  if (!hasConfiguredModel(profile)) return false;
+  const provider = String(profile?.provider || '')
+    .trim()
+    .toLowerCase();
+  if (!provider || isManagedProvider(provider)) return false;
+  if (isOAuthProvider(provider)) return true;
+  return hasConfiguredApiKey(profile);
+};
+
 const hasRunnableByokProfile = (profiles: Array<Record<string, any>>) =>
-  profiles.some((profile) => hasConfiguredApiKey(profile) && hasConfiguredModel(profile));
+  profiles.some((profile) => hasRunnableExternalProfile(profile));
 
 const collectCandidateProfiles = (stored: Record<string, any>) => {
   const configs = isRecord(stored.configs) ? stored.configs : {};
@@ -535,9 +551,10 @@ sidePanelProto.getSetupFlowState = async function getSetupFlowState() {
       }
     : null;
 
+  const paidSetupComplete = hasPaidModelConfigured && hasConvexUrl && signedInPaid && paidAccess;
   let setupComplete = byokReady;
   if (!setupComplete && mode === ACCOUNT_MODE_PAID) {
-    setupComplete = hasPaidModelConfigured && hasConvexUrl && signedInPaid && paidAccess;
+    setupComplete = paidSetupComplete;
   }
 
   let setupButtonLabel = 'Pay or add your own key';
@@ -605,6 +622,10 @@ sidePanelProto.getSetupFlowState = async function getSetupFlowState() {
     hasAnyModel,
     byokReady,
     paidAccess,
+    paidActive,
+    hasConvexUrl,
+    signedInPaid,
+    paidSetupComplete,
     setupComplete,
     setupButtonLabel,
     paidStatusLabel,
@@ -624,7 +645,41 @@ sidePanelProto.refreshSetupFlowUi = async function refreshSetupFlowUi() {
     this.elements.setupAccessBtn.title = setupState.setupButtonLabel;
   }
 
+  await this.renderPaidModeProviderGrid?.();
   this.updateActivityState?.();
+};
+
+sidePanelProto.renderPaidModeProviderGrid = async function renderPaidModeProviderGrid() {
+  const grid = this.elements.paidModeProviderGrid || document.getElementById('paidModeProviderGrid');
+  if (!grid) return;
+
+  const setupState = await this.getSetupFlowState();
+  const row = document.createElement('div');
+  const connected = setupState.signedInPaid === true && setupState.paidAccess === true;
+  row.className = `provider-row${connected ? ' connected' : ' dim'}`;
+  row.innerHTML = `
+    <span class="provider-logo">☻</span>
+    <div class="provider-info">
+      <div class="provider-name">Parchi Managed <span class="optional-badge">Optional</span></div>
+      <div class="provider-meta">${this.escapeHtml(setupState.paidStatusLabel || 'Paid mode')}</div>
+    </div>
+    <span class="provider-status-dot${connected ? '' : ' off'}"></span>
+    <button class="connect-btn" data-action="open-account">${connected ? 'Manage' : 'Open billing'}</button>
+  `;
+
+  grid.innerHTML = '';
+  grid.appendChild(row);
+  row.addEventListener('click', async (event: Event) => {
+    const action = (event.target as HTMLElement).closest<HTMLElement>('[data-action]')?.dataset.action;
+    if (action !== 'open-account') return;
+    this.openAccountPanel?.();
+    if (!setupState.signedInPaid || !setupState.paidSetupComplete) {
+      this.updateStatus(
+        'Paid mode is optional. Sign in or buy credits from Account & Billing if you want managed routing.',
+        'active',
+      );
+    }
+  });
 };
 
 sidePanelProto.setParchiRuntimeHealth = async function setParchiRuntimeHealth(input: {
@@ -681,13 +736,13 @@ sidePanelProto.handleSetupAccessClick = async function handleSetupAccessClick() 
     return;
   }
 
-  this.openSettingsPanel?.();
   if (setupState.mode === ACCOUNT_MODE_PAID) {
-    this.switchSettingsTab?.('oauth');
-    this.updateStatus('Finish paid setup to unlock Parchi managed access.', 'active');
+    this.openAccountPanel?.();
+    this.updateStatus('Finish paid setup in Account & Billing to unlock Parchi managed access.', 'active');
     return;
   }
 
+  this.openSettingsPanel?.();
   this.switchSettingsTab?.('setup');
   this.updateStatus('Finish provider setup by adding your API key and model.', 'active');
 };
