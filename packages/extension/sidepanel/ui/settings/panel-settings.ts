@@ -1,13 +1,14 @@
 import { DEFAULT_AGENT_SYSTEM_PROMPT } from '@parchi/shared';
+import { materializeProfileWithProvider } from '../../../state/provider-registry.js';
 import {
   hydrateSettingsStore,
   patchSettingsStoreSnapshot,
   replaceSettingsStoreSnapshot,
 } from '../../../state/stores/settings-store.js';
-import { materializeProfileWithProvider } from '../../../state/provider-registry.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
+import { syncOAuthProfiles } from './oauth-profiles.js';
 import { DEFAULT_THEME_ID, THEMES, applyTheme, getThemeById } from './themes.js';
 
 const parseHeadersJson = (raw: string): Record<string, string> => {
@@ -229,6 +230,7 @@ sidePanelProto.switchSettingsTab = function switchSettingsTab(
 
   if (resolvedTab === 'providers') {
     this.renderOAuthProviderGrid?.();
+    this.renderPaidModeProviderGrid?.();
     this.renderApiProviderGrid?.();
   }
   if (resolvedTab === 'model') {
@@ -264,7 +266,11 @@ sidePanelProto.renderTeamProfileList = function renderTeamProfileList() {
   list.innerHTML = names
     .map((name) => {
       const checked = this.auxAgentProfiles.includes(name) ? 'checked' : '';
-      const config = materializeProfileWithProvider({ providers: this.providers, configs: this.configs }, name, this.configs[name] || {});
+      const config = materializeProfileWithProvider(
+        { providers: this.providers, configs: this.configs },
+        name,
+        this.configs[name] || {},
+      );
       return `<label class="team-profile-item">
         <input type="checkbox" data-team-profile="${this.escapeHtml(name)}" ${checked} />
         <span class="team-profile-copy">
@@ -403,8 +409,13 @@ sidePanelProto.loadSettings = async function loadSettings() {
   if (this.elements.permissionInteract) this.elements.permissionInteract.checked = toolPermissions.interact !== false;
   if (this.elements.permissionNavigate) this.elements.permissionNavigate.checked = toolPermissions.navigate !== false;
   if (this.elements.permissionTabs) this.elements.permissionTabs.checked = toolPermissions.tabs !== false;
-  if (this.elements.permissionScreenshots) this.elements.permissionScreenshots.checked = toolPermissions.screenshots !== false;
+  if (this.elements.permissionScreenshots)
+    this.elements.permissionScreenshots.checked = toolPermissions.screenshots !== false;
   if (this.elements.allowedDomains) this.elements.allowedDomains.value = settings.allowedDomains || '';
+
+  // Ensure OAuth providers (copilot, codex, claude, qwen) are in this.providers
+  // so they appear in the Model grid and profile dropdowns on startup.
+  await syncOAuthProfiles(this).catch(() => {});
 
   this.refreshConfigDropdown();
   this.setActiveConfig(this.currentConfig, true);

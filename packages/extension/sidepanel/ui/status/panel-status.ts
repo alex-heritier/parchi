@@ -1,7 +1,12 @@
 import { fetchProviderModels } from '../../../oauth/manager.js';
 import { getAllProviderStates } from '../../../oauth/store.js';
-import { ensureProviderModel, getProviderInstance, materializeProfileWithProvider } from '../../../state/provider-registry.js';
 import type { OAuthProviderKey } from '../../../oauth/types.js';
+import {
+  ensureProviderModel,
+  getProviderInstance,
+  listProviderInstances,
+  materializeProfileWithProvider,
+} from '../../../state/provider-registry.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
@@ -10,6 +15,7 @@ const MODEL_FETCH_TIMEOUT_MS = 9000;
 const MAX_MODELS_PER_PROVIDER = 250;
 const MAX_MODELS_TOTAL = 600;
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
+const MODEL_SELECT_VALUE_SEPARATOR = '::';
 
 type ModelCatalogTarget = {
   key: string;
@@ -41,13 +47,13 @@ const normalizeEndpointBase = (provider: string, customEndpoint: string) => {
         ? 'https://api.z.ai/api/anthropic'
         : provider === 'minimax'
           ? 'https://api.minimax.io/anthropic'
-      : provider === 'openai'
-        ? 'https://api.openai.com/v1'
-        : provider === 'anthropic'
-          ? 'https://api.anthropic.com/v1'
-          : provider === 'kimi'
-            ? 'https://api.kimi.com/coding/v1'
-            : '';
+          : provider === 'openai'
+            ? 'https://api.openai.com/v1'
+            : provider === 'anthropic'
+              ? 'https://api.anthropic.com/v1'
+              : provider === 'kimi'
+                ? 'https://api.kimi.com/coding/v1'
+                : '';
 
   const base = (raw || fallback)
     .replace(/\/chat\/completions\/?$/i, '')
@@ -67,6 +73,18 @@ const buildModelEndpointCandidates = (base: string): string[] => {
     return [`${normalized}/models`];
   }
   return [`${normalized}/models`, `${normalized}/v1/models`];
+};
+
+const encodeModelSelectValue = (providerId: string, modelId: string) =>
+  `${encodeURIComponent(providerId)}${MODEL_SELECT_VALUE_SEPARATOR}${encodeURIComponent(modelId)}`;
+
+const decodeModelSelectValue = (value: string): { providerId: string; modelId: string } | null => {
+  const [providerId, modelId] = String(value || '').split(MODEL_SELECT_VALUE_SEPARATOR);
+  if (!providerId || !modelId) return null;
+  return {
+    providerId: decodeURIComponent(providerId),
+    modelId: decodeURIComponent(modelId),
+  };
 };
 
 const extractModelIds = (payload: any): string[] => {
@@ -197,10 +215,17 @@ sidePanelProto.stopRunTimer = function stopRunTimer() {
 };
 
 sidePanelProto.updateModelDisplay = function updateModelDisplay() {
-  // Now the model select shows profiles, so we update it to the current config
-  if (this.elements.modelSelect) {
-    this.elements.modelSelect.value = this.currentConfig;
-  }
+  const select = this.elements.modelSelect;
+  if (!select) return;
+  const activeConfig = materializeProfileWithProvider(
+    { providers: this.providers, configs: this.configs },
+    this.currentConfig,
+    this.configs?.[this.currentConfig] || {},
+  );
+  const providerId = String(activeConfig?.providerId || '').trim();
+  const modelId = String(activeConfig?.modelId || activeConfig?.model || '').trim();
+  if (!providerId || !modelId) return;
+  select.value = encodeModelSelectValue(providerId, modelId);
 };
 
 sidePanelProto.fetchAvailableModels = async function fetchAvailableModels() {
@@ -213,7 +238,11 @@ sidePanelProto.collectConfiguredModelFallbacks = function collectConfiguredModel
   const fallbacks: Array<{ provider: string; model: string }> = [];
   const configs = this.configs && typeof this.configs === 'object' ? this.configs : {};
   for (const [name, rawProfile] of Object.entries(configs)) {
-    const profile = materializeProfileWithProvider({ providers: this.providers, configs: this.configs }, name, rawProfile);
+    const profile = materializeProfileWithProvider(
+      { providers: this.providers, configs: this.configs },
+      name,
+      rawProfile,
+    );
     if (!profile || typeof profile !== 'object') continue;
     const provider = normalizeProvider((profile as any).provider);
     const model = String((profile as any).modelId || (profile as any).model || '').trim();
@@ -229,7 +258,11 @@ sidePanelProto.collectModelCatalogTargets = async function collectModelCatalogTa
   const configs = this.configs && typeof this.configs === 'object' ? this.configs : {};
 
   for (const [name, rawProfile] of Object.entries(configs)) {
-    const profile = materializeProfileWithProvider({ providers: this.providers, configs: this.configs }, name, rawProfile);
+    const profile = materializeProfileWithProvider(
+      { providers: this.providers, configs: this.configs },
+      name,
+      rawProfile,
+    );
     if (!profile || typeof profile !== 'object') continue;
     const provider = normalizeProvider((profile as any).provider);
     if (!provider) continue;
@@ -443,34 +476,70 @@ sidePanelProto.populateModelSelect = function populateModelSelect() {
     return;
   }
 
-  // Populate with profiles
+  // Populate with connected provider/model pairs
   select.innerHTML = '';
 
-  const configNames = Object.keys(this.configs);
-  if (configNames.length === 0) {
+  const activeConfig = materializeProfileWithProvider(
+    { providers: this.providers, configs: this.configs },
+    this.currentConfig,
+    this.configs?.[this.currentConfig] || {},
+  );
+  const activeProviderId = String(activeConfig?.providerId || '').trim();
+  const activeProvider = String(activeConfig?.provider || '').trim();
+  const activeModelId = String(activeConfig?.modelId || activeConfig?.model || '').trim();
+  const providers = listProviderInstances({ providers: this.providers }).filter(
+    (provider) => provider.isConnected && Array.isArray(provider.models) && provider.models.length > 0,
+  );
+
+  if (providers.length === 0) {
     const option = document.createElement('option');
     option.value = '';
-    option.textContent = 'No profiles';
+    option.textContent = 'No connected models';
     select.appendChild(option);
     this.updateModelSelectorGlow();
     return;
   }
 
-  for (const name of configNames) {
-    const config = this.configs[name];
-    const option = document.createElement('option');
-    option.value = name; // Use profile name as value
+  const providerIndicators: Record<string, string> = {
+    anthropic: '◉',
+    openai: '○',
+    kimi: '◈',
+    codex: '◆',
+    copilot: '✓',
+    qwen: '◇',
+    glm: '□',
+    minimax: '△',
+    openrouter: '◎',
+    parchi: '☻',
+    custom: '◇',
+  };
 
-    // Format: provider/model (plain text so it follows theme colors)
-    const isOAuthProvider = String(config.provider || '').endsWith('-oauth');
-    const providerLabel = isOAuthProvider ? config.provider.replace(/-oauth$/, '') : config.provider || 'unconfigured';
-    const modelShort = this.shortenModelName(config.model || 'no-model');
-    option.textContent = `${providerLabel}/${modelShort}`;
-
-    if (name === this.currentConfig) {
-      option.selected = true;
+  let matchedActiveOption = false;
+  for (const provider of providers) {
+    const optgroup = document.createElement('optgroup');
+    optgroup.label = provider.name;
+    const indicator = providerIndicators[provider.providerType.replace(/-oauth$/, '').toLowerCase()] || '◇';
+    for (const model of provider.models) {
+      const option = document.createElement('option');
+      option.value = encodeModelSelectValue(provider.id, model.id);
+      option.textContent = `${indicator} ${provider.name}/${model.label || model.id}`;
+      const isSelected = provider.id === activeProviderId && model.id === activeModelId;
+      if (isSelected) {
+        option.selected = true;
+        matchedActiveOption = true;
+      }
+      optgroup.appendChild(option);
     }
-    select.appendChild(option);
+    select.appendChild(optgroup);
+  }
+
+  if (!matchedActiveOption && activeModelId) {
+    const fallbackOption = document.createElement('option');
+    fallbackOption.value =
+      activeProviderId && activeModelId ? encodeModelSelectValue(activeProviderId, activeModelId) : '';
+    fallbackOption.textContent = `${activeProvider || 'current'}/${activeModelId}`;
+    fallbackOption.selected = true;
+    select.insertBefore(fallbackOption, select.firstChild);
   }
 
   this.updateModelSelectorGlow();
@@ -617,23 +686,22 @@ sidePanelProto.handleModelSelectChange = async function handleModelSelectChange(
   const select = this.elements.modelSelect;
   if (!select) return;
 
-  const selectedProfile = select.value;
-  if (!selectedProfile || !this.configs[selectedProfile]) return;
-  if (selectedProfile === this.currentConfig) return;
+  const selected = decodeModelSelectValue(select.value);
+  if (!selected) return;
+  const activeConfig = materializeProfileWithProvider(
+    { providers: this.providers, configs: this.configs },
+    this.currentConfig,
+    this.configs?.[this.currentConfig] || {},
+  );
+  const activeProviderId = String(activeConfig?.providerId || '').trim();
+  const activeModelId = String(activeConfig?.modelId || activeConfig?.model || '').trim();
+  if (selected.providerId === activeProviderId && selected.modelId === activeModelId) return;
 
-  // Switch to the selected profile
   try {
-    // setActiveConfig updates in-memory UI state; persistAllSettings ensures the background
-    // script (which reads from chrome.storage) uses the same active profile.
-    this.setActiveConfig(selectedProfile, true);
-    await this.persistAllSettings({ silent: true });
-    const selected = this.configs[selectedProfile] || {};
-    const providerLabel = selected.provider || 'unconfigured';
-    const modelLabel = selected.model || 'no-model';
-    this.updateStatus(`Switched to ${providerLabel}/${modelLabel}`, 'success');
+    this.selectModelFromGrid?.(selected.providerId, selected.modelId);
   } catch (error) {
-    console.error('[Parchi] Failed to persist selected profile:', error);
-    this.updateStatus('Failed to switch profile', 'error');
+    console.error('[Parchi] Failed to apply selected model:', error);
+    this.updateStatus('Failed to switch model', 'error');
   }
 };
 

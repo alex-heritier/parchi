@@ -24,6 +24,8 @@ export const getSidePanelElements = (): SidePanelElements => ({
   statusText: byId<HTMLElement>('statusText'),
   statusMeta: byId<HTMLElement>('statusMeta'),
   statusBar: byId<HTMLElement>('statusBar'),
+  statusDot: byId<HTMLElement>('statusDot'),
+  mascotStatus: byId<HTMLElement>('mascotStatus'),
   contextInspectorBtn: byId<HTMLButtonElement>('contextInspectorBtn'),
   contextInspectorValue: byId<HTMLElement>('contextInspectorValue'),
   contextInspectorMeta: byId<HTMLElement>('contextInspectorMeta'),
@@ -185,6 +187,7 @@ export const getSidePanelElements = (): SidePanelElements => ({
   accountManageBtn: byId<HTMLButtonElement>('accountManageBtn'),
   accountRefreshBtn: byId<HTMLButtonElement>('accountRefreshBtn'),
   accountSignOutBtn: byId<HTMLButtonElement>('accountSignOutBtn'),
+  paidModeProviderGrid: byId<HTMLElement>('paidModeProviderGrid'),
   // Relay
   relayEnabled: byId<HTMLInputElement>('relayEnabled'),
   relayUrl: byId<HTMLInputElement>('relayUrl'),

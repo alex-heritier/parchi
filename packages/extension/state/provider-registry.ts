@@ -1,7 +1,8 @@
 import type { ProviderInstance, ProviderModelEntry } from '@parchi/shared';
+import { getProviderDefinition } from '../ai/providers/registry.js';
 import { OAUTH_PROVIDERS } from '../oauth/providers.js';
 import type { OAuthProviderKey } from '../oauth/types.js';
-import { getProviderDefinition } from '../ai/providers/registry.js';
+import { mergeProviderModels, normalizeProviderModels } from './provider-models.js';
 
 type SettingsLike = Record<string, any>;
 
@@ -50,37 +51,45 @@ export const buildProviderInstanceId = (input: {
   return `${slugify(input.name || input.providerType)}-${Math.abs(hash >>> 0).toString(36)}`;
 };
 
-const normalizeModels = (models: unknown, fallbackModelId = ''): ProviderModelEntry[] => {
-  const out: ProviderModelEntry[] = [];
-  const seen = new Set<string>();
-  const pushModel = (entry: ProviderModelEntry | null | undefined) => {
-    const id = asString(entry?.id);
-    if (!id || seen.has(id)) return;
-    seen.add(id);
-    out.push({
-      id,
-      label: asString(entry?.label) || undefined,
-      contextWindow: Number.isFinite(Number(entry?.contextWindow)) ? Number(entry?.contextWindow) : undefined,
-      supportsVision: entry?.supportsVision === true,
-      addedManually: entry?.addedManually === true,
-    });
-  };
+const normalizeProviderInstance = (value: unknown): ProviderInstance | null => {
+  const provider = asRecord(value) as ProviderInstance;
+  const id = asString(provider.id);
+  const providerType = normalizeProviderType(provider.providerType);
+  if (!id || !providerType) return null;
 
-  if (Array.isArray(models)) {
-    for (const model of models) {
-      if (typeof model === 'string') {
-        pushModel({ id: model });
-        continue;
-      }
-      pushModel(model as ProviderModelEntry);
-    }
-  }
+  const authType: ProviderInstance['authType'] = providerType.endsWith('-oauth')
+    ? 'oauth'
+    : providerType === 'parchi'
+      ? 'managed'
+      : provider.authType === 'oauth' || provider.authType === 'managed'
+        ? provider.authType
+        : 'api-key';
+  const apiKey = asString(provider.apiKey);
+  const providerRecord = provider as unknown as Record<string, unknown>;
+  const fallbackModelId = asString(providerRecord.modelId || providerRecord.model);
+  const models = mergeProviderModels(providerType, provider.models, fallbackModelId ? [fallbackModelId] : []);
 
-  if (fallbackModelId) {
-    pushModel({ id: fallbackModelId, addedManually: true });
-  }
-
-  return out;
+  return {
+    ...provider,
+    id,
+    name: asString(provider.name) || getProviderDefinition(providerType)?.name || id,
+    providerType,
+    authType,
+    apiKey: authType === 'api-key' ? apiKey : '',
+    customEndpoint: asString(provider.customEndpoint),
+    extraHeaders: asRecord(provider.extraHeaders),
+    oauthProviderKey:
+      authType === 'oauth'
+        ? ((asString(provider.oauthProviderKey) || providerType.replace(/-oauth$/, '')) as OAuthProviderKey)
+        : undefined,
+    oauthEmail: asString(provider.oauthEmail) || undefined,
+    oauthError: asString(provider.oauthError) || undefined,
+    isConnected: authType === 'oauth' ? provider.isConnected === true : authType === 'managed' ? true : Boolean(apiKey),
+    models,
+    createdAt: Number(provider.createdAt || Date.now()),
+    updatedAt: Number(provider.updatedAt || provider.createdAt || Date.now()),
+    source: provider.source,
+  } satisfies ProviderInstance;
 };
 
 const buildProviderFromProfile = (
@@ -114,8 +123,11 @@ const buildProviderFromProfile = (
     });
   const now = Date.now();
   const prior = existingProviders[id];
-  const def = getProviderDefinition(providerType);
-  const models = normalizeModels(prior?.models, asString(profile.model || profile.modelId));
+  const models = mergeProviderModels(
+    providerType,
+    prior?.models,
+    [asString(profile.model || profile.modelId)].filter(Boolean),
+  );
   return {
     id,
     name: providerName,
@@ -128,7 +140,7 @@ const buildProviderFromProfile = (
     oauthEmail: prior?.oauthEmail,
     oauthError: prior?.oauthError,
     isConnected: authType === 'oauth' ? prior?.isConnected === true : authType === 'managed' ? true : Boolean(apiKey),
-    models: models.length > 0 ? models : normalizeModels(def?.models, asString(profile.model || profile.modelId)),
+    models,
     supportsImages: prior?.supportsImages ?? profile.supportsImages ?? undefined,
     createdAt: Number(prior?.createdAt || now),
     updatedAt: now,
@@ -138,7 +150,13 @@ const buildProviderFromProfile = (
 
 export const getProviderRegistry = (settings: SettingsLike): Record<string, ProviderInstance> => {
   const providers = isProviderRegistry(settings.providers) ? settings.providers : {};
-  return { ...providers };
+  const normalized: Record<string, ProviderInstance> = {};
+  for (const [key, value] of Object.entries(providers)) {
+    const provider = normalizeProviderInstance(value);
+    if (!provider) continue;
+    normalized[key] = provider;
+  }
+  return normalized;
 };
 
 export const listProviderInstances = (settings: SettingsLike): ProviderInstance[] =>
@@ -165,7 +183,7 @@ export const ensureProviderModel = (
           addedManually: model.addedManually === true,
         } satisfies ProviderModelEntry);
   if (!entry.id) return provider;
-  const existing = normalizeModels(provider.models);
+  const existing = normalizeProviderModels(provider.models);
   if (existing.some((item) => item.id === entry.id)) return provider;
   return { ...provider, models: [...existing, entry], updatedAt: Date.now() };
 };
@@ -240,7 +258,11 @@ export const migrateSettingsToProviderRegistry = (settings: SettingsLike): Setti
   next.configs = migratedConfigs;
 
   const activeConfigName = asString(next.activeConfig) || 'default';
-  const activeProfile = materializeProfileWithProvider(next, activeConfigName, asRecord(migratedConfigs[activeConfigName]));
+  const activeProfile = materializeProfileWithProvider(
+    next,
+    activeConfigName,
+    asRecord(migratedConfigs[activeConfigName]),
+  );
   next.provider = asString(activeProfile.provider);
   next.apiKey = asString(activeProfile.apiKey);
   next.model = asString(activeProfile.modelId || activeProfile.model);
