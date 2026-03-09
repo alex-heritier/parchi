@@ -75,3 +75,7 @@ tests/perf/perf-results-*.json
 .claude
 .osgrep
 .factory/settings.local.json
+
+# Design prototypes & captured screenshots
+design-prototype-*.html
+screenshots/
