@@ -10,8 +10,7 @@ export const getMissionControlElements = () => ({
   quickActionSettings: byId<HTMLButtonElement>('quickActionSettings'),
   quickActionHistory: byId<HTMLButtonElement>('quickActionHistory'),
   quickActionNewSession: byId<HTMLButtonElement>('quickActionNewSession'),
-  composerMoreBtn: byId<HTMLButtonElement>('composerMoreBtn'),
-  composerMoreMenu: byId<HTMLElement>('composerMoreMenu'),
+  // Composer tools (icon buttons, no dropdown)
   composerActionAttachFile: byId<HTMLButtonElement>('composerActionAttachFile'),
   composerActionRecordContext: byId<HTMLButtonElement>('composerActionRecordContext'),
   composerActionSelectTabs: byId<HTMLButtonElement>('composerActionSelectTabs'),

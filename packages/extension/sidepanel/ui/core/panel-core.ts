@@ -213,36 +213,36 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
     }, 150),
   );
 
-  const closeComposerMoreMenu = () => {
-    this.elements.composerMoreMenu?.classList.add('hidden');
-  };
   const closeQuickActionsMenu = () => {
     this.elements.quickActionsMenu?.classList.add('hidden');
   };
 
-  this.elements.composerMoreBtn?.addEventListener('click', (event: Event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const menu = this.elements.composerMoreMenu as HTMLElement | null;
-    if (!menu) return;
-    menu.classList.toggle('hidden');
-    closeQuickActionsMenu();
-  });
+  const closeComposerMoreMenu = () => {};
+
+  // Composer tool buttons — direct click handlers with active state
+  const setToolActive = (btn: HTMLButtonElement | null, active: boolean) => {
+    btn?.classList.toggle('active', active);
+  };
+
   this.elements.composerActionAttachFile?.addEventListener('click', () => {
-    closeComposerMoreMenu();
+    setToolActive(this.elements.composerActionAttachFile, true);
     this.elements.fileInput?.click();
+    setTimeout(() => setToolActive(this.elements.composerActionAttachFile, false), 200);
   });
   this.elements.composerActionRecordContext?.addEventListener('click', () => {
-    closeComposerMoreMenu();
+    setToolActive(this.elements.composerActionRecordContext, true);
     this.elements.recordBtn?.click();
+    setTimeout(() => setToolActive(this.elements.composerActionRecordContext, false), 200);
   });
   this.elements.composerActionSelectTabs?.addEventListener('click', () => {
-    closeComposerMoreMenu();
+    setToolActive(this.elements.composerActionSelectTabs, true);
     this.toggleTabSelector();
+    setTimeout(() => setToolActive(this.elements.composerActionSelectTabs, false), 200);
   });
   this.elements.composerActionExport?.addEventListener('click', () => {
-    closeComposerMoreMenu();
+    setToolActive(this.elements.composerActionExport, true);
     this.showExportMenu();
+    setTimeout(() => setToolActive(this.elements.composerActionExport, false), 200);
   });
 
   this.elements.quickActionsFab?.addEventListener('click', (event: Event) => {
@@ -269,23 +269,43 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
     closeQuickActionsMenu();
     this.startNewSession();
   });
+  document.getElementById('quickActionResetProfiles')?.addEventListener('click', () => {
+    closeQuickActionsMenu();
+    this.resetAllProfiles?.();
+  });
 
-  // Balance popover on status bar click
-  const statusBar = document.getElementById('statusBar');
+  // Balance popover on mascot click — status is shown inside mascot wrapper
+  const mascotCorner = document.getElementById('mascotCorner');
+  const mascotStatus = document.getElementById('mascotStatus');
   const balancePopover = document.getElementById('balancePopover');
   const balancePopoverClose = document.getElementById('balancePopoverClose');
-  if (statusBar && balancePopover) {
-    statusBar.addEventListener('click', () => this.toggleBalancePopover?.());
+
+  // Show/hide mascot status on hover
+  if (mascotCorner && mascotStatus) {
+    mascotCorner.addEventListener('mouseenter', () => {
+      mascotStatus.classList.remove('hidden');
+    });
+    mascotCorner.addEventListener('mouseleave', () => {
+      mascotStatus.classList.add('hidden');
+    });
+    mascotCorner.addEventListener('click', () => {
+      this.toggleBalancePopover?.();
+    });
+  }
+
+  if (balancePopover) {
     balancePopoverClose?.addEventListener('click', (e: Event) => {
       e.stopPropagation();
       balancePopover.classList.add('hidden');
     });
     // Close popover when clicking outside
     document.addEventListener('click', (e: Event) => {
+      const target = e.target as Node;
+      const clickedMascot = mascotCorner?.contains(target) ?? false;
       if (
         !balancePopover.classList.contains('hidden') &&
-        !balancePopover.contains(e.target as Node) &&
-        !statusBar.contains(e.target as Node)
+        !balancePopover.contains(target) &&
+        !clickedMascot
       ) {
         balancePopover.classList.add('hidden');
       }
@@ -324,13 +344,8 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
   document.addEventListener('click', (event: Event) => {
     const target = event.target as Node | null;
     if (!target) return;
-    const composerMenu = this.elements.composerMoreMenu as HTMLElement | null;
-    const composerButton = this.elements.composerMoreBtn as HTMLElement | null;
     const quickMenu = this.elements.quickActionsMenu as HTMLElement | null;
     const quickButton = this.elements.quickActionsFab as HTMLElement | null;
-    if (composerMenu && !composerMenu.classList.contains('hidden')) {
-      if (!composerMenu.contains(target) && !composerButton?.contains(target)) closeComposerMoreMenu();
-    }
     if (quickMenu && !quickMenu.classList.contains('hidden')) {
       if (!quickMenu.contains(target) && !quickButton?.contains(target)) closeQuickActionsMenu();
     }

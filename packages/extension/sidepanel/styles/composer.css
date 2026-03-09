@@ -41,6 +41,7 @@
   z-index: 10;
   pointer-events: none;
   transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.6s ease, box-shadow 0.6s ease;
+  border-radius: 0 0 0 16px;
 }
 
 .context-bar.level-low {
@@ -195,50 +196,48 @@
   display: none;
 }
 
-.composer-more {
+/* Composer tools — icon buttons with hover tooltips */
+.composer-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.composer-tool-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--muted-dim);
+  cursor: pointer;
+  transition: all var(--duration-fast) ease;
   position: relative;
 }
 
-.composer-more-btn {
-  width: 30px;
-  height: 30px;
-}
-
-.composer-more-menu {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 8px);
-  min-width: 164px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px;
-  border-radius: 10px;
-  border: 1px solid var(--ink-2);
-  background: rgb(18 20 24 / 0.98);
-  box-shadow: 0 12px 30px rgb(0 0 0 / 0.45);
-  z-index: 180;
-}
-
-.composer-more-menu.hidden {
-  display: none;
-}
-
-.composer-more-item {
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  border-radius: 7px;
-  padding: 7px 9px;
-  text-align: left;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all var(--duration-fast) ease;
-}
-
-.composer-more-item:hover {
-  background: rgb(255 255 255 / 0.06);
+.composer-tool-btn:hover {
+  background: rgba(255, 255, 255, 0.055);
   color: var(--foreground);
+}
+
+.composer-tool-btn:active {
+  transform: scale(0.92);
+}
+
+.composer-tool-btn.active {
+  color: var(--accent);
+  background: rgb(var(--accent-rgb) / 0.08);
+}
+
+.composer-tool-btn svg {
+  transition: transform var(--duration-fast) ease;
+}
+
+.composer-tool-btn:hover svg {
+  transform: scale(1.05);
 }
 
 /* Zoom controls — hidden from toolbar, accessible via settings */

@@ -538,6 +538,63 @@ body[data-right-panel="settings"] {
   border-bottom: 1px solid var(--ink-2);
 }
 
+/* Mascot status — shown inside mascot click-through */
+.mascot-status {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: var(--card);
+  border: 1px solid var(--ink-2);
+  border-radius: 8px;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  animation: mascotStatusAppear 0.15s var(--ease-out-expo);
+  pointer-events: none;
+}
+
+.mascot-status.hidden {
+  display: none;
+}
+
+.mascot-status .status-dot {
+  width: 5px;
+  height: 5px;
+}
+
+.mascot-status #statusText {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.mascot-status .status-meta {
+  font-size: 9px;
+  color: var(--muted-dim);
+  padding-left: 5px;
+  border-left: 1px solid var(--ink-1);
+}
+
+.mascot-status .status-meta:empty {
+  display: none;
+}
+
+@keyframes mascotStatusAppear {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes bubbleAppear {
   from {
     opacity: 0;

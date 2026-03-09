@@ -197,6 +197,22 @@ sidePanelProto.createNewConfig = async function createNewConfig(name?: string) {
   this.updateStatus(`Profile "${trimmedName}" created`, 'success');
 };
 
+sidePanelProto.resetAllProfiles = async function resetAllProfiles() {
+  try {
+    await chrome.runtime.sendMessage({ type: 'reset_all_profiles' });
+    this.configs = { default: { provider: '', apiKey: '', model: '', systemPrompt: this.getDefaultSystemPrompt(), temperature: 0.7, maxTokens: 4096, contextLimit: 200000, timeout: 30000, showThinking: true, streamResponses: true } };
+    this.providers = {};
+    this.currentConfig = 'default';
+    this.refreshConfigDropdown();
+    this.populateModelSelect?.();
+    this.updateModelDisplay?.();
+    this.renderProfileGrid?.();
+    this.updateStatus('All profiles and providers reset', 'success');
+  } catch (error) {
+    this.updateStatus('Failed to reset profiles', 'error');
+  }
+};
+
 sidePanelProto.deleteConfig = async function deleteConfig() {
   if (this.currentConfig === 'default') {
     this.updateStatus('Cannot delete default profile', 'warning');
@@ -333,6 +349,40 @@ sidePanelProto.renderProfileGrid = function renderProfileGrid() {
       `;
     this.elements.agentGrid.appendChild(card);
   });
+
+  // Delegated click handler for delete buttons, role pills, and card selection.
+  // Only bind once — use a flag to avoid stacking listeners on re-renders.
+  if (!(this.elements.agentGrid as any)._profileGridBound) {
+    (this.elements.agentGrid as any)._profileGridBound = true;
+    this.elements.agentGrid.addEventListener('click', (event: Event) => {
+      const target = event.target as HTMLElement;
+
+      // Delete button
+      const deleteBtn = target.closest<HTMLElement>('[data-delete-profile]');
+      if (deleteBtn) {
+        event.stopPropagation();
+        const profileName = deleteBtn.dataset.deleteProfile;
+        if (profileName) this.deleteProfileByName(profileName);
+        return;
+      }
+
+      // Role pill
+      const pill = target.closest<HTMLElement>('.role-pill');
+      if (pill) {
+        event.stopPropagation();
+        const profileName = pill.dataset.profile;
+        const role = pill.dataset.role;
+        if (profileName && role) this.assignProfileRole(profileName, role);
+        return;
+      }
+
+      // Card click — open editor for that profile
+      const card = target.closest<HTMLElement>('.agent-card');
+      if (card?.dataset.profile) {
+        this.editProfile(card.dataset.profile, true);
+      }
+    });
+  }
 
   this.mountProfileEditorInGrid?.();
 };

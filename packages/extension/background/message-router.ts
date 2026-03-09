@@ -230,6 +230,23 @@ export async function handleMessage(
         break;
       }
 
+      case 'reset_all_profiles': {
+        await chrome.storage.local.set({
+          configs: {},
+          providers: {},
+          activeConfig: 'default',
+          provider: '',
+          apiKey: '',
+          model: '',
+          customEndpoint: '',
+          extraHeaders: {},
+          providerId: '',
+          modelId: '',
+        });
+        sendResponse({ success: true });
+        break;
+      }
+
       default:
         console.warn('Unknown message type:', message.type);
     }
