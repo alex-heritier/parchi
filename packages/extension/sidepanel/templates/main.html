@@ -2,17 +2,6 @@
 
                 <!-- Chat Interface -->
                 <div id="chatInterface" class="chat-area">
-                    <!-- Agent Nav (when subagents active) -->
-                    <div id="agentNav" class="agent-nav hidden">
-                        <div
-                            class="agent-nav-item main-agent active"
-                            data-agent="main"
-                        >
-                            <span class="agent-status"></span>
-                            <span>Main</span>
-                        </div>
-                    </div>
-
                     <!-- Empty state -->
                     <div id="chatEmptyState" class="chat-empty-state">
                         <div class="chat-empty-orb"></div>
@@ -21,6 +10,8 @@
                             Ask anything or add tabs/files for richer context.
                         </div>
                     </div>
+
+                    <div id="agentNav" class="agent-nav hidden" aria-label="Agent sessions"></div>
 
                     <!-- Messages -->
                     <div id="chatMessages" class="chat-messages"></div>
@@ -124,110 +115,127 @@
                                     </div>
                                 </div>
                                 <div class="composer-toolbar-right">
-                                    <button
-                                        id="fileBtn"
-                                        class="icon-btn"
-                                        title="Attach file"
-                                        data-tooltip="Attach file"
-                                    >
-                                        <svg
-                                            width="15"
-                                            height="15"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="1.75"
-                                        >
-                                            <path
-                                                d="M21.44 11.05 12.36 20.12a5 5 0 0 1-7.07-7.07l8.49-8.49a3 3 0 0 1 4.24 4.24L9.76 17.12a1 1 0 0 1-1.41-1.41l7.07-7.07"
-                                            />
-                                        </svg>
-                                    </button>
                                     <input
                                         id="fileInput"
                                         type="file"
                                         multiple
-                                        accept=".md,.txt,.csv,.json,.log"
+                                        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.md,.txt,.csv,.json,.log,.xml,.yaml,.yml,.zip,.7z,.tar,.gz,.webp,.heic,.heif,.mp4,.mov,.avi,.mkv,.mp3,.wav,.m4a"
                                         class="hidden"
                                     />
-                                    <button id="recordBtn" class="icon-btn record-btn" title="Record context" data-tooltip="Record context">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                                            <circle cx="12" cy="12" r="7"/>
-                                        </svg>
-                                    </button>
-                                    <button
-                                        id="tabSelectorBtn"
-                                        class="icon-btn tab-selector-btn"
-                                        title="Select tabs"
-                                        data-tooltip="Select tabs for context"
-                                    >
-                                        <svg
-                                            width="15"
-                                            height="15"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="1.75"
+                                    <div class="composer-legacy-controls" aria-hidden="true">
+                                        <button
+                                            id="fileBtn"
+                                            class="icon-btn"
+                                            title="Attach file"
+                                            data-tooltip="Attach file"
                                         >
-                                            <rect
-                                                x="3"
-                                                y="3"
-                                                width="18"
-                                                height="18"
-                                                rx="2"
-                                            />
-                                            <line
-                                                x1="3"
-                                                y1="9"
-                                                x2="21"
-                                                y2="9"
-                                            />
-                                            <line
-                                                x1="9"
-                                                y1="21"
-                                                x2="9"
-                                                y2="9"
-                                            />
-                                        </svg>
-                                    </button>
-                                    <button
-                                        id="exportBtn"
-                                        class="icon-btn export-btn"
-                                        title="Export conversation"
-                                        data-tooltip="Export conversation"
-                                    >
-                                        <svg
-                                            width="16"
-                                            height="16"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="2"
+                                            <svg
+                                                width="15"
+                                                height="15"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.75"
+                                            >
+                                                <path
+                                                    d="M21.44 11.05 12.36 20.12a5 5 0 0 1-7.07-7.07l8.49-8.49a3 3 0 0 1 4.24 4.24L9.76 17.12a1 1 0 0 1-1.41-1.41l7.07-7.07"
+                                                />
+                                            </svg>
+                                        </button>
+                                        <button id="recordBtn" class="icon-btn record-btn" title="Record context" data-tooltip="Record context">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                                <circle cx="12" cy="12" r="7"/>
+                                            </svg>
+                                        </button>
+                                        <button
+                                            id="tabSelectorBtn"
+                                            class="icon-btn tab-selector-btn"
+                                            title="Select tabs"
+                                            data-tooltip="Select tabs for context"
                                         >
-                                            <path
-                                                d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
-                                            />
-                                            <polyline
-                                                points="7 10 12 15 17 10"
-                                            />
-                                            <line
-                                                x1="12"
-                                                y1="15"
-                                                x2="12"
-                                                y2="3"
-                                            />
-                                        </svg>
-                                    </button>
-                                    <div class="zoom-controls" title="Adjust text size">
-                                        <button id="zoomOutBtn" class="zoom-btn" type="button" aria-label="Zoom out">
-                                            A-
+                                            <svg
+                                                width="15"
+                                                height="15"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.75"
+                                            >
+                                                <rect
+                                                    x="3"
+                                                    y="3"
+                                                    width="18"
+                                                    height="18"
+                                                    rx="2"
+                                                />
+                                                <line
+                                                    x1="3"
+                                                    y1="9"
+                                                    x2="21"
+                                                    y2="9"
+                                                />
+                                                <line
+                                                    x1="9"
+                                                    y1="21"
+                                                    x2="9"
+                                                    y2="9"
+                                                />
+                                            </svg>
                                         </button>
-                                        <button id="zoomResetBtn" class="zoom-btn zoom-reset" type="button" aria-label="Reset zoom">
-                                            A
+                                        <button
+                                            id="exportBtn"
+                                            class="icon-btn export-btn"
+                                            title="Export conversation"
+                                            data-tooltip="Export conversation"
+                                        >
+                                            <svg
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <path
+                                                    d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
+                                                />
+                                                <polyline
+                                                    points="7 10 12 15 17 10"
+                                                />
+                                                <line
+                                                    x1="12"
+                                                    y1="15"
+                                                    x2="12"
+                                                    y2="3"
+                                                />
+                                            </svg>
                                         </button>
-                                        <button id="zoomInBtn" class="zoom-btn" type="button" aria-label="Zoom in">
-                                            A+
+                                        <div class="zoom-controls" title="Adjust text size">
+                                            <button id="zoomOutBtn" class="zoom-btn" type="button" aria-label="Zoom out">
+                                                A-
+                                            </button>
+                                            <button id="zoomResetBtn" class="zoom-btn zoom-reset" type="button" aria-label="Reset zoom">
+                                                A
+                                            </button>
+                                            <button id="zoomInBtn" class="zoom-btn" type="button" aria-label="Zoom in">
+                                                A+
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="composer-more">
+                                        <button id="composerMoreBtn" class="icon-btn composer-more-btn" title="More tools" data-tooltip="More tools">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <circle cx="5" cy="12" r="1.5" />
+                                                <circle cx="12" cy="12" r="1.5" />
+                                                <circle cx="19" cy="12" r="1.5" />
+                                            </svg>
                                         </button>
+                                        <div id="composerMoreMenu" class="composer-more-menu hidden" role="menu" aria-label="Composer tools">
+                                            <button id="composerActionAttachFile" class="composer-more-item" type="button">Attach file</button>
+                                            <button id="composerActionRecordContext" class="composer-more-item" type="button">Record context</button>
+                                            <button id="composerActionSelectTabs" class="composer-more-item" type="button">Select tabs</button>
+                                            <button id="composerActionExport" class="composer-more-item" type="button">Export chat</button>
+                                        </div>
                                     </div>
                                     <button
                                         id="setupAccessBtn"
@@ -279,6 +287,47 @@
                     </div>
                 </div>
 
+                <!-- Mission Control Panel -->
+                <div id="missionControlScrim" class="mission-control-scrim"></div>
+                <div id="missionControlPanel" class="mission-control-panel">
+                    <div class="mc-header">
+                        <span class="mc-header-title">Mission Control</span>
+                        <span id="mcHeaderMeta" class="mc-header-meta"></span>
+                        <button id="mcCloseBtn" class="mc-close-btn" title="Close">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="mc-body">
+                        <!-- Agent list view -->
+                        <div id="mcAgentList" class="mc-agent-list"></div>
+                        <!-- Detail view (hidden by default) -->
+                        <div id="mcDetail" class="mc-detail">
+                            <div class="mc-detail-header">
+                                <button id="mcDetailBack" class="mc-detail-back" title="Back to list">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="15 18 9 12 15 6" />
+                                    </svg>
+                                </button>
+                                <span id="mcDetailName" class="mc-detail-name"></span>
+                                <span id="mcDetailStatusPill" class="mc-detail-status-pill"></span>
+                            </div>
+                            <div id="mcDetailBody" class="mc-detail-body"></div>
+                            <div class="mc-message-bar">
+                                <input id="mcMessageInput" class="mc-message-input" type="text" placeholder="Send instruction to agent..." />
+                                <button id="mcMessageSend" class="mc-message-send" title="Send" disabled>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                        <line x1="12" y1="19" x2="12" y2="5" />
+                                        <polyline points="5 12 12 5 19 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- FAB Group - Top right -->
                 <div class="fab-group">
                     <button
@@ -322,24 +371,57 @@
                             <button id="contextInspectorCompactBtn" class="btn btn-secondary" type="button">Compact now</button>
                         </div>
                     </div>
-                    <button id="openSidebarBtn" class="settings-fab" title="Settings" type="button" data-tooltip="Settings" data-tooltip-pos="below">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
-                            <circle cx="12" cy="12" r="3" />
-                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                        </svg>
-                    </button>
-                    <button id="historyFab" class="history-fab" title="History" type="button" data-tooltip="History" data-tooltip-pos="below">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10" />
-                            <polyline points="12 6 12 12 16 14" />
-                        </svg>
-                    </button>
-                    <button id="newSessionFab" class="new-session-fab" title="New session" type="button" data-tooltip="New session" data-tooltip-pos="below">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 5v14" />
-                            <path d="M5 12h14" />
-                        </svg>
-                    </button>
+                    <div class="fab-legacy-actions" aria-hidden="true">
+                        <button
+                            id="missionControlFab"
+                            class="mission-control-fab"
+                            title="Mission Control"
+                            data-tooltip="Mission Control"
+                            data-tooltip-pos="below"
+                            type="button"
+                        >
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                                <rect x="3" y="3" width="7" height="7" rx="1" />
+                                <rect x="14" y="3" width="7" height="7" rx="1" />
+                                <rect x="3" y="14" width="7" height="7" rx="1" />
+                                <rect x="14" y="14" width="7" height="7" rx="1" />
+                            </svg>
+                            <span id="mcFabBadge" class="mc-fab-badge" style="display: none;"></span>
+                        </button>
+                        <button id="openSidebarBtn" class="settings-fab" title="Settings" type="button" data-tooltip="Settings" data-tooltip-pos="below">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                                <circle cx="12" cy="12" r="3" />
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                            </svg>
+                        </button>
+                        <button id="historyFab" class="history-fab" title="History" type="button" data-tooltip="History" data-tooltip-pos="below">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10" />
+                                <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                        </button>
+                        <button id="newSessionFab" class="new-session-fab" title="New session" type="button" data-tooltip="New session" data-tooltip-pos="below">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 5v14" />
+                                <path d="M5 12h14" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="fab-quick-actions">
+                        <button id="quickActionsFab" class="quick-actions-fab" title="Quick actions" data-tooltip="Quick actions" type="button">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="4" y1="7" x2="20" y2="7" />
+                                <line x1="4" y1="12" x2="20" y2="12" />
+                                <line x1="4" y1="17" x2="20" y2="17" />
+                            </svg>
+                        </button>
+                        <div id="quickActionsMenu" class="quick-actions-menu hidden" role="menu" aria-label="Quick actions">
+                            <button id="quickActionMissionControl" class="quick-actions-item" type="button">Mission Control</button>
+                            <button id="quickActionSettings" class="quick-actions-item" type="button">Settings</button>
+                            <button id="quickActionHistory" class="quick-actions-item" type="button">History</button>
+                            <button id="quickActionNewSession" class="quick-actions-item" type="button">New session</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- History Drawer Overlay -->

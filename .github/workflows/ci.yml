@@ -116,5 +116,7 @@ jobs:
             test-output/orchestrator-fixture-execution.md
             test-output/orchestrator-criteria-matrix.json
             test-output/orchestrator-criteria-matrix.md
+            test-output/orchestrator-service-integration.json
+            test-output/orchestrator-service-integration.md
           if-no-files-found: warn
           retention-days: 30

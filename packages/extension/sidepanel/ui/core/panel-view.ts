@@ -19,7 +19,7 @@ sidePanelProto.closeSidebar = function closeSidebar() {
   setSidebarOpen(this.elements, false);
 };
 
-sidePanelProto.showRightPanel = function showRightPanel(panelName: 'settings' | null) {
+sidePanelProto.showRightPanel = function showRightPanel(panelName: 'settings' | 'account' | null) {
   showRightPanelContent(this.elements, panelName);
 };
 
@@ -48,7 +48,13 @@ sidePanelProto.closeHistoryDrawer = function closeHistoryDrawer() {
 sidePanelProto.openSettingsPanel = function openSettingsPanel() {
   this.openSidebar();
   this.showRightPanel('settings');
-  this.switchSettingsTab(this.currentSettingsTab || 'setup');
+  this.switchSettingsTab(this.currentSettingsTab || 'providers');
+  void this.refreshAccountPanel?.({ silent: true });
+};
+
+sidePanelProto.openAccountPanel = function openAccountPanel() {
+  this.openSidebar();
+  this.showRightPanel('account');
   void this.refreshAccountPanel?.({ silent: true });
 };
 
@@ -96,7 +102,13 @@ sidePanelProto.startNewSession = function startNewSession() {
   if (mascotBubble) mascotBubble.classList.add('hidden');
   this.updateMascotEyeState?.();
   this.subagents.clear();
+  this.tabToAgentId.clear();
   this.activeAgent = 'main';
+  this.mcSelectedAgentId = null;
+  if (this.elements.mcMessageInput) this.elements.mcMessageInput.value = '';
+  this.closeMissionControl?.();
+  this.mcUpdateFab?.();
+  this.mcRenderAgentList?.();
   this.historyTurnMap.clear();
   clearReportImages(this.reportImages, this.reportImageOrder, this.selectedReportImageIds);
   this.pendingTurnDraft = null;
@@ -108,6 +120,7 @@ sidePanelProto.startNewSession = function startNewSession() {
   // Clear session tabs HUD
 
   this.updateStatus('Ready for a new session', 'success');
+  this.syncAgentComposerState?.();
   this.switchView('chat');
   this.updateContextUsage();
   this.scrollToBottom({ force: true });

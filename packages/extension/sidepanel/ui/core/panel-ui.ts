@@ -1,9 +1,7 @@
-import type { RunPlan } from '@parchi/shared';
-import type { RecordedContext } from '@parchi/shared';
+import type { RecordedContext, RunPlan } from '@parchi/shared';
 import type { Message } from '../../../ai/message-schema.js';
-import type { UsageStats } from '../types/panel-types.js';
+import type { SubagentEntry, UsageStats } from '../types/panel-types.js';
 import { getSidePanelElements } from './panel-elements.js';
-
 export class SidePanelUI {
   // Allow prototype augmentation across panel-*.ts modules.
   [key: string]: any;
@@ -15,6 +13,7 @@ export class SidePanelUI {
   firstUserMessage: string;
   currentConfig: string;
   configs: Record<string, any>;
+  providers: Record<string, any>;
   toolCallViews: Map<string, any>;
   lastChatTurn: HTMLElement | null;
   selectedTabs: Map<number, any>;
@@ -82,21 +81,14 @@ export class SidePanelUI {
   };
   auxAgentProfiles: string[];
   currentView: 'chat' | 'history';
-  currentSettingsTab: 'setup' | 'oauth' | 'model' | 'profiles' | 'usage' | 'design' | 'advanced' | 'providers';
+  currentSettingsTab: 'providers' | 'model' | 'generation' | 'advanced';
   profileEditorTarget: string;
-  subagents: Map<
-    string,
-    {
-      name: string;
-      status: string;
-      messages: unknown[];
-      tasks?: string[];
-      startedAt?: number;
-      completedAt?: number;
-      summary?: string;
-    }
-  >;
+  subagents: Map<string, SubagentEntry>;
   activeAgent: string;
+  tabToAgentId: Map<number, string>;
+  missionControlOpen: boolean;
+  mcSelectedAgentId: string | null;
+
   activityPanelOpen: boolean;
   latestThinking: string | null;
   activeToolName: string | null;
@@ -172,13 +164,10 @@ export class SidePanelUI {
   modelCatalogUpdatedAt: number;
   modelCatalogRefreshPromise: Promise<void> | null;
   _autoSaveDirHandle: any;
-
-  // Methods attached via prototype in panel-modules
-  declare init: () => Promise<void>;
+  declare init: () => Promise<void>; // Methods attached via prototype in panel-modules
 
   constructor() {
     this.elements = getSidePanelElements();
-
     this.displayHistory = [];
     this.contextHistory = [];
     const suffix = typeof crypto?.randomUUID === 'function' ? crypto.randomUUID() : String(Date.now());
@@ -187,6 +176,7 @@ export class SidePanelUI {
     this.firstUserMessage = '';
     this.currentConfig = 'default';
     this.configs = { default: {} };
+    this.providers = {};
     this.toolCallViews = new Map();
     this.lastChatTurn = null;
     this.selectedTabs = new Map();
@@ -235,10 +225,14 @@ export class SidePanelUI {
     };
     this.auxAgentProfiles = [];
     this.currentView = 'chat';
-    this.currentSettingsTab = 'setup';
+    this.currentSettingsTab = 'providers';
     this.profileEditorTarget = 'default';
     this.subagents = new Map();
     this.activeAgent = 'main';
+    this.tabToAgentId = new Map();
+    this.missionControlOpen = false;
+    this.mcSelectedAgentId = null;
+
     this.activityPanelOpen = false;
     this.latestThinking = null;
     this.activeToolName = null;

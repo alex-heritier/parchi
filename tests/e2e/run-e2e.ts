@@ -130,7 +130,21 @@ test('Tab selector lists integration test page', async ({ panel, context }) => {
   const testPage = await context.newPage();
   await testPage.goto(testPageUrl);
 
-  await panel.click('#tabSelectorBtn');
+  const tabSelectorVisible = await panel.evaluate(() => {
+    const el = document.getElementById('tabSelectorBtn');
+    if (!el) return false;
+    const style = getComputedStyle(el);
+    return style.display !== 'none' && style.visibility !== 'hidden' && el.getBoundingClientRect().width > 0;
+  });
+
+  if (tabSelectorVisible) {
+    await panel.click('#tabSelectorBtn');
+  } else {
+    await panel.click('#composerMoreBtn');
+    await panel.waitForSelector('#composerMoreMenu:not(.hidden)', { timeout: timeoutMs });
+    await panel.click('#composerActionSelectTabs');
+  }
+
   await panel.waitForSelector('#tabSelector', { state: 'visible', timeout: timeoutMs });
   await panel.waitForSelector('.tab-item-title', { timeout: timeoutMs });
   const titles = await panel.$$eval('.tab-item-title', (nodes) => nodes.map((node) => (node.textContent || '').trim()));

@@ -1,3 +1,4 @@
+import type { RuntimeMessageBase } from '@parchi/shared';
 import type { RunMeta, SessionState } from '../service-types.js';
 
 export type ToolExecutionArgs = Record<string, unknown>;
@@ -8,6 +9,7 @@ export type ToolExecutionOptions = {
   runMeta: RunMeta;
   settings: ToolExecutionSettings;
   visionProfile?: ToolExecutionProfile;
+  runtimeMeta?: Pick<RuntimeMessageBase, 'agentId' | 'agentName' | 'agentKind' | 'agentSessionId' | 'parentSessionId'>;
 };
 
 export type NestedToolExecutor = (

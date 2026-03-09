@@ -154,6 +154,12 @@ export async function captureActiveTabState(
   try {
     const activeTab = await getActiveTab();
     if (!activeTab || typeof activeTab.id !== 'number') return null;
+    // Skip restricted URLs that extensions cannot access
+    const url = activeTab.url || activeTab.pendingUrl || '';
+    if (/^(chrome|chrome-extension|devtools|edge|about):\/\//i.test(url)) {
+      console.warn('[captureActiveTab] Skipped restricted URL:', url);
+      return null;
+    }
     if (!sessionTabs.has(activeTab.id)) {
       sessionTabs.set(activeTab.id, {
         id: activeTab.id,

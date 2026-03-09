@@ -120,6 +120,7 @@ sidePanelProto.init = async function init() {
     this.connectLifecyclePort();
     this.setupEventListeners();
     this.setupPlanDrawer();
+    this.setupMissionControl();
     this.setupResizeObserver();
     setSidebarOpen(this.elements, false);
     await this.loadSettings();
@@ -131,6 +132,7 @@ sidePanelProto.init = async function init() {
     await this.loadHistoryList();
     this.updateContextUsage?.();
     this.updateStatus('Ready', 'success');
+    this.syncAgentComposerState?.();
     this.updateModelDisplay();
     this.fetchAvailableModels();
     this.updateChatEmptyState?.();
@@ -211,6 +213,63 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
     }, 150),
   );
 
+  const closeComposerMoreMenu = () => {
+    this.elements.composerMoreMenu?.classList.add('hidden');
+  };
+  const closeQuickActionsMenu = () => {
+    this.elements.quickActionsMenu?.classList.add('hidden');
+  };
+
+  this.elements.composerMoreBtn?.addEventListener('click', (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const menu = this.elements.composerMoreMenu as HTMLElement | null;
+    if (!menu) return;
+    menu.classList.toggle('hidden');
+    closeQuickActionsMenu();
+  });
+  this.elements.composerActionAttachFile?.addEventListener('click', () => {
+    closeComposerMoreMenu();
+    this.elements.fileInput?.click();
+  });
+  this.elements.composerActionRecordContext?.addEventListener('click', () => {
+    closeComposerMoreMenu();
+    this.elements.recordBtn?.click();
+  });
+  this.elements.composerActionSelectTabs?.addEventListener('click', () => {
+    closeComposerMoreMenu();
+    this.toggleTabSelector();
+  });
+  this.elements.composerActionExport?.addEventListener('click', () => {
+    closeComposerMoreMenu();
+    this.showExportMenu();
+  });
+
+  this.elements.quickActionsFab?.addEventListener('click', (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const menu = this.elements.quickActionsMenu as HTMLElement | null;
+    if (!menu) return;
+    menu.classList.toggle('hidden');
+    closeComposerMoreMenu();
+  });
+  this.elements.quickActionMissionControl?.addEventListener('click', () => {
+    closeQuickActionsMenu();
+    this.toggleMissionControl?.();
+  });
+  this.elements.quickActionSettings?.addEventListener('click', () => {
+    closeQuickActionsMenu();
+    this.openSettingsPanel?.();
+  });
+  this.elements.quickActionHistory?.addEventListener('click', () => {
+    closeQuickActionsMenu();
+    this.openHistoryDrawer();
+  });
+  this.elements.quickActionNewSession?.addEventListener('click', () => {
+    closeQuickActionsMenu();
+    this.startNewSession();
+  });
+
   // Balance popover on status bar click
   const statusBar = document.getElementById('statusBar');
   const balancePopover = document.getElementById('balancePopover');
@@ -262,6 +321,21 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
     this.closeContextInspectorPopover?.();
   });
 
+  document.addEventListener('click', (event: Event) => {
+    const target = event.target as Node | null;
+    if (!target) return;
+    const composerMenu = this.elements.composerMoreMenu as HTMLElement | null;
+    const composerButton = this.elements.composerMoreBtn as HTMLElement | null;
+    const quickMenu = this.elements.quickActionsMenu as HTMLElement | null;
+    const quickButton = this.elements.quickActionsFab as HTMLElement | null;
+    if (composerMenu && !composerMenu.classList.contains('hidden')) {
+      if (!composerMenu.contains(target) && !composerButton?.contains(target)) closeComposerMoreMenu();
+    }
+    if (quickMenu && !quickMenu.classList.contains('hidden')) {
+      if (!quickMenu.contains(target) && !quickButton?.contains(target)) closeQuickActionsMenu();
+    }
+  });
+
   // Provider change — also refresh model catalog for setup tab
   const debouncedSetupModelRefresh = debounce(() => this.refreshModelCatalog({ force: true }), 800);
   this.elements.provider?.addEventListener('change', () => {
@@ -305,37 +379,21 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
   this.elements.activeConfig?.addEventListener('change', () => this.switchConfig());
 
   this.elements.settingsTabProvidersBtn?.addEventListener('click', () => this.switchSettingsTab('providers'));
-  this.elements.settingsTabProfilesBtn?.addEventListener('click', () => this.switchSettingsTab('profiles'));
-  this.elements.settingsTabDesignBtn?.addEventListener('click', () => this.switchSettingsTab('design'));
+  this.elements.settingsTabModelBtn?.addEventListener('click', () => this.switchSettingsTab('model'));
+  this.elements.settingsTabGenerationBtn?.addEventListener('click', () => this.switchSettingsTab('generation'));
   this.elements.settingsTabAdvancedBtn?.addEventListener('click', () => this.switchSettingsTab('advanced'));
+  this.elements.settingsOpenAccountBtn?.addEventListener('click', () => this.openAccountPanel?.());
+  this.elements.accountBackToSettingsBtn?.addEventListener('click', () => this.openSettingsPanel?.());
   document.getElementById('usageRefreshBtn')?.addEventListener('click', () => this.refreshUsageTab?.());
   document.getElementById('usageClearBtn')?.addEventListener('click', () => this.clearUsageData?.());
-  this.elements.createProfileBtn?.addEventListener('click', () => this.createProfileFromInput());
-  this.elements.agentGrid?.addEventListener('click', (event) => {
-    if ((event.target as HTMLElement | null)?.closest('.profile-editor')) {
-      return;
-    }
-    const deleteBtn = (event.target as HTMLElement | null)?.closest('.agent-card-delete') as HTMLElement | null;
-    if (deleteBtn) {
-      event.stopPropagation();
-      const profileName = deleteBtn.dataset.deleteProfile;
-      if (profileName) this.deleteProfileByName(profileName);
-      return;
-    }
-    const pill = (event.target as HTMLElement | null)?.closest('.role-pill');
-    if (pill) {
-      const role = (pill as HTMLElement).dataset.role;
-      const profile = (pill as HTMLElement).dataset.profile;
-      this.assignProfileRole(profile, role);
-      return;
-    }
-    const card = (event.target as HTMLElement | null)?.closest('.agent-card');
-    if (card) {
-      const profile = (card as HTMLElement).dataset.profile;
-      this.editProfile(profile);
-    }
+  this.elements.teamProfileList?.addEventListener('change', (event: Event) => {
+    const input = event.target as HTMLInputElement | null;
+    const profileName = input?.dataset.teamProfile;
+    if (!profileName) return;
+    this.toggleAuxProfile(profileName);
+    void this.persistAllSettings?.({ silent: true });
+    this.renderTeamProfileList?.();
   });
-  this.elements.refreshProfilesBtn?.addEventListener('click', () => this.renderProfileGrid());
 
   // Screenshot + vision controls
   this.elements.enableScreenshots?.addEventListener('change', () => this.updateScreenshotToggleState());
@@ -348,19 +406,15 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
   this.elements.orchestratorProfile?.addEventListener('change', () => this.updatePromptSections?.());
 
   // Visible orchestrator controls sync with hidden ones
-  this.elements.orchestratorEnabledVisible?.addEventListener('change', () => {
-    const enabled = this.elements.orchestratorEnabledVisible?.value === 'true';
-    if (this.elements.orchestratorToggle) this.elements.orchestratorToggle.value = enabled ? 'true' : 'false';
-    const profileGroup = this.elements.orchestratorProfileSelectGroup;
+  this.elements.orchestratorToggle?.addEventListener('change', () => {
+    const enabled = this.elements.orchestratorToggle?.checked === true;
+    const profileGroup = this.elements.orchestratorProfileSelectGroup as HTMLElement | null;
     if (profileGroup) profileGroup.style.display = enabled ? '' : 'none';
     this.updatePromptSections?.();
-    this.renderProfileGrid?.();
+    this.renderTeamProfileList?.();
   });
-  this.elements.orchestratorProfileVisible?.addEventListener('change', () => {
-    const profile = this.elements.orchestratorProfileVisible?.value || '';
-    if (this.elements.orchestratorProfile) this.elements.orchestratorProfile.value = profile;
+  this.elements.orchestratorProfile?.addEventListener('change', () => {
     this.updatePromptSections?.();
-    this.renderProfileGrid?.();
   });
 
   // Auto-save sessions toggle
@@ -378,6 +432,23 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
       // User cancelled or API unavailable
     }
   });
+
+  // Generation tab — live persistence
+  const genPersist = () => this.updateActiveConfigFromGenerationTab?.();
+  this.elements.genTemperature?.addEventListener('input', () => {
+    if (this.elements.genTemperatureValue)
+      this.elements.genTemperatureValue.textContent = Number(this.elements.genTemperature.value).toFixed(2);
+    genPersist();
+  });
+  for (const id of ['genMaxTokens', 'genContextLimit', 'genTimeout', 'genScreenshotQuality'] as const) {
+    this.elements[id]?.addEventListener('change', genPersist);
+  }
+  for (const id of [
+    'genEnableScreenshots', 'genSendScreenshots', 'genStreamResponses',
+    'genShowThinking', 'genAutoScroll', 'genConfirmActions', 'genSaveHistory',
+  ] as const) {
+    this.elements[id]?.addEventListener('change', genPersist);
+  }
 
   // Save settings
   this.elements.saveSettingsBtn?.addEventListener('click', () => {
@@ -432,12 +503,6 @@ export PARCHI_RELAY_PORT="${port}"`;
   this.elements.cancelSettingsBtn?.addEventListener('click', () => {
     void this.cancelSettings();
   });
-
-  this.elements.exportSettingsBtn?.addEventListener('click', () => this.exportSettings());
-  this.elements.importSettingsBtn?.addEventListener('click', () => {
-    this.elements.importSettingsInput?.click();
-  });
-  this.elements.importSettingsInput?.addEventListener('change', (event) => this.importSettings(event));
 
   // Send message, queue, or stop depending on running state
   this.elements.sendBtn?.addEventListener('click', () => {
@@ -772,6 +837,9 @@ sidePanelProto.recoverFromStuckState = function recoverFromStuckState() {
 
 sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any) {
   this._lastRuntimeMessageAt = Date.now();
+  if (message?.agentId && message.agentId !== 'main' && this.handleSubagentRuntimeMessage?.(message)) {
+    return;
+  }
   // Runtime messages are broadcast to all extension views. Only render events
   // that belong to the currently active session to avoid spilling output across
   // New Chat / history-loaded sessions.

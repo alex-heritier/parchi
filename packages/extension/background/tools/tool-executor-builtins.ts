@@ -1,5 +1,6 @@
 import { applyReportImageSelection, getReportImageSummary } from '../report-images.js';
 import type { ServiceContext } from '../service-context.js';
+import { handleOrchestratorBuiltin } from './tool-executor-orchestrator.js';
 import type { NestedToolExecutor, ToolExecutionArgs, ToolExecutionOptions } from './tool-executor-shared.js';
 import { handleSpawnSubagent } from './tool-executor-subagent.js';
 import { buildPlanFromArgs } from './xml-tool-parser.js';
@@ -19,6 +20,14 @@ export async function executeBuiltinTool(
   executeNestedTool: NestedToolExecutor,
 ): Promise<BuiltinExecutionResult> {
   const sessionState = ctx.getSessionState(options.runMeta.sessionId);
+
+  const orchestratorBuiltin = await handleOrchestratorBuiltin(ctx, sessionState, toolName, args, options, executeNestedTool);
+  if (orchestratorBuiltin.handled) {
+    return {
+      handled: true,
+      result: orchestratorBuiltin.result,
+    };
+  }
 
   if (toolName === 'set_plan') {
     const hadPlan = Boolean(sessionState.currentPlan && sessionState.currentPlan.steps.length > 0);

@@ -85,7 +85,7 @@ export async function processContextCompaction(
       orchestratorProfile = runtimeProfileResolution.profile;
     }
 
-    const model = resolveLanguageModel(orchestratorProfile);
+    const model = resolveLanguageModel(orchestratorProfile as any);
     const history = normalizeConversationHistory(Array.isArray(conversationHistory) ? conversationHistory : []);
     if (history.length < 1) {
       ctx.sendRuntime(runMeta, {

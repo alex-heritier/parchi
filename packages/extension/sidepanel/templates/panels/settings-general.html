@@ -1,286 +1,367 @@
-<!-- ===== PROVIDERS TAB ===== -->
+<!-- ===== PROVIDERS ===== -->
 <div class="settings-tab-pane" data-pane="providers">
-    <details class="settings-section" open>
-        <summary>API Key Providers</summary>
-        <div class="settings-body">
-            <div class="account-inline-note">Add your own API keys. Keys are stored locally and never sent to our servers.</div>
-            <div id="apiProviderGrid" class="provider-card-grid"></div>
-            <div id="apiProviderEditor" class="provider-inline-editor hidden">
-                <div class="form-group">
-                    <label for="providerEditorKey">API Key</label>
-                    <input type="password" id="providerEditorKey" placeholder="Enter your API key..." />
-                </div>
-                <div class="form-group" id="providerEditorEndpointGroup">
-                    <label for="providerEditorEndpoint">API URL <span class="optional-badge">optional</span></label>
-                    <input type="text" id="providerEditorEndpoint" placeholder="https://..." />
-                </div>
-                <div class="form-row">
-                    <button id="providerEditorSaveBtn" class="btn btn-primary" style="flex:1">Save</button>
-                    <button id="providerEditorCancelBtn" class="btn btn-secondary" style="flex:1">Cancel</button>
-                </div>
+    <select id="activeConfig" class="hidden"><option value="default">Default</option></select>
+
+    <div class="settings-section-label">Subscription Providers</div>
+    <p class="settings-section-desc">Connect your existing AI subscriptions. No API keys needed.</p>
+    <div id="oauthProviderGrid" class="provider-row-list"></div>
+    <div id="oauthDeviceCodePrompt" class="oauth-device-prompt hidden">
+        <div class="oauth-device-prompt-inner">
+            <div class="oauth-device-prompt-title">Enter code on <span id="oauthDeviceCodeProviderName"></span></div>
+            <div id="oauthDeviceCodeValue" class="oauth-device-code-value"></div>
+            <div class="oauth-device-prompt-hint">
+                Go to <a id="oauthDeviceCodeLink" href="#" target="_blank" rel="noopener"></a> and enter the code above.
+            </div>
+            <div class="oauth-device-prompt-actions">
+                <button id="oauthDeviceCodeCopyBtn" class="btn btn-secondary">Copy Code</button>
+                <button id="oauthDeviceCodeOpenBtn" class="btn btn-primary">Open Link</button>
+                <button id="oauthDeviceCodeCancelBtn" class="btn btn-secondary">Cancel</button>
             </div>
         </div>
-    </details>
+    </div>
 
-    <details class="settings-section" open>
-        <summary>Subscription Providers</summary>
-        <div class="settings-body">
-            <div class="account-inline-note">Connect your existing AI subscriptions. No API keys needed.</div>
-            <div id="oauthProviderGrid" class="oauth-provider-grid"></div>
-            <div id="oauthDeviceCodePrompt" class="oauth-device-prompt hidden">
-                <div class="oauth-device-prompt-inner">
-                    <div class="oauth-device-prompt-title">Enter code on <span id="oauthDeviceCodeProviderName"></span></div>
-                    <div id="oauthDeviceCodeValue" class="oauth-device-code-value"></div>
-                    <div class="oauth-device-prompt-hint">
-                        Go to <a id="oauthDeviceCodeLink" href="#" target="_blank" rel="noopener"></a> and enter the code above.
-                    </div>
-                    <div class="oauth-device-prompt-actions">
-                        <button id="oauthDeviceCodeCopyBtn" class="btn btn-secondary">Copy Code</button>
-                        <button id="oauthDeviceCodeOpenBtn" class="btn btn-primary">Open Link</button>
-                        <button id="oauthDeviceCodeCancelBtn" class="btn btn-secondary">Cancel</button>
-                    </div>
-                </div>
+    <div class="settings-section-label">API Keys</div>
+    <p class="settings-section-desc">Add your own API keys. Keys are stored locally and never sent to our servers.</p>
+    <div id="apiProviderGrid" class="provider-row-list"></div>
+    <div id="apiProviderEditor" class="provider-inline-editor hidden">
+        <div class="form-group">
+            <label for="providerEditorKey">API Key</label>
+            <input type="password" id="providerEditorKey" placeholder="Enter your API key..." />
+        </div>
+        <div class="form-group" id="providerEditorEndpointGroup">
+            <label for="providerEditorEndpoint">API URL <span class="optional-badge">optional</span></label>
+            <input type="text" id="providerEditorEndpoint" placeholder="https://..." />
+        </div>
+        <div class="form-row">
+            <button id="providerEditorSaveBtn" class="btn btn-primary" style="flex:1">Save</button>
+            <button id="providerEditorCancelBtn" class="btn btn-secondary" style="flex:1">Cancel</button>
+        </div>
+    </div>
+
+    <div class="settings-section-label">Custom</div>
+    <p class="settings-section-desc">Add custom OpenAI-compatible providers.</p>
+    <div id="customProviderList" class="provider-row-list"></div>
+    <button id="addCustomProviderBtn" class="btn btn-secondary" style="align-self: flex-start; margin-top: 4px;">+ Add Provider</button>
+    <div id="customProviderForm" class="custom-provider-form hidden">
+        <div class="custom-provider-form-header">
+            <span class="settings-section-label" style="padding:0">New Provider</span>
+            <button id="customProviderFormCloseBtn" class="icon-btn" title="Close">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="form-row">
+            <div class="form-group" style="flex:1">
+                <label for="customProviderName">Name</label>
+                <input type="text" id="customProviderName" placeholder="My Provider" />
+            </div>
+            <div class="form-group" style="flex:1">
+                <label for="customProviderSdkType">SDK</label>
+                <select id="customProviderSdkType">
+                    <option value="openai-compatible">OpenAI-compatible</option>
+                    <option value="anthropic">Anthropic-compatible</option>
+                </select>
             </div>
         </div>
-    </details>
-
-    <details class="settings-section">
-        <summary>Account & Billing</summary>
-        <div class="settings-body account-settings-body">
-            <div id="accountAuthUnavailable" class="account-inline-note hidden">
-                Convex backend is not configured in this build.
-            </div>
-
-            <div id="accountAuthSignedOut" class="account-auth-block">
-                <div class="account-inline-note">Sign in to use managed credits, or add your own API keys above.</div>
-                <div class="form-group">
-                    <label for="accountEmailInput">Email</label>
-                    <input type="email" id="accountEmailInput" placeholder="you@example.com" />
-                </div>
-                <div class="form-group">
-                    <label for="accountPasswordInput">Password</label>
-                    <input type="password" id="accountPasswordInput" placeholder="At least 8 characters" />
-                </div>
-                <div class="form-row">
-                    <button id="accountSignInBtn" class="btn btn-primary" style="flex: 1;">Sign In</button>
-                    <button id="accountSignUpBtn" class="btn btn-secondary" style="flex: 1;">Sign Up</button>
-                </div>
-                <div class="form-row">
-                    <button id="accountGoogleBtn" class="btn btn-secondary" style="flex: 1;">Continue with Google</button>
-                    <button id="accountGithubBtn" class="btn btn-secondary" style="flex: 1;">Continue with GitHub</button>
-                </div>
-                <div id="accountStatusText" class="account-inline-note"></div>
-            </div>
-
-            <div id="accountAuthSignedIn" class="account-auth-block hidden">
-                <div class="account-stats-grid">
-                    <div class="account-stat">
-                        <span class="account-stat-label">User</span>
-                        <span id="accountUserValue" class="account-stat-value">-</span>
-                    </div>
-                    <div class="account-stat">
-                        <span class="account-stat-label">Credits</span>
-                        <span id="accountCreditBalance" class="account-stat-value">$0.00</span>
-                    </div>
-                    <div class="account-stat">
-                        <span class="account-stat-label">Plan</span>
-                        <span id="accountPlanValue" class="account-stat-value">Free</span>
-                    </div>
-                    <div class="account-stat">
-                        <span class="account-stat-label">Usage</span>
-                        <span id="accountUsageValue" class="account-stat-value">0 req</span>
-                    </div>
-                    <div class="account-stat">
-                        <span class="account-stat-label">Spend (month)</span>
-                        <span id="accountCostMonthValue" class="account-stat-value">$0.00</span>
-                    </div>
-                    <div class="account-stat">
-                        <span class="account-stat-label">Last charge</span>
-                        <span id="accountLastChargeValue" class="account-stat-value">-</span>
-                    </div>
-                </div>
-                <div class="account-usage-panels">
-                    <div class="account-chart-card">
-                        <div class="account-chart-header">
-                            <span>Credit Flow (30d)</span>
-                            <span id="accountCreditFlowLabel" class="account-chart-meta">$0.00 / $0.00</span>
-                        </div>
-                        <div id="accountCreditFlowBar" class="account-credit-flow-bar">
-                            <span id="accountCreditDebitFill" class="account-credit-fill debit" style="width: 0%;"></span>
-                            <span id="accountCreditCreditFill" class="account-credit-fill credit" style="width: 0%;"></span>
-                        </div>
-                        <div class="account-chart-legend">
-                            <span class="account-legend-item"><i class="legend-swatch debit"></i>Debits</span>
-                            <span class="account-legend-item"><i class="legend-swatch credit"></i>Credits</span>
-                        </div>
-                    </div>
-                    <div class="account-chart-card">
-                        <div class="account-chart-header">
-                            <span>Spend Last 7 Days</span>
-                            <span id="accountSpend7dTotal" class="account-chart-meta">$0.00</span>
-                        </div>
-                        <div id="accountSpend7dChart" class="account-spend-chart"></div>
-                    </div>
-                    <div class="account-chart-card">
-                        <div class="account-chart-header">
-                            <span>Runtime Density</span>
-                            <span id="accountDensityLabel" class="account-chart-meta">0 req / 0 tok</span>
-                        </div>
-                        <div class="account-density-row">
-                            <span>Requests</span>
-                            <div class="account-density-track">
-                                <span id="accountRequestDensityFill" class="account-density-fill" style="width: 0%;"></span>
-                            </div>
-                        </div>
-                        <div class="account-density-row">
-                            <span>Tokens</span>
-                            <div class="account-density-track">
-                                <span id="accountTokenDensityFill" class="account-density-fill" style="width: 0%;"></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div id="accountBuyCreditsRow" class="form-row">
-                    <button class="btn btn-secondary credit-buy-btn" data-cents="500" style="flex: 1;">$5</button>
-                    <button class="btn btn-secondary credit-buy-btn" data-cents="1500" style="flex: 1;">$15</button>
-                    <button class="btn btn-secondary credit-buy-btn" data-cents="5000" style="flex: 1;">$50</button>
-                </div>
-                <div class="form-row">
-                    <button id="accountUpgradeBtn" class="btn btn-primary" style="flex: 1;">Upgrade</button>
-                    <button id="accountManageBtn" class="btn btn-secondary" style="flex: 1;">Manage</button>
-                </div>
-                <div class="form-row">
-                    <button id="accountRefreshBtn" class="btn btn-secondary" style="flex: 1;">Refresh</button>
-                    <button id="accountSignOutBtn" class="btn btn-secondary" style="flex: 1;">Sign Out</button>
-                </div>
-                <div class="account-ledger">
-                    <div class="account-ledger-header">
-                        <span>Recent Cost Activity</span>
-                        <span class="account-ledger-subtitle">Reservations, settlements, refunds</span>
-                    </div>
-                    <div id="accountLedgerList" class="account-ledger-list">
-                        <div class="account-ledger-empty">No transactions yet.</div>
-                    </div>
-                </div>
-                <div id="accountStatusTextSignedIn" class="account-inline-note"></div>
-            </div>
+        <div class="form-group">
+            <label for="customProviderEndpoint">Base URL</label>
+            <input type="text" id="customProviderEndpoint" placeholder="https://api.example.com/v1" style="font-family: var(--font-mono); font-size: 12px;" />
         </div>
-    </details>
-</div>
-
-<!-- ===== DESIGN TAB (appearance) ===== -->
-<div class="settings-tab-pane" data-pane="design">
-    <div class="form-group">
-        <label for="themeSelect">Theme</label>
-        <div id="themeGrid" class="theme-grid"></div>
-    </div>
-    <div class="settings-divider"></div>
-    <div class="form-group">
-        <label for="uiZoom">Text Size <span class="form-value" id="uiZoomValue">100%</span></label>
-        <input type="range" id="uiZoom" min="0.85" max="1.25" step="0.05" value="1" />
-    </div>
-    <div class="form-group">
-        <label for="fontPreset">Typography</label>
-        <select id="fontPreset">
-            <option value="default">Jakarta (Default)</option>
-            <option value="geist">Geist</option>
-            <option value="soft">Nunito</option>
-            <option value="dm-sans">DM Sans</option>
-            <option value="plex">IBM Plex</option>
-            <option value="manrope">Manrope</option>
-        </select>
-    </div>
-    <div class="form-group">
-        <label for="fontStylePreset">Font Style</label>
-        <select id="fontStylePreset">
-            <option value="normal">Regular</option>
-            <option value="medium">Medium</option>
-            <option value="semibold">Semibold</option>
-        </select>
+        <div class="form-group">
+            <label for="customProviderApiKey">API Key</label>
+            <input type="password" id="customProviderApiKey" placeholder="sk-..." />
+        </div>
+        <div class="form-group">
+            <label for="customProviderModels">Model IDs <span class="optional-badge">comma-separated</span></label>
+            <input type="text" id="customProviderModels" placeholder="model-a, model-b" style="font-family: var(--font-mono); font-size: 12px;" />
+        </div>
+        <div class="form-row">
+            <button id="customProviderSaveBtn" class="btn btn-primary" style="flex:1">Save</button>
+            <button id="customProviderCancelBtn" class="btn btn-secondary" style="flex:1">Cancel</button>
+        </div>
     </div>
 </div>
 
-<!-- ===== ADVANCED TAB ===== -->
+<!-- ===== MODEL ===== -->
+<div class="settings-tab-pane" data-pane="model">
+    <div id="modelSelectorGrid" class="model-selector-grid"></div>
+</div>
+
+<!-- ===== GENERATION ===== -->
+<div class="settings-tab-pane" data-pane="generation">
+    <div class="gen-form">
+        <div class="gen-row">
+            <label for="genTemperature">Temperature <span id="genTemperatureValue" class="form-value">0.7</span></label>
+            <input type="range" id="genTemperature" min="0" max="2" step="0.1" value="0.7" />
+        </div>
+        <div class="gen-row">
+            <label for="genMaxTokens">Max Tokens</label>
+            <input type="number" id="genMaxTokens" min="1" max="32000" value="4096" />
+        </div>
+        <div class="gen-row">
+            <label for="genContextLimit">Context Limit</label>
+            <input type="number" id="genContextLimit" min="4000" value="200000" />
+        </div>
+        <div class="gen-row">
+            <label for="genTimeout">Timeout (ms)</label>
+            <input type="number" id="genTimeout" min="5000" step="1000" value="30000" />
+        </div>
+        <div class="gen-row">
+            <label for="genScreenshotQuality">Screenshot Quality</label>
+            <select id="genScreenshotQuality">
+                <option value="high">High</option>
+                <option value="low">Low</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="settings-section-label">Capabilities</div>
+    <div class="gen-toggles">
+        <label class="switch-row gen-switch-row" for="genEnableScreenshots">
+            <span class="switch-copy">
+                <span class="switch-title">Screenshots</span>
+                <span class="switch-subtitle">Allow screenshot capture.</span>
+            </span>
+            <input type="checkbox" id="genEnableScreenshots" class="switch-input" />
+            <span class="switch-track"></span>
+        </label>
+        <label class="switch-row gen-switch-row" for="genSendScreenshots">
+            <span class="switch-copy">
+                <span class="switch-title">Send as Images</span>
+                <span class="switch-subtitle">Send raw image bytes instead of text descriptions.</span>
+            </span>
+            <input type="checkbox" id="genSendScreenshots" class="switch-input" />
+            <span class="switch-track"></span>
+        </label>
+        <label class="switch-row gen-switch-row" for="genStreamResponses">
+            <span class="switch-copy">
+                <span class="switch-title">Streaming</span>
+                <span class="switch-subtitle">Render tokens live as they arrive.</span>
+            </span>
+            <input type="checkbox" id="genStreamResponses" class="switch-input" />
+            <span class="switch-track"></span>
+        </label>
+        <label class="switch-row gen-switch-row" for="genShowThinking">
+            <span class="switch-copy">
+                <span class="switch-title">Reasoning</span>
+                <span class="switch-subtitle">Show intermediate reasoning when provided.</span>
+            </span>
+            <input type="checkbox" id="genShowThinking" class="switch-input" />
+            <span class="switch-track"></span>
+        </label>
+        <label class="switch-row gen-switch-row" for="genAutoScroll">
+            <span class="switch-copy">
+                <span class="switch-title">Auto-scroll</span>
+                <span class="switch-subtitle">Keep the latest output in view.</span>
+            </span>
+            <input type="checkbox" id="genAutoScroll" class="switch-input" />
+            <span class="switch-track"></span>
+        </label>
+        <label class="switch-row gen-switch-row" for="genConfirmActions">
+            <span class="switch-copy">
+                <span class="switch-title">Confirm actions</span>
+                <span class="switch-subtitle">Ask before sensitive browser interactions.</span>
+            </span>
+            <input type="checkbox" id="genConfirmActions" class="switch-input" />
+            <span class="switch-track"></span>
+        </label>
+        <label class="switch-row gen-switch-row" for="genSaveHistory">
+            <span class="switch-copy">
+                <span class="switch-title">Save history</span>
+                <span class="switch-subtitle">Persist chat history.</span>
+            </span>
+            <input type="checkbox" id="genSaveHistory" class="switch-input" />
+            <span class="switch-track"></span>
+        </label>
+    </div>
+</div>
+
+<!-- ===== ADVANCED ===== -->
 <div class="settings-tab-pane" data-pane="advanced">
-    <div class="settings-section-label">System Prompt</div>
-    <div class="form-group">
-        <label for="systemPrompt">Main Prompt</label>
-        <textarea id="systemPrompt" rows="5" class="system-prompt-textarea" placeholder="Leave empty for default..."></textarea>
-        <small>Override the default system prompt</small>
-    </div>
-    <div id="orchestratorPromptSection" class="form-group hidden">
-        <div class="settings-divider"></div>
-        <label for="orchestratorPromptTextarea">Orchestrator Prompt</label>
-        <textarea id="orchestratorPromptTextarea" rows="5" class="system-prompt-textarea" placeholder="Leave empty to use orchestrator profile's prompt..."></textarea>
-        <small>System prompt for the orchestrator profile.</small>
-    </div>
-
-    <div class="settings-divider"></div>
-    <div class="settings-section-label">Orchestration</div>
-    <div class="form-group">
-        <label for="orchestratorEnabledVisible">Enable Orchestrator Mode</label>
-        <select id="orchestratorEnabledVisible">
-            <option value="false">Disabled</option>
-            <option value="true">Enabled</option>
-        </select>
-        <small>Enable multi-agent orchestration with spawn_subagent tool</small>
-    </div>
-    <div class="form-group" id="orchestratorProfileSelectGroup" style="display: none;">
-        <label for="orchestratorProfileVisible">Orchestrator Profile</label>
-        <select id="orchestratorProfileVisible"></select>
-        <small>Profile to use for orchestration tasks (or assign via profile grid)</small>
-    </div>
-
-    <div id="visionPromptSection" class="form-group hidden">
-        <div class="settings-divider"></div>
-        <label for="visionPromptTextarea">Vision Prompt</label>
-        <textarea id="visionPromptTextarea" rows="5" class="system-prompt-textarea" placeholder="Leave empty to use vision profile's prompt..."></textarea>
-        <small>System prompt for the vision profile.</small>
-    </div>
-
-    <div class="settings-divider"></div>
-    <div class="settings-section-label">Browser</div>
-    <div class="form-group">
-        <label for="allowedDomains">Allowed Domains</label>
-        <input type="text" id="allowedDomains" placeholder="Leave empty for all domains" />
-        <small>Comma-separated, e.g.: google.com, github.com</small>
-    </div>
-
-    <div class="settings-divider"></div>
-    <div class="settings-section-label">Relay</div>
-    <div class="form-group">
-        <label for="relayEnabled">Enable Relay</label>
-        <select id="relayEnabled">
-            <option value="false">Disabled</option>
-            <option value="true">Enabled</option>
-        </select>
-    </div>
-    <div class="form-group">
-        <label for="relayUrl">Relay URL</label>
-        <input type="text" id="relayUrl" placeholder="http://127.0.0.1:17373" />
-    </div>
-    <div class="form-group">
-        <label for="relayToken">Relay Token</label>
-        <input type="password" id="relayToken" placeholder="PARCHI_RELAY_TOKEN" />
-    </div>
-    <div class="form-group">
-        <label>Connection</label>
-        <div class="relay-status-row">
-            <span id="relayConnectedBadge" class="status-pill">Disconnected</span>
-            <span id="relayLastErrorText" class="relay-last-error"></span>
+    <details class="collapsible" open>
+        <summary>Roles</summary>
+        <div class="collapsible-body">
+            <label class="switch-row" for="orchestratorToggle">
+                <span class="switch-copy">
+                    <span class="switch-title">Orchestrator</span>
+                    <span class="switch-subtitle">Enable delegation and multi-agent orchestration.</span>
+                </span>
+                <input type="checkbox" id="orchestratorToggle" class="switch-input" />
+                <span class="switch-track"></span>
+            </label>
+            <div class="form-group" style="margin-top: 8px;">
+                <label for="orchestratorProfile">Orchestrator Profile</label>
+                <select id="orchestratorProfile"></select>
+                <small>Choose a dedicated profile, or leave blank to use the active profile.</small>
+            </div>
+            <label class="switch-row" for="visionBridge" style="margin-top: 8px;">
+                <span class="switch-copy">
+                    <span class="switch-title">Vision Bridge</span>
+                    <span class="switch-subtitle">Keep a separate visual model ready for screenshots.</span>
+                </span>
+                <input type="checkbox" id="visionBridge" class="switch-input" />
+                <span class="switch-track"></span>
+            </label>
+            <div class="form-group" style="margin-top: 8px;">
+                <label for="visionProfile">Vision Profile</label>
+                <select id="visionProfile"></select>
+                <small>Choose a profile for image-heavy reasoning.</small>
+            </div>
         </div>
-    </div>
-    <div class="form-row">
-        <button id="saveRelayBtn" class="btn btn-primary" style="flex: 1;">Apply</button>
-        <button id="copyRelayEnvBtn" class="btn btn-secondary" style="flex: 1;">Copy Env Vars</button>
-    </div>
+    </details>
 
-    <div class="settings-divider"></div>
-    <div class="settings-section-label">Import / Export</div>
-    <div class="form-row">
-        <button id="exportSettingsBtn" class="btn btn-secondary" style="flex: 1;">Export</button>
-        <button id="importSettingsBtn" class="btn btn-secondary" style="flex: 1;">Import</button>
-        <input id="importSettingsInput" type="file" accept="application/json" style="display: none;" />
-    </div>
-    <small>Export all profiles to JSON. Import overwrites current settings.</small>
+    <details class="collapsible">
+        <summary>Team Agents</summary>
+        <div class="collapsible-body">
+            <div id="teamProfileList" class="team-profile-list"></div>
+        </div>
+    </details>
+
+    <details class="collapsible">
+        <summary>System Prompt</summary>
+        <div class="collapsible-body">
+            <div class="form-group">
+                <label for="systemPrompt">Default Prompt</label>
+                <textarea id="systemPrompt" rows="6" class="system-prompt-textarea" placeholder="Leave empty for default..."></textarea>
+                <small>Applied when a profile does not define its own prompt.</small>
+            </div>
+            <details id="orchestratorPromptSection" class="collapsible hidden" style="margin-top: 8px;">
+                <summary>Orchestrator Prompt</summary>
+                <div class="collapsible-body">
+                    <div class="form-group">
+                        <label for="orchestratorPromptTextarea">Role Prompt</label>
+                        <textarea id="orchestratorPromptTextarea" rows="6" class="system-prompt-textarea" placeholder="Leave empty to use the orchestrator profile prompt."></textarea>
+                        <small>Only applied to the orchestrator role.</small>
+                    </div>
+                </div>
+            </details>
+            <details id="visionPromptSection" class="collapsible hidden" style="margin-top: 8px;">
+                <summary>Vision Prompt</summary>
+                <div class="collapsible-body">
+                    <div class="form-group">
+                        <label for="visionPromptTextarea">Role Prompt</label>
+                        <textarea id="visionPromptTextarea" rows="6" class="system-prompt-textarea" placeholder="Leave empty to use the vision profile prompt."></textarea>
+                        <small>Only applied to the vision role.</small>
+                    </div>
+                </div>
+            </details>
+        </div>
+    </details>
+
+    <details class="collapsible">
+        <summary>Tool Permissions</summary>
+        <div class="collapsible-body">
+            <div class="permissions-grid">
+                <label class="switch-row" for="permissionRead">
+                    <span class="switch-copy">
+                        <span class="switch-title">Read</span>
+                        <span class="switch-subtitle">Allow extraction and DOM reads.</span>
+                    </span>
+                    <input type="checkbox" id="permissionRead" class="switch-input" />
+                    <span class="switch-track"></span>
+                </label>
+                <label class="switch-row" for="permissionInteract">
+                    <span class="switch-copy">
+                        <span class="switch-title">Interact</span>
+                        <span class="switch-subtitle">Clicks, typing, keypresses.</span>
+                    </span>
+                    <input type="checkbox" id="permissionInteract" class="switch-input" />
+                    <span class="switch-track"></span>
+                </label>
+                <label class="switch-row" for="permissionNavigate">
+                    <span class="switch-copy">
+                        <span class="switch-title">Navigate</span>
+                        <span class="switch-subtitle">URL changes and page loads.</span>
+                    </span>
+                    <input type="checkbox" id="permissionNavigate" class="switch-input" />
+                    <span class="switch-track"></span>
+                </label>
+                <label class="switch-row" for="permissionTabs">
+                    <span class="switch-copy">
+                        <span class="switch-title">Tabs</span>
+                        <span class="switch-subtitle">Selecting or opening browser tabs.</span>
+                    </span>
+                    <input type="checkbox" id="permissionTabs" class="switch-input" />
+                    <span class="switch-track"></span>
+                </label>
+                <label class="switch-row" for="permissionScreenshots">
+                    <span class="switch-copy">
+                        <span class="switch-title">Screenshots</span>
+                        <span class="switch-subtitle">Allow captured page images.</span>
+                    </span>
+                    <input type="checkbox" id="permissionScreenshots" class="switch-input" />
+                    <span class="switch-track"></span>
+                </label>
+            </div>
+        </div>
+    </details>
+
+    <details class="collapsible">
+        <summary>Browser Access</summary>
+        <div class="collapsible-body">
+            <div class="form-group">
+                <label for="allowedDomains">Allowed Domains</label>
+                <input type="text" id="allowedDomains" placeholder="Leave empty for all domains" />
+                <small>Comma-separated, e.g. google.com, github.com</small>
+            </div>
+        </div>
+    </details>
+
+    <details class="collapsible">
+        <summary>Relay</summary>
+        <div class="collapsible-body">
+            <label class="switch-row" for="relayEnabled">
+                <span class="switch-copy">
+                    <span class="switch-title">Enable Relay</span>
+                    <span class="switch-subtitle">Use the external relay service for tool execution.</span>
+                </span>
+                <input type="checkbox" id="relayEnabled" class="switch-input" />
+                <span class="switch-track"></span>
+            </label>
+            <div class="form-group" style="margin-top: 8px;">
+                <label for="relayUrl">Relay URL</label>
+                <input type="text" id="relayUrl" placeholder="http://127.0.0.1:17373" />
+            </div>
+            <div class="form-group">
+                <label for="relayToken">Relay Token</label>
+                <input type="password" id="relayToken" placeholder="PARCHI_RELAY_TOKEN" />
+            </div>
+            <div class="form-group">
+                <label>Connection</label>
+                <div class="relay-status-row">
+                    <span id="relayConnectedBadge" class="status-pill">Disconnected</span>
+                    <span id="relayLastErrorText" class="relay-last-error"></span>
+                </div>
+            </div>
+            <div class="form-row">
+                <button id="saveRelayBtn" class="btn btn-primary" style="flex:1">Apply</button>
+                <button id="copyRelayEnvBtn" class="btn btn-secondary" style="flex:1">Copy Env Vars</button>
+            </div>
+        </div>
+    </details>
+
+    <details class="collapsible">
+        <summary>Look &amp; Feel</summary>
+        <div class="collapsible-body">
+            <div class="form-group">
+                <label for="themeSelect">Theme</label>
+                <select id="themeSelect"></select>
+            </div>
+            <div class="form-group">
+                <label>Preview</label>
+                <div id="themePreview" class="theme-preview-inline"></div>
+            </div>
+            <div class="form-group" style="margin-top: 8px;">
+                <label for="uiZoom">Text Size <span class="form-value" id="uiZoomValue">100%</span></label>
+                <input type="range" id="uiZoom" min="0.85" max="1.25" step="0.05" value="1" />
+            </div>
+            <div class="form-group">
+                <label for="fontPreset">Typography</label>
+                <select id="fontPreset"><option value="default">Jakarta (Default)</option><option value="geist">Geist</option><option value="soft">Nunito</option><option value="dm-sans">DM Sans</option><option value="plex">IBM Plex</option><option value="manrope">Manrope</option></select>
+            </div>
+            <div class="form-group">
+                <label for="fontStylePreset">Font Style</label>
+                <select id="fontStylePreset"><option value="normal">Regular</option><option value="medium">Medium</option><option value="semibold">Semibold</option></select>
+            </div>
+        </div>
+    </details>
 </div>

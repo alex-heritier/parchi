@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { executeOrchestratorFixture } from './fixture-executor.js';
+import { runOrchestratorServiceIntegrationSuite } from './service-integration.js';
 import { evaluateFixtureAgainstCriteria, loadSystemValidationCriteria } from './validation-criteria.js';
 
 type FixtureResult = ReturnType<typeof executeOrchestratorFixture>;
@@ -26,6 +27,8 @@ const outputJsonPath = path.join(outputDir, 'orchestrator-fixture-execution.json
 const outputMdPath = path.join(outputDir, 'orchestrator-fixture-execution.md');
 const criteriaJsonPath = path.join(outputDir, 'orchestrator-criteria-matrix.json');
 const criteriaMdPath = path.join(outputDir, 'orchestrator-criteria-matrix.md');
+const serviceJsonPath = path.join(outputDir, 'orchestrator-service-integration.json');
+const serviceMdPath = path.join(outputDir, 'orchestrator-service-integration.md');
 
 const loadFixtureFiles = () =>
   fs
@@ -92,7 +95,23 @@ const writeCriteriaSummary = (
   fs.writeFileSync(criteriaMdPath, `${lines.join('\n')}\n`);
 };
 
-function main() {
+const writeServiceSummary = (artifact: Awaited<ReturnType<typeof runOrchestratorServiceIntegrationSuite>>) => {
+  const lines: string[] = [
+    '# Orchestrator Service Integration Harness',
+    '',
+    `- Generated: ${artifact.generatedAt}`,
+    `- Runtime events captured: ${artifact.runtimeEventCount}`,
+    '',
+    '| Scenario | Passed | Detail |',
+    '| --- | --- | --- |',
+  ];
+  for (const scenario of artifact.scenarios) {
+    lines.push(`| ${scenario.id} | ${scenario.passed ? 'yes' : 'no'} | ${JSON.stringify(scenario.details)} |`);
+  }
+  fs.writeFileSync(serviceMdPath, `${lines.join('\n')}\n`);
+};
+
+async function main() {
   log('╔══════════════════════════════════════════════════╗', 'info');
   log('║      Orchestrator Fixture Executor Runner       ║', 'info');
   log('╚══════════════════════════════════════════════════╝', 'info');
@@ -155,12 +174,18 @@ function main() {
   );
   writeCriteriaSummary(criteria.title, criteriaResults);
 
+  const serviceArtifact = await runOrchestratorServiceIntegrationSuite();
+  fs.writeFileSync(serviceJsonPath, `${JSON.stringify(serviceArtifact, null, 2)}\n`);
+  writeServiceSummary(serviceArtifact);
+
   const failed = results.filter((result) => !result.success);
   log('\nArtifacts:', 'info');
   log(`- ${path.relative(repoRoot, outputJsonPath)}`, 'info');
   log(`- ${path.relative(repoRoot, outputMdPath)}`, 'info');
   log(`- ${path.relative(repoRoot, criteriaJsonPath)}`, 'info');
   log(`- ${path.relative(repoRoot, criteriaMdPath)}`, 'info');
+  log(`- ${path.relative(repoRoot, serviceJsonPath)}`, 'info');
+  log(`- ${path.relative(repoRoot, serviceMdPath)}`, 'info');
 
   if (failed.length > 0) {
     log(`\n${failed.length} fixture(s) failed.`, 'error');
@@ -175,4 +200,4 @@ function main() {
   process.exit(0);
 }
 
-main();
+await main();

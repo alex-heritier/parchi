@@ -1,5 +1,6 @@
 import { fetchProviderModels } from '../../../oauth/manager.js';
 import { getAllProviderStates } from '../../../oauth/store.js';
+import { ensureProviderModel, getProviderInstance, materializeProfileWithProvider } from '../../../state/provider-registry.js';
 import type { OAuthProviderKey } from '../../../oauth/types.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
@@ -36,6 +37,10 @@ const normalizeEndpointBase = (provider: string, customEndpoint: string) => {
   const fallback =
     provider === 'openrouter' || provider === 'parchi'
       ? OPENROUTER_BASE_URL
+      : provider === 'glm'
+        ? 'https://api.z.ai/api/anthropic'
+        : provider === 'minimax'
+          ? 'https://api.minimax.io/anthropic'
       : provider === 'openai'
         ? 'https://api.openai.com/v1'
         : provider === 'anthropic'
@@ -207,10 +212,11 @@ sidePanelProto.fetchAvailableModels = async function fetchAvailableModels() {
 sidePanelProto.collectConfiguredModelFallbacks = function collectConfiguredModelFallbacks() {
   const fallbacks: Array<{ provider: string; model: string }> = [];
   const configs = this.configs && typeof this.configs === 'object' ? this.configs : {};
-  for (const profile of Object.values(configs)) {
+  for (const [name, rawProfile] of Object.entries(configs)) {
+    const profile = materializeProfileWithProvider({ providers: this.providers, configs: this.configs }, name, rawProfile);
     if (!profile || typeof profile !== 'object') continue;
     const provider = normalizeProvider((profile as any).provider);
-    const model = String((profile as any).model || '').trim();
+    const model = String((profile as any).modelId || (profile as any).model || '').trim();
     if (!provider || !model) continue;
     fallbacks.push({ provider, model });
   }
@@ -222,7 +228,8 @@ sidePanelProto.collectModelCatalogTargets = async function collectModelCatalogTa
   const seen = new Set<string>();
   const configs = this.configs && typeof this.configs === 'object' ? this.configs : {};
 
-  for (const profile of Object.values(configs)) {
+  for (const [name, rawProfile] of Object.entries(configs)) {
+    const profile = materializeProfileWithProvider({ providers: this.providers, configs: this.configs }, name, rawProfile);
     if (!profile || typeof profile !== 'object') continue;
     const provider = normalizeProvider((profile as any).provider);
     if (!provider) continue;
@@ -310,7 +317,11 @@ sidePanelProto.applyModelSuggestions = function applyModelSuggestions() {
   const modelInput = this.elements.model as HTMLInputElement | null;
   const modelSuggestions =
     this.elements.modelSuggestions || (document.getElementById('modelSuggestions') as HTMLDataListElement | null);
-  const activeProfile = this.configs?.[this.currentConfig] || {};
+  const activeProfile = materializeProfileWithProvider(
+    { providers: this.providers, configs: this.configs },
+    this.currentConfig,
+    this.configs?.[this.currentConfig] || {},
+  );
   const activeProvider = normalizeProvider(activeProfile.provider);
   const providerScoped = activeProvider ? ordered.filter((item) => item.provider === activeProvider) : ordered;
   const providerModels = providerScoped.slice(0, MAX_MODELS_TOTAL).map((item) => item.model);
@@ -467,14 +478,14 @@ sidePanelProto.populateModelSelect = function populateModelSelect() {
 
 sidePanelProto.refreshModelCatalogForProfileEditor = async function refreshModelCatalogForProfileEditor() {
   const providerEl = this.elements.profileEditorProvider;
-  const apiKeyEl = this.elements.profileEditorApiKey;
-  const endpointEl = this.elements.profileEditorEndpoint;
   const modelSelect = this.elements.profileEditorModel as HTMLSelectElement | null;
   const modelDatalist = this.elements.profileEditorModelList as HTMLDataListElement | null;
   const modelInput = this.elements.profileEditorModelInput as HTMLInputElement | null;
   if (!providerEl) return;
 
-  const provider = String(providerEl.value || '')
+  const providerId = String(providerEl.value || '').trim();
+  const providerInstance = getProviderInstance({ providers: this.providers }, providerId);
+  const provider = String(providerInstance?.providerType || '')
     .trim()
     .toLowerCase();
   const currentModel = String(modelInput?.value || modelSelect?.value || '').trim();
@@ -498,6 +509,11 @@ sidePanelProto.refreshModelCatalogForProfileEditor = async function refreshModel
     try {
       const modelIds = await fetchProviderModels(baseKey);
       this._profileEditorModels = modelIds.sort((a: string, b: string) => a.localeCompare(b));
+      if (providerInstance && modelIds.length > 0) {
+        let nextProvider = providerInstance;
+        for (const modelId of modelIds) nextProvider = ensureProviderModel(nextProvider, modelId);
+        this.providers = { ...(this.providers || {}), [nextProvider.id]: nextProvider };
+      }
     } catch {
       this._profileEditorModels = [];
     }
@@ -513,8 +529,8 @@ sidePanelProto.refreshModelCatalogForProfileEditor = async function refreshModel
     return;
   }
 
-  const apiKey = String(apiKeyEl?.value || '').trim();
-  const customEndpoint = String(endpointEl?.value || '').trim();
+  const apiKey = String(providerInstance?.apiKey || '').trim();
+  const customEndpoint = String(providerInstance?.customEndpoint || '').trim();
 
   const endpointBase = normalizeEndpointBase(provider, customEndpoint);
   if (!endpointBase) {
@@ -557,6 +573,11 @@ sidePanelProto.refreshModelCatalogForProfileEditor = async function refreshModel
   try {
     const modelIds = await this.fetchModelIdsForTarget(target);
     this._profileEditorModels = modelIds.sort((a: string, b: string) => a.localeCompare(b));
+    if (providerInstance && modelIds.length > 0) {
+      let nextProvider = providerInstance;
+      for (const modelId of modelIds) nextProvider = ensureProviderModel(nextProvider, modelId);
+      this.providers = { ...(this.providers || {}), [nextProvider.id]: nextProvider };
+    }
   } catch {
     this._profileEditorModels = [];
   }
@@ -568,7 +589,11 @@ sidePanelProto.refreshModelCatalogForProfileEditor = async function refreshModel
 sidePanelProto.updateModelSelectorGlow = function updateModelSelectorGlow() {
   const wrap = this.elements.modelSelectorWrap || document.getElementById('modelSelectorWrap');
   if (!wrap) return;
-  const activeConfig = this.configs?.[this.currentConfig];
+  const activeConfig = materializeProfileWithProvider(
+    { providers: this.providers, configs: this.configs },
+    this.currentConfig,
+    this.configs?.[this.currentConfig] || {},
+  );
   const provider = String(activeConfig?.provider || '')
     .trim()
     .toLowerCase();
@@ -652,7 +677,11 @@ sidePanelProto.toggleBalancePopover = async function toggleBalancePopover() {
     if (planEl) planEl.textContent = planLabel;
 
     // Get active profile info for provider context
-    const activeConfig = this.configs?.[this.currentConfig];
+    const activeConfig = materializeProfileWithProvider(
+      { providers: this.providers, configs: this.configs },
+      this.currentConfig,
+      this.configs?.[this.currentConfig] || {},
+    );
     const provider = String(activeConfig?.provider || '')
       .trim()
       .toLowerCase();

@@ -1,15 +1,14 @@
 import { DEFAULT_AGENT_SYSTEM_PROMPT } from '@parchi/shared';
 import {
-  buildSettingsStoreExport,
   hydrateSettingsStore,
-  importSettingsToStore,
   patchSettingsStoreSnapshot,
   replaceSettingsStoreSnapshot,
 } from '../../../state/stores/settings-store.js';
+import { materializeProfileWithProvider } from '../../../state/provider-registry.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-import { DEFAULT_THEME_ID, THEMES, applyTheme } from './themes.js';
+import { DEFAULT_THEME_ID, THEMES, applyTheme, getThemeById } from './themes.js';
 
 const parseHeadersJson = (raw: string): Record<string, string> => {
   const trimmed = raw.trim();
@@ -188,28 +187,34 @@ sidePanelProto.toggleProfileEditorEndpoint = function toggleProfileEditorEndpoin
 };
 
 sidePanelProto.switchSettingsTab = function switchSettingsTab(
-  tabName: 'providers' | 'profiles' | 'design' | 'advanced' = 'providers',
+  tabName: 'providers' | 'model' | 'generation' | 'advanced' | string = 'providers',
 ) {
+  // Map legacy tab names to v4 tabs
   const tabMap: Record<string, string> = {
+    connect: 'providers',
     setup: 'providers',
     oauth: 'providers',
-    model: 'profiles',
+    profiles: 'model',
+    look: 'advanced',
+    design: 'advanced',
+    agents: 'advanced',
+    system: 'advanced',
     usage: 'advanced',
   };
-  const resolvedTab = (tabMap[tabName] || tabName) as 'providers' | 'profiles' | 'design' | 'advanced';
+  const resolvedTab = (tabMap[tabName] || tabName) as 'providers' | 'model' | 'generation' | 'advanced';
   this.currentSettingsTab = resolvedTab;
 
-  const tabs = ['providers', 'profiles', 'design', 'advanced'] as const;
+  const tabs = ['providers', 'model', 'generation', 'advanced'] as const;
   const tabElements: Record<string, HTMLElement | null> = {
     providers: this.elements.settingsTabProviders || document.getElementById('settingsTabProviders'),
-    profiles: this.elements.settingsTabProfiles || document.getElementById('settingsTabProfiles'),
-    design: this.elements.settingsTabDesign || document.getElementById('settingsTabDesign'),
+    model: this.elements.settingsTabModel || document.getElementById('settingsTabModel'),
+    generation: this.elements.settingsTabGeneration || document.getElementById('settingsTabGeneration'),
     advanced: this.elements.settingsTabAdvanced || document.getElementById('settingsTabAdvanced'),
   };
   const btnElements: Record<string, HTMLElement | null> = {
     providers: this.elements.settingsTabProvidersBtn || document.getElementById('settingsTabProvidersBtn'),
-    profiles: this.elements.settingsTabProfilesBtn || document.getElementById('settingsTabProfilesBtn'),
-    design: this.elements.settingsTabDesignBtn || document.getElementById('settingsTabDesignBtn'),
+    model: this.elements.settingsTabModelBtn || document.getElementById('settingsTabModelBtn'),
+    generation: this.elements.settingsTabGenerationBtn || document.getElementById('settingsTabGenerationBtn'),
     advanced: this.elements.settingsTabAdvancedBtn || document.getElementById('settingsTabAdvancedBtn'),
   };
 
@@ -219,13 +224,56 @@ sidePanelProto.switchSettingsTab = function switchSettingsTab(
     btnElements[tab]?.classList.toggle('active', isActive);
     const pane = tabElements[tab]?.querySelector('.settings-tab-pane') as HTMLElement | null;
     pane?.classList.toggle('active', isActive);
+    btnElements[tab]?.setAttribute('aria-selected', isActive ? 'true' : 'false');
   }
 
   if (resolvedTab === 'providers') {
     this.renderOAuthProviderGrid?.();
     this.renderApiProviderGrid?.();
-    void this.refreshAccountPanel?.({ silent: true });
   }
+  if (resolvedTab === 'model') {
+    this.renderModelSelectorGrid?.();
+  }
+  if (resolvedTab === 'generation') {
+    this.populateGenerationTab?.();
+  }
+  if (resolvedTab === 'advanced') {
+    this.renderTeamProfileList?.();
+    this.renderThemeGrid?.();
+  }
+};
+
+sidePanelProto.syncAccountAvatar = function syncAccountAvatar() {
+  const initialsEl = this.elements.settingsAccountAvatar;
+  if (!initialsEl) return;
+  const label = String(this.elements.accountUserValue?.textContent || '').trim();
+  const fallback = label && label !== '-' ? label : 'Account';
+  const parts = fallback.split(/[\s@._-]+/).filter(Boolean);
+  const initials = (parts[0]?.[0] || 'A') + (parts[1]?.[0] || '');
+  initialsEl.textContent = initials.slice(0, 2).toUpperCase();
+};
+
+sidePanelProto.renderTeamProfileList = function renderTeamProfileList() {
+  const list = this.elements.teamProfileList as HTMLElement | null;
+  if (!list) return;
+  const names = Object.keys(this.configs || {}).filter((name) => name !== this.currentConfig);
+  if (!names.length) {
+    list.innerHTML = '<div class="history-empty">Create more profiles to assign team roles.</div>';
+    return;
+  }
+  list.innerHTML = names
+    .map((name) => {
+      const checked = this.auxAgentProfiles.includes(name) ? 'checked' : '';
+      const config = materializeProfileWithProvider({ providers: this.providers, configs: this.configs }, name, this.configs[name] || {});
+      return `<label class="team-profile-item">
+        <input type="checkbox" data-team-profile="${this.escapeHtml(name)}" ${checked} />
+        <span class="team-profile-copy">
+          <span class="team-profile-name">${this.escapeHtml(name)}</span>
+          <span class="team-profile-meta">${this.escapeHtml(config.providerLabel || config.provider || 'Provider')} · ${this.escapeHtml(config.model || 'No model')}</span>
+        </span>
+      </label>`;
+    })
+    .join('');
 };
 
 sidePanelProto.createProfileFromInput = function createProfileFromInput() {
@@ -246,6 +294,8 @@ sidePanelProto.createProfileFromInput = function createProfileFromInput() {
 sidePanelProto.loadSettings = async function loadSettings() {
   let settings: Record<string, any> = {};
   try {
+    // hydrateSettingsStore() already runs migrateSettingsToProviderRegistry()
+    // via readSettingsSnapshot() — no need to double-migrate.
     settings = await hydrateSettingsStore();
   } catch (error) {
     console.error('[Parchi] Failed to load settings from storage:', error);
@@ -278,6 +328,7 @@ sidePanelProto.loadSettings = async function loadSettings() {
     default: { ...baseConfig, ...(storedConfigs.default || {}) },
     ...storedConfigs,
   };
+  this.providers = settings.providers || {};
   const storedActiveConfig = typeof settings.activeConfig === 'string' ? settings.activeConfig : '';
   const storedActiveProvider = String(settings.provider || '')
     .trim()
@@ -310,34 +361,18 @@ sidePanelProto.loadSettings = async function loadSettings() {
   applyTheme(this.currentTheme);
   this.renderThemeGrid?.();
 
-  if (this.elements.visionBridge)
-    this.elements.visionBridge.value = settings.visionBridge !== undefined ? String(settings.visionBridge) : 'true';
+  if (this.elements.visionBridge) this.elements.visionBridge.checked = settings.visionBridge !== false;
   if (this.elements.visionProfile) this.elements.visionProfile.value = settings.visionProfile || '';
-  if (this.elements.orchestratorToggle)
-    this.elements.orchestratorToggle.value =
-      settings.useOrchestrator !== undefined ? String(settings.useOrchestrator) : 'false';
+  if (this.elements.orchestratorToggle) this.elements.orchestratorToggle.checked = settings.useOrchestrator === true;
   if (this.elements.orchestratorProfile) this.elements.orchestratorProfile.value = settings.orchestratorProfile || '';
-  if (this.elements.orchestratorEnabledVisible)
-    this.elements.orchestratorEnabledVisible.value = this.elements.orchestratorToggle?.value || 'false';
-  const orchEnabled = this.elements.orchestratorToggle?.value === 'true';
+  const orchEnabled = this.elements.orchestratorToggle?.checked === true;
   if (this.elements.orchestratorProfileSelectGroup)
     this.elements.orchestratorProfileSelectGroup.style.display = orchEnabled ? '' : 'none';
-  if (this.elements.orchestratorProfileVisible) {
-    this.populateOrchestratorProfileSelect?.();
-    this.elements.orchestratorProfileVisible.value = this.elements.orchestratorProfile?.value || '';
-  }
-  if (this.elements.showThinking)
-    this.elements.showThinking.value = settings.showThinking !== undefined ? String(settings.showThinking) : 'true';
-  if (this.elements.streamResponses)
-    this.elements.streamResponses.value =
-      settings.streamResponses !== undefined ? String(settings.streamResponses) : 'true';
-  if (this.elements.autoScroll)
-    this.elements.autoScroll.value = settings.autoScroll !== undefined ? String(settings.autoScroll) : 'true';
-  if (this.elements.confirmActions)
-    this.elements.confirmActions.value =
-      settings.confirmActions !== undefined ? String(settings.confirmActions) : 'true';
-  if (this.elements.saveHistory)
-    this.elements.saveHistory.value = settings.saveHistory !== undefined ? String(settings.saveHistory) : 'true';
+  if (this.elements.showThinking) this.elements.showThinking.checked = settings.showThinking !== false;
+  if (this.elements.streamResponses) this.elements.streamResponses.checked = settings.streamResponses !== false;
+  if (this.elements.autoScroll) this.elements.autoScroll.checked = settings.autoScroll !== false;
+  if (this.elements.confirmActions) this.elements.confirmActions.checked = settings.confirmActions !== false;
+  if (this.elements.saveHistory) this.elements.saveHistory.checked = settings.saveHistory !== false;
   if (this.elements.autoSaveSession)
     this.elements.autoSaveSession.value =
       settings.autoSaveSession !== undefined ? String(settings.autoSaveSession) : 'false';
@@ -347,8 +382,7 @@ sidePanelProto.loadSettings = async function loadSettings() {
   }
   this.timelineCollapsed = settings.timelineCollapsed !== undefined ? settings.timelineCollapsed !== false : true;
 
-  if (this.elements.relayEnabled)
-    this.elements.relayEnabled.value = settings.relayEnabled !== undefined ? String(settings.relayEnabled) : 'false';
+  if (this.elements.relayEnabled) this.elements.relayEnabled.checked = settings.relayEnabled === true;
   if (this.elements.relayUrl) this.elements.relayUrl.value = settings.relayUrl || 'http://127.0.0.1:17373';
   if (this.elements.relayToken) this.elements.relayToken.value = settings.relayToken || '';
   this.updateRelayStatusFromSettings?.(settings);
@@ -365,20 +399,21 @@ sidePanelProto.loadSettings = async function loadSettings() {
     ...(settings.toolPermissions || {}),
   };
   this.toolPermissions = toolPermissions;
-  if (this.elements.permissionRead) this.elements.permissionRead.value = String(toolPermissions.read);
-  if (this.elements.permissionInteract) this.elements.permissionInteract.value = String(toolPermissions.interact);
-  if (this.elements.permissionNavigate) this.elements.permissionNavigate.value = String(toolPermissions.navigate);
-  if (this.elements.permissionTabs) this.elements.permissionTabs.value = String(toolPermissions.tabs);
-  if (this.elements.permissionScreenshots)
-    this.elements.permissionScreenshots.value = String(toolPermissions.screenshots);
+  if (this.elements.permissionRead) this.elements.permissionRead.checked = toolPermissions.read !== false;
+  if (this.elements.permissionInteract) this.elements.permissionInteract.checked = toolPermissions.interact !== false;
+  if (this.elements.permissionNavigate) this.elements.permissionNavigate.checked = toolPermissions.navigate !== false;
+  if (this.elements.permissionTabs) this.elements.permissionTabs.checked = toolPermissions.tabs !== false;
+  if (this.elements.permissionScreenshots) this.elements.permissionScreenshots.checked = toolPermissions.screenshots !== false;
   if (this.elements.allowedDomains) this.elements.allowedDomains.value = settings.allowedDomains || '';
 
   this.refreshConfigDropdown();
   this.setActiveConfig(this.currentConfig, true);
   this.updateScreenshotToggleState();
-  this.editProfile(this.currentConfig, true);
+  this.populateGenerationTab?.();
   this.updatePromptSections?.();
+  this.renderTeamProfileList?.();
   await this.refreshAccountPanel?.({ silent: true });
+  this.syncAccountAvatar?.();
 };
 
 sidePanelProto.updateRelayStatusFromSettings = function updateRelayStatusFromSettings(
@@ -404,43 +439,6 @@ sidePanelProto.saveSettings = async function saveSettings() {
   this.openChatView?.();
 };
 
-sidePanelProto.exportSettings = async function exportSettings() {
-  try {
-    const settings = await hydrateSettingsStore();
-    const payload = buildSettingsStoreExport(settings);
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: 'application/json',
-    });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `parchi-settings-${new Date().toISOString().slice(0, 10)}.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    this.updateStatus('Settings export downloaded', 'success');
-  } catch (error) {
-    this.updateStatus('Unable to export settings', 'error');
-  }
-};
-
-sidePanelProto.importSettings = async function importSettings(event: Event) {
-  const input = event?.target as HTMLInputElement | null;
-  const file = input?.files?.[0];
-  if (!file) return;
-  try {
-    const text = await file.text();
-    const data = JSON.parse(text);
-    await importSettingsToStore(data);
-    await this.loadSettings();
-    this.renderProfileGrid();
-    this.updateStatus('Settings imported successfully', 'success');
-  } catch (error) {
-    this.updateStatus('Unable to import settings', 'error');
-  } finally {
-    if (input) input.value = '';
-  }
-};
-
 sidePanelProto.collectCurrentFormProfile = function collectCurrentFormProfile() {
   return this.configs[this.currentConfig] || {};
 };
@@ -454,37 +452,44 @@ sidePanelProto.collectToolPermissions = function collectToolPermissions() {
     screenshots: true,
   };
   return {
-    read: this.elements.permissionRead ? this.elements.permissionRead.value !== 'false' : fallback.read !== false,
+    read: this.elements.permissionRead ? this.elements.permissionRead.checked !== false : fallback.read !== false,
     interact: this.elements.permissionInteract
-      ? this.elements.permissionInteract.value !== 'false'
+      ? this.elements.permissionInteract.checked !== false
       : fallback.interact !== false,
     navigate: this.elements.permissionNavigate
-      ? this.elements.permissionNavigate.value !== 'false'
+      ? this.elements.permissionNavigate.checked !== false
       : fallback.navigate !== false,
-    tabs: this.elements.permissionTabs ? this.elements.permissionTabs.value !== 'false' : fallback.tabs !== false,
+    tabs: this.elements.permissionTabs ? this.elements.permissionTabs.checked !== false : fallback.tabs !== false,
     screenshots: this.elements.permissionScreenshots
-      ? this.elements.permissionScreenshots.value === 'true'
+      ? this.elements.permissionScreenshots.checked !== false
       : fallback.screenshots !== false,
   };
 };
 
 sidePanelProto.persistAllSettings = async function persistAllSettings({ silent = false } = {}) {
   try {
-    const activeProfile = this.configs[this.currentConfig] || {};
+    const activeProfile = materializeProfileWithProvider(
+      { providers: this.providers, configs: this.configs },
+      this.currentConfig,
+      this.configs[this.currentConfig] || {},
+    );
     const rawRelayUrl = (this.elements.relayUrl?.value || '').trim();
     const normalizedRelayUrl = rawRelayUrl && !rawRelayUrl.includes('://') ? `http://${rawRelayUrl}` : rawRelayUrl;
     // Write flat top-level keys for backward compatibility with BackgroundService.resolveProfile
     const payload: Record<string, any> = {
+      providers: this.providers || {},
+      providerId: activeProfile.providerId ?? '',
       provider: activeProfile.provider ?? '',
       apiKey: activeProfile.apiKey ?? '',
+      modelId: activeProfile.modelId ?? activeProfile.model ?? '',
       model: activeProfile.model ?? '',
       customEndpoint: activeProfile.customEndpoint ?? '',
       extraHeaders: activeProfile.extraHeaders || {},
       systemPrompt: activeProfile.systemPrompt || this.getDefaultSystemPrompt(),
       temperature: activeProfile.temperature ?? 0.7,
-      maxTokens: activeProfile.maxTokens || 4096,
-      contextLimit: activeProfile.contextLimit || 200000,
-      timeout: activeProfile.timeout || 30000,
+      maxTokens: activeProfile.maxTokens ?? 4096,
+      contextLimit: activeProfile.contextLimit ?? 200000,
+      timeout: activeProfile.timeout ?? 30000,
       enableScreenshots: activeProfile.enableScreenshots ?? true,
       sendScreenshotsAsImages: activeProfile.sendScreenshotsAsImages ?? false,
       screenshotQuality: activeProfile.screenshotQuality || 'high',
@@ -494,9 +499,9 @@ sidePanelProto.persistAllSettings = async function persistAllSettings({ silent =
       confirmActions: activeProfile.confirmActions !== false,
       saveHistory: activeProfile.saveHistory !== false,
       autoSaveSession: this.elements.autoSaveSession?.value === 'true',
-      visionBridge: this.elements.visionBridge?.value === 'true',
+      visionBridge: this.elements.visionBridge?.checked !== false,
       visionProfile: this.elements.visionProfile?.value || '',
-      useOrchestrator: this.elements.orchestratorToggle?.value === 'true',
+      useOrchestrator: this.elements.orchestratorToggle?.checked === true,
       orchestratorProfile: this.elements.orchestratorProfile?.value || '',
       toolPermissions: this.collectToolPermissions(),
       allowedDomains: this.elements.allowedDomains?.value || '',
@@ -505,11 +510,12 @@ sidePanelProto.persistAllSettings = async function persistAllSettings({ silent =
       fontPreset: this.fontPreset || 'default',
       fontStylePreset: this.fontStylePreset || 'normal',
       theme: this.currentTheme || DEFAULT_THEME_ID,
-      relayEnabled: this.elements.relayEnabled?.value === 'true',
+      relayEnabled: this.elements.relayEnabled?.checked === true,
       relayUrl: normalizedRelayUrl,
       relayToken: this.elements.relayToken?.value || '',
       activeConfig: this.currentConfig,
       configs: this.configs,
+      controllers: [],
     };
     await replaceSettingsStoreSnapshot(payload);
     this.updateContextUsage?.();
@@ -530,23 +536,40 @@ sidePanelProto.getDefaultSystemPrompt = function getDefaultSystemPrompt() {
 };
 
 sidePanelProto.renderThemeGrid = function renderThemeGrid() {
-  const grid = this.elements.themeGrid;
-  if (!grid) return;
-  grid.innerHTML = '';
-  for (const theme of THEMES) {
-    const swatch = document.createElement('button');
-    swatch.className = 'theme-swatch';
-    if (theme.id === this.currentTheme) swatch.classList.add('active');
-    swatch.title = theme.name;
-    swatch.dataset.themeId = theme.id;
-    swatch.innerHTML = `
-      <span class="theme-swatch-color" style="background:${theme.preview.bg}; border-color:${theme.preview.accent}">
-        <span class="theme-swatch-accent" style="background:${theme.preview.accent}"></span>
-      </span>
-      <span class="theme-swatch-label">${theme.name}</span>
-    `;
-    swatch.addEventListener('click', () => this.setTheme(theme.id));
-    grid.appendChild(swatch);
+  const select = this.elements.themeSelect as HTMLSelectElement | null;
+  const preview = this.elements.themePreview as HTMLElement | null;
+  if (!select) return;
+
+  select.innerHTML = THEMES.map(
+    (theme) => `<option value="${this.escapeHtml(theme.id)}">${this.escapeHtml(theme.name)}</option>`,
+  ).join('');
+
+  const activeThemeId = getThemeById(this.currentTheme || '') ? this.currentTheme : THEMES[0]?.id || DEFAULT_THEME_ID;
+  this.currentTheme = activeThemeId;
+  select.value = activeThemeId;
+
+  if (preview) {
+    const activeTheme = getThemeById(activeThemeId) || THEMES[0];
+    if (activeTheme) {
+      preview.innerHTML = `
+        <div class="theme-preview-pill">
+          <span class="theme-preview-dot" style="background:${activeTheme.preview.bg}; border-color:${activeTheme.preview.accent};"></span>
+          <span class="theme-preview-name">${this.escapeHtml(activeTheme.name)}</span>
+          <span class="theme-preview-count">${THEMES.length} themes</span>
+        </div>
+        <div class="theme-preview-swatches">
+          <span class="theme-preview-swatch" style="background:${activeTheme.preview.bg}" title="Background"></span>
+          <span class="theme-preview-swatch" style="background:${activeTheme.preview.card}" title="Surface"></span>
+          <span class="theme-preview-swatch" style="background:${activeTheme.preview.accent}" title="Accent"></span>
+          <span class="theme-preview-swatch theme-preview-foreground" style="background:${activeTheme.vars['--foreground'] || '#ffffff'}" title="Text"></span>
+        </div>
+      `;
+    }
+  }
+
+  if (select.dataset.bound !== 'true') {
+    select.addEventListener('change', () => this.setTheme(select.value));
+    select.dataset.bound = 'true';
   }
 };
 
@@ -558,12 +581,12 @@ sidePanelProto.setTheme = function setTheme(id: string) {
 };
 
 sidePanelProto.updateScreenshotToggleState = function updateScreenshotToggleState() {
-  if (!this.elements.enableScreenshots) return;
-  const wantsScreens = this.elements.enableScreenshots.value === 'true';
+  const activeProfile = this.configs?.[this.currentConfig] || {};
+  const wantsScreens = activeProfile.enableScreenshots !== false;
   const visionProfile = this.elements.visionProfile?.value;
-  const provider = this.elements.provider?.value;
+  const provider = activeProfile.provider;
   const hasVision = (provider && provider !== 'custom') || visionProfile;
-  const controls = [this.elements.sendScreenshotsAsImages, this.elements.screenshotQuality];
+  const controls: Array<any> = [];
   controls.forEach((ctrl) => {
     if (!ctrl) return;
     ctrl.disabled = !wantsScreens;
@@ -596,7 +619,7 @@ sidePanelProto.updatePromptSections = function updatePromptSections() {
   if (visTextarea) this.elements.visionPromptTextarea = visTextarea;
 
   // Orchestrator
-  const orchEnabled = this.elements.orchestratorToggle?.value === 'true';
+  const orchEnabled = this.elements.orchestratorToggle?.checked === true;
   const orchProfileName = this.elements.orchestratorProfile?.value || this.currentConfig;
   if (orchSection) {
     orchSection.classList.toggle('hidden', !orchEnabled);
@@ -620,7 +643,7 @@ sidePanelProto.updatePromptSections = function updatePromptSections() {
 
 sidePanelProto.savePromptSections = function savePromptSections() {
   // Save orchestrator prompt back to its profile
-  const orchEnabled = this.elements.orchestratorToggle?.value === 'true';
+  const orchEnabled = this.elements.orchestratorToggle?.checked === true;
   if (orchEnabled && this.elements.orchestratorPromptTextarea) {
     const orchProfileName = this.elements.orchestratorProfile?.value || this.currentConfig;
     if (this.configs[orchProfileName]) {

@@ -12,6 +12,7 @@ function createSessionState(): SessionState {
   return {
     sessionId: 'session-1',
     currentPlan: null,
+    orchestratorPlan: null,
     subAgentCount: 0,
     subAgentProfileCursor: 0,
     lastBrowserAction: null,
@@ -32,6 +33,9 @@ function createSessionState(): SessionState {
       sessionOutputTokens: 0,
       sessionTotalTokens: 0,
     },
+    runningSubagents: new Map(),
+    subagentHistory: new Map(),
+    orchestratorWhiteboard: new Map(),
   };
 }
 

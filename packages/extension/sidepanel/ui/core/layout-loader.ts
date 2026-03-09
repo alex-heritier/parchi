@@ -7,23 +7,16 @@ const loadTemplate = async (path: string) => {
   return response.text();
 };
 
-// Inject full template HTML into an existing container, preserving the container node (and its id).
-// IMPORTANT: some UI code grabs these containers by id; replacing them breaks tab switching.
-const injectInnerHtml = (root: HTMLElement, selector: string, html: string) => {
-  const target = root.querySelector(selector) as HTMLElement | null;
-  if (!target) return;
-  target.innerHTML = html.trim();
-};
-
 export const loadPanelLayout = async () => {
   const appRoot = document.getElementById('appRoot');
   if (!appRoot) return;
 
-  const [sidebarShell, mainContent, settingsPanel, settingsGeneral, settingsProfiles, settingsUsage, tabSelector] =
+  const [sidebarShell, mainContent, settingsPanel, accountPanel, settingsGeneral, _settingsProfiles, settingsUsage, tabSelector] =
     await Promise.all([
       loadTemplate('sidebar-shell.html'),
       loadTemplate('main.html'),
       loadTemplate('panels/settings.html'),
+      loadTemplate('panels/account.html'),
       loadTemplate('panels/settings-general.html'),
       loadTemplate('panels/settings-profiles.html'),
       loadTemplate('panels/settings-usage.html'),
@@ -39,6 +32,7 @@ export const loadPanelLayout = async () => {
 
   const rightPanels = appContainer.querySelector('#rightPanelPanels') as HTMLElement | null;
   rightPanels?.insertAdjacentHTML('beforeend', settingsPanel.trim());
+  rightPanels?.insertAdjacentHTML('beforeend', accountPanel.trim());
 
   // Parse the combined settings-general template and distribute panes into their tab containers.
   const tmp = document.createElement('div');
@@ -55,7 +49,8 @@ export const loadPanelLayout = async () => {
     }
   }
 
-  injectInnerHtml(appContainer, '#settingsTabProfiles', settingsProfiles);
+  // v4 redesign: profile editor removed; settings-profiles.html is no longer injected.
+  // The hidden activeConfig select is now in the providers pane of settings-general.html.
 
   // Usage tab — uses same pane-distribution approach as settings-general
   const usageTmp = document.createElement('div');

@@ -12,6 +12,8 @@ import { normalizeOAuthModelIdForProvider } from '../../../oauth/model-normaliza
 import { SidePanelUI } from '../core/panel-ui.js';
 
 import { getOAuthProfileNameForProvider, syncOAuthProfiles } from './oauth-profiles.js';
+import { ensureProviderModel, getProviderInstance } from '../../../state/provider-registry.js';
+import { getProviderSvg } from './panel-model-selector.js';
 
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
@@ -53,42 +55,43 @@ sidePanelProto.renderOAuthProviderGrid = async function renderOAuthProviderGrid(
     const profileConfig = this.configs?.[profileName];
     const currentModel = normalizeOAuthModelIdForProvider(config.key, String(profileConfig?.model || ''));
     const fetchedModels = modelsByProvider[config.key] || [];
+    const svg = getProviderSvg(config.key);
 
-    const card = document.createElement('div');
-    card.className = `oauth-provider-card${connected ? ' connected' : ''}`;
-    card.dataset.provider = config.key;
+    const row = document.createElement('div');
+    row.className = `provider-row${connected ? ' connected' : ' dim'}`;
+    row.dataset.provider = config.key;
 
-    let statusHtml = '<span class="oauth-provider-card-status">Not connected</span>';
+    let metaHtml = 'Not connected';
     if (connected) {
-      const emailLine = email ? `<span class="oauth-provider-card-email">${email}</span>` : '';
       const modelList = fetchedModels.length > 0 ? fetchedModels : config.models.map((m) => m.id);
       const modelOptions = modelList
         .map((id: string) => `<option value="${id}"${id === currentModel ? ' selected' : ''}>${id}</option>`)
         .join('');
-      statusHtml = `
-        ${emailLine}
-        <div class="oauth-provider-model-row">
-          <select class="oauth-model-select" data-provider="${config.key}">${modelOptions}</select>
+      metaHtml = email || 'Connected';
+      const selectHtml = `<select class="oauth-model-select" data-provider="${config.key}">${modelOptions}</select>`;
+      row.innerHTML = `
+        <span class="provider-logo">${svg}</span>
+        <div class="provider-info">
+          <div class="provider-name">${config.name}</div>
+          <div class="provider-meta">${metaHtml}</div>
         </div>
+        ${selectHtml}
+        <span class="provider-status-dot"></span>
+        <button class="connect-btn" data-action="disconnect" data-provider="${config.key}" style="color:var(--muted-dim);border-color:var(--ink-2)">Disconnect</button>
       `;
-    } else if (error) {
-      statusHtml = `<span class="oauth-provider-card-status oauth-error">${error}</span>`;
+    } else {
+      if (error) metaHtml = error;
+      row.innerHTML = `
+        <span class="provider-logo">${svg}</span>
+        <div class="provider-info">
+          <div class="provider-name">${config.name}</div>
+          <div class="provider-meta">${metaHtml}</div>
+        </div>
+        <span class="provider-status-dot off"></span>
+        <button class="connect-btn" data-action="connect" data-provider="${config.key}">Connect</button>
+      `;
     }
-
-    card.innerHTML = `
-      <div class="oauth-provider-card-info">
-        <span class="oauth-provider-card-name">${config.name}</span>
-        ${statusHtml}
-      </div>
-      <div class="oauth-provider-card-actions">
-        ${
-          connected
-            ? `<button class="btn btn-disconnect" data-action="disconnect" data-provider="${config.key}">Disconnect</button>`
-            : `<button class="btn btn-primary" data-action="connect" data-provider="${config.key}">Connect</button>`
-        }
-      </div>
-    `;
-    grid.appendChild(card);
+    grid.appendChild(row);
   }
 
   // Single delegated listener for the grid
@@ -129,9 +132,21 @@ sidePanelProto.updateOAuthProfileModel = async function updateOAuthProfileModel(
 
   this.configs[profileName] = {
     ...this.configs[profileName],
+    modelId: normalizedModelId,
     model: normalizedModelId,
     contextLimit: modelInfo?.contextWindow || this.configs[profileName].contextLimit || 200000,
   };
+  const providerId = String(this.configs[profileName]?.providerId || '');
+  const providerInstance = getProviderInstance({ providers: this.providers }, providerId);
+  if (providerInstance) {
+    const nextProvider = ensureProviderModel(providerInstance, {
+      id: normalizedModelId,
+      label: modelInfo?.label,
+      contextWindow: modelInfo?.contextWindow,
+      supportsVision: modelInfo?.supportsVision,
+    });
+    this.providers = { ...(this.providers || {}), [nextProvider.id]: nextProvider };
+  }
   await this.persistAllSettings?.({ silent: true });
   this.populateModelSelect?.();
   this.updateModelDisplay?.();
@@ -142,19 +157,19 @@ sidePanelProto.startOAuthConnect = async function startOAuthConnect(key: OAuthPr
   const config = OAUTH_PROVIDERS[key];
   if (!config) return;
 
-  // Update button to show loading
-  const card = document.querySelector(`.oauth-provider-card[data-provider="${key}"]`);
-  const statusEl = card?.querySelector('.oauth-provider-card-status') as HTMLElement | null;
-  const actionsEl = card?.querySelector('.oauth-provider-card-actions') as HTMLElement | null;
-  if (statusEl) statusEl.textContent = 'Connecting...';
-  if (actionsEl)
-    actionsEl.innerHTML = `<button class="btn btn-secondary" data-action="cancel" data-provider="${key}">Cancel</button>`;
-
-  // Re-bind cancel
-  actionsEl?.querySelector('button')?.addEventListener('click', () => {
-    cancelConnection(key);
-    this.renderOAuthProviderGrid();
-  });
+  // Update row to show loading
+  const row = document.querySelector(`.provider-row[data-provider="${key}"]`);
+  const metaEl = row?.querySelector('.provider-meta') as HTMLElement | null;
+  if (metaEl) metaEl.textContent = 'Connecting...';
+  const connectBtn = row?.querySelector('.connect-btn') as HTMLElement | null;
+  if (connectBtn) {
+    connectBtn.textContent = 'Cancel';
+    connectBtn.dataset.action = 'cancel';
+    connectBtn.addEventListener('click', () => {
+      cancelConnection(key);
+      this.renderOAuthProviderGrid();
+    });
+  }
 
   try {
     await connectProvider(key, {

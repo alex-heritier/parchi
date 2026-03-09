@@ -77,6 +77,8 @@
     "test-output/orchestrator-fixture-execution.json",
     "test-output/orchestrator-fixture-execution.md",
     "test-output/orchestrator-criteria-matrix.json",
-    "test-output/orchestrator-criteria-matrix.md"
+    "test-output/orchestrator-criteria-matrix.md",
+    "test-output/orchestrator-service-integration.json",
+    "test-output/orchestrator-service-integration.md"
   ]
 }

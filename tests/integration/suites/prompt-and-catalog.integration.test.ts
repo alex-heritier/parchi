@@ -13,6 +13,7 @@ function createSessionState(overrides: Partial<SessionState> = {}): SessionState
   return {
     sessionId: 'session-1',
     currentPlan: null,
+    orchestratorPlan: null,
     subAgentCount: 0,
     subAgentProfileCursor: 0,
     lastBrowserAction: null,
@@ -33,6 +34,9 @@ function createSessionState(overrides: Partial<SessionState> = {}): SessionState
       sessionOutputTokens: 0,
       sessionTotalTokens: 0,
     },
+    runningSubagents: new Map(),
+    subagentHistory: new Map(),
+    orchestratorWhiteboard: new Map(),
     ...overrides,
   };
 }
@@ -64,8 +68,12 @@ export async function runPromptAndCatalogIntegrationSuite(runner: AsyncTestRunne
     runner.assertTrue(toolNames.includes('navigate'));
     runner.assertTrue(toolNames.includes('watchVideo'));
     runner.assertTrue(toolNames.includes('set_plan'));
+    runner.assertTrue(toolNames.includes('set_orchestrator_plan'));
+    runner.assertTrue(toolNames.includes('dispatch_orchestrator_tasks'));
     runner.assertTrue(toolNames.includes('list_report_images'));
     runner.assertTrue(toolNames.includes('spawn_subagent'));
+    runner.assertTrue(toolNames.includes('list_subagents'));
+    runner.assertTrue(toolNames.includes('await_subagent'));
     runner.assertEqual(profileEnum, ['researcher']);
   });
 
@@ -170,36 +178,69 @@ export async function runPromptAndCatalogIntegrationSuite(runner: AsyncTestRunne
     runner.assertIncludes(prompt, '⛔ NO ACTIVE PLAN');
     runner.assertIncludes(prompt, 'REQUIRED NEXT CALL: set_plan({ steps: [{ title: "..." }, ...] })');
     runner.assertIncludes(prompt, 'Vision-capable tools enabled:');
-    runner.assertIncludes(prompt, 'Orchestrator tools enabled: spawn_subagent, subagent_complete.');
+    runner.assertIncludes(prompt, 'Orchestrator tools enabled: set_orchestrator_plan, get_orchestrator_plan');
     runner.assertIncludes(prompt, 'Tabs selected (1).');
   });
 
-  await runner.test(
-    'system prompt switches required next call based on verification state and completion',
-    async () => {
-      const toolCatalog = getToolsForSession(browserTools, { enableScreenshots: true }, false, [], false).map(
-        (tool) => ({ name: tool.name, description: tool.description || '' }),
-      );
-      const basePlan = buildRunPlan([{ title: 'Click checkout', status: 'pending' }], { now: 10 });
+  await runner.test('system prompt prioritizes verification and completion over subagent fanout', async () => {
+    const toolCatalog = getToolsForSession(browserTools, { enableScreenshots: true }, false, [], false).map((tool) => ({
+      name: tool.name,
+      description: tool.description || '',
+    }));
+    const basePlan = buildRunPlan([{ title: 'Click checkout', status: 'pending' }], { now: 10 });
 
-      const verifyingPrompt = enhanceSystemPrompt(
-        'BASE',
-        createPromptContext(toolCatalog),
-        createSessionState({ currentPlan: basePlan, awaitingVerification: true, lastBrowserAction: 'click' }),
-      );
-      runner.assertIncludes(verifyingPrompt, 'VERIFICATION: ⚠️ PENDING - getContent NOT called');
-      runner.assertIncludes(verifyingPrompt, '⛔ REQUIRED NEXT CALL: getContent({ mode: "text" })');
+    const verifyingPrompt = enhanceSystemPrompt(
+      'BASE',
+      createPromptContext(toolCatalog),
+      createSessionState({
+        currentPlan: basePlan,
+        awaitingVerification: true,
+        lastBrowserAction: 'click',
+        subAgentCount: 0,
+      }),
+    );
+    runner.assertIncludes(verifyingPrompt, 'VERIFICATION: ⚠️ PENDING - getContent NOT called');
+    runner.assertIncludes(verifyingPrompt, '⛔ REQUIRED NEXT CALL: getContent({ mode: "text" })');
 
-      const donePlan = buildRunPlan([{ title: 'Click checkout', status: 'done' }], { now: 20 });
-      const donePrompt = enhanceSystemPrompt(
-        'BASE',
-        createPromptContext(toolCatalog),
-        createSessionState({ currentPlan: donePlan }),
-        [{ name: 'Skill A', description: 'Matched', steps: '1. click({})' }],
-      );
-      runner.assertIncludes(donePrompt, '✅ ALL STEPS COMPLETE (1/1)');
-      runner.assertIncludes(donePrompt, 'REQUIRED: Provide your final summary now with evidence from getContent.');
-      runner.assertIncludes(donePrompt, '<available_skills>');
-    },
-  );
+    const donePlan = buildRunPlan([{ title: 'Click checkout', status: 'done' }], { now: 20 });
+    const donePrompt = enhanceSystemPrompt(
+      'BASE',
+      createPromptContext(toolCatalog),
+      createSessionState({ currentPlan: donePlan, subAgentCount: 0 }),
+      [{ name: 'Skill A', description: 'Matched', steps: '1. click({})' }],
+    );
+    runner.assertIncludes(donePrompt, '✅ ALL STEPS COMPLETE (1/1)');
+    runner.assertIncludes(donePrompt, 'REQUIRED: Provide your final summary now with evidence from getContent.');
+    runner.assertIncludes(donePrompt, '<available_skills>');
+  });
+
+  await runner.test('system prompt enforces two-subagent gate when orchestrator mode is enabled', async () => {
+    const toolCatalog = getToolsForSession(
+      browserTools,
+      { enableScreenshots: true },
+      true,
+      [{ name: 'researcher' }],
+      true,
+    ).map((tool) => ({ name: tool.name, description: tool.description || '' }));
+    const basePlan = buildRunPlan(
+      [
+        { title: 'Inspect pricing page', status: 'pending' },
+        { title: 'Compare checkout copy', status: 'pending' },
+      ],
+      { now: 30 },
+    );
+
+    const gatedPrompt = enhanceSystemPrompt(
+      'BASE',
+      createPromptContext(toolCatalog),
+      createSessionState({ currentPlan: basePlan, subAgentCount: 1 }),
+    );
+
+    runner.assertIncludes(gatedPrompt, 'ORCHESTRATOR SUCCESS GATE: launch at least 2 sub-agents before finalizing.');
+    runner.assertIncludes(gatedPrompt, 'SUB-AGENTS LAUNCHED: 1/2');
+    runner.assertIncludes(
+      gatedPrompt,
+      'REQUIRED NEXT CALL: spawn_subagent({ name: "...", profile: "...", tasks: ["..."] })',
+    );
+  });
 }
