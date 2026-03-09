@@ -167,6 +167,10 @@ sidePanelProto.requestManualContextCompaction = async function requestManualCont
 };
 
 sidePanelProto.sendMessage = async function sendMessage() {
+  if (this.activeAgent && this.activeAgent !== 'main') {
+    this.updateStatus('Switch back to the orchestrator tab to send a new message.', 'warning');
+    return;
+  }
   const userMessage = this.elements.userInput.value.trim();
   if (!userMessage) return;
 
@@ -304,6 +308,7 @@ sidePanelProto.displayUserMessage = function displayUserMessage(
 ) {
   const turn = document.createElement('div');
   turn.className = 'chat-turn';
+  this.tagAgentView?.(turn, 'main');
   const messageDiv = document.createElement('div');
   messageDiv.className = 'message user';
   const buildRecordingHtml = () => {
@@ -396,6 +401,7 @@ sidePanelProto.displaySummaryMessage = function displaySummaryMessage(messageOrE
 
   const container = document.createElement('div');
   container.className = 'message compaction-message';
+  this.tagAgentView?.(container, 'main');
 
   const countLabel = trimmedCount > 0 ? `${trimmedCount} messages summarized` : '';
 
@@ -469,6 +475,7 @@ sidePanelProto.displayTokenTraceMessage = function displayTokenTraceMessage(trac
 
   const container = document.createElement('div');
   container.className = 'message token-trace-message';
+  this.tagAgentView?.(container, 'main');
   container.innerHTML = `
     <div class="token-trace-card">
       <div class="token-trace-header">
@@ -782,6 +789,7 @@ sidePanelProto.displayAssistantMessage = function displayAssistantMessage(
 
   const messageDiv = document.createElement('div');
   messageDiv.className = 'message assistant';
+  this.tagAgentView?.(messageDiv, 'main');
 
   let html = `<div class="message-header">Assistant</div>`;
   if (messageMeta) {

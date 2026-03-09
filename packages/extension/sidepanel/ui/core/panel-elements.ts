@@ -1,14 +1,13 @@
-type NullableElement<T extends Element> = T | null;
+import { getMissionControlElements } from './panel-elements-mission-control.js';
 
+type NullableElement<T extends Element> = T | null;
 const byId = <T extends HTMLElement>(id: string): NullableElement<T> =>
   document.getElementById(id) as NullableElement<T>;
 const bySelector = <T extends Element>(selector: string): NullableElement<T> =>
   document.querySelector(selector) as NullableElement<T>;
-
 export type SidePanelElements = Record<string, any>;
-
 export const getSidePanelElements = (): SidePanelElements => ({
-  // Sidebar elements
+  // Sidebar
   sidebar: byId<HTMLElement>('sidebar'),
   sidebarScrim: byId<HTMLElement>('sidebarScrim'),
   openSidebarBtn: byId<HTMLButtonElement>('openSidebarBtn'),
@@ -16,9 +15,10 @@ export const getSidePanelElements = (): SidePanelElements => ({
   rightPanel: byId<HTMLElement>('rightPanel'),
   rightPanelPanels: byId<HTMLElement>('rightPanelPanels') ?? bySelector<HTMLElement>('.right-panel-panels'),
 
-  // Legacy references (kept for compatibility)
+  // Legacy references
   settingsBtn: byId<HTMLButtonElement>('settingsBtn'),
   settingsPanel: byId<HTMLElement>('settingsPanel'),
+  accountPanel: byId<HTMLElement>('accountPanel'),
   chatInterface: byId<HTMLElement>('chatInterface'),
   statusText: byId<HTMLElement>('statusText'),
   statusMeta: byId<HTMLElement>('statusMeta'),
@@ -33,6 +33,8 @@ export const getSidePanelElements = (): SidePanelElements => ({
   contextInspectorCloseBtn: byId<HTMLButtonElement>('contextInspectorCloseBtn'),
   contextInspectorCompactBtn: byId<HTMLButtonElement>('contextInspectorCompactBtn'),
   agentNav: byId<HTMLElement>('agentNav'),
+
+  ...getMissionControlElements(),
 
   tabSelectorBtn: byId<HTMLButtonElement>('tabSelectorBtn'),
   exportBtn: byId<HTMLButtonElement>('exportBtn'),
@@ -57,31 +59,57 @@ export const getSidePanelElements = (): SidePanelElements => ({
   historyItems: byId<HTMLElement>('historyItems'),
   clearHistoryBtn: byId<HTMLButtonElement>('clearHistoryBtn'),
   startNewSessionBtn: byId<HTMLButtonElement>('startNewSessionBtn'),
+  settingsOpenAccountBtn: byId<HTMLButtonElement>('settingsOpenAccountBtn'),
+  accountBackToSettingsBtn: byId<HTMLButtonElement>('accountBackToSettingsBtn'),
+  settingsAccountAvatar: byId<HTMLElement>('settingsAccountAvatar'),
+  // v4 settings tabs
   settingsTabProvidersBtn: byId<HTMLButtonElement>('settingsTabProvidersBtn'),
-  settingsTabProfilesBtn: byId<HTMLButtonElement>('settingsTabProfilesBtn'),
-  settingsTabDesignBtn: byId<HTMLButtonElement>('settingsTabDesignBtn'),
+  settingsTabModelBtn: byId<HTMLButtonElement>('settingsTabModelBtn'),
+  settingsTabGenerationBtn: byId<HTMLButtonElement>('settingsTabGenerationBtn'),
   settingsTabAdvancedBtn: byId<HTMLButtonElement>('settingsTabAdvancedBtn'),
   settingsTabProviders: byId<HTMLElement>('settingsTabProviders'),
-  settingsTabProfiles: byId<HTMLElement>('settingsTabProfiles'),
-  settingsTabDesign: byId<HTMLElement>('settingsTabDesign'),
+  settingsTabModel: byId<HTMLElement>('settingsTabModel'),
+  settingsTabGeneration: byId<HTMLElement>('settingsTabGeneration'),
   settingsTabAdvanced: byId<HTMLElement>('settingsTabAdvanced'),
-  // Legacy aliases for backward compat
-  settingsTabSetupBtn: byId<HTMLButtonElement>('settingsTabProvidersBtn'),
-  settingsTabOauthBtn: byId<HTMLButtonElement>('settingsTabProvidersBtn'),
-  settingsTabModelBtn: byId<HTMLButtonElement>('settingsTabProfilesBtn'),
-  settingsTabUsageBtn: byId<HTMLButtonElement>('settingsTabAdvancedBtn'),
-  settingsTabSetup: byId<HTMLElement>('settingsTabProviders'),
-  settingsTabOauth: byId<HTMLElement>('settingsTabProviders'),
-  settingsTabModel: byId<HTMLElement>('settingsTabProfiles'),
-  settingsTabUsage: byId<HTMLElement>('settingsTabAdvanced'),
-  // Provider card grid and inline editor
+  // Provider card grid and editor
   apiProviderGrid: byId<HTMLElement>('apiProviderGrid'),
   apiProviderEditor: byId<HTMLElement>('apiProviderEditor'),
   providerEditorKey: byId<HTMLInputElement>('providerEditorKey'),
   providerEditorEndpoint: byId<HTMLInputElement>('providerEditorEndpoint'),
   providerEditorEndpointGroup: byId<HTMLElement>('providerEditorEndpointGroup'),
+  teamProfileList: byId<HTMLElement>('teamProfileList'),
+  themePreviewHero: byId<HTMLElement>('themePreviewHero'),
+  themePreview: byId<HTMLElement>('themePreview'),
   providerEditorSaveBtn: byId<HTMLButtonElement>('providerEditorSaveBtn'),
   providerEditorCancelBtn: byId<HTMLButtonElement>('providerEditorCancelBtn'),
+  // Custom provider form
+  customProviderList: byId<HTMLElement>('customProviderList'),
+  addCustomProviderBtn: byId<HTMLButtonElement>('addCustomProviderBtn'),
+  customProviderForm: byId<HTMLElement>('customProviderForm'),
+  customProviderFormCloseBtn: byId<HTMLButtonElement>('customProviderFormCloseBtn'),
+  customProviderName: byId<HTMLInputElement>('customProviderName'),
+  customProviderSdkType: byId<HTMLSelectElement>('customProviderSdkType'),
+  customProviderEndpoint: byId<HTMLInputElement>('customProviderEndpoint'),
+  customProviderApiKey: byId<HTMLInputElement>('customProviderApiKey'),
+  customProviderModels: byId<HTMLInputElement>('customProviderModels'),
+  customProviderSaveBtn: byId<HTMLButtonElement>('customProviderSaveBtn'),
+  customProviderCancelBtn: byId<HTMLButtonElement>('customProviderCancelBtn'),
+  // Model selector grid
+  modelSelectorGrid: byId<HTMLElement>('modelSelectorGrid'),
+  // Generation tab
+  genTemperature: byId<HTMLInputElement>('genTemperature'),
+  genTemperatureValue: byId<HTMLElement>('genTemperatureValue'),
+  genMaxTokens: byId<HTMLInputElement>('genMaxTokens'),
+  genContextLimit: byId<HTMLInputElement>('genContextLimit'),
+  genTimeout: byId<HTMLInputElement>('genTimeout'),
+  genScreenshotQuality: byId<HTMLSelectElement>('genScreenshotQuality'),
+  genEnableScreenshots: byId<HTMLInputElement>('genEnableScreenshots'),
+  genSendScreenshots: byId<HTMLInputElement>('genSendScreenshots'),
+  genStreamResponses: byId<HTMLInputElement>('genStreamResponses'),
+  genShowThinking: byId<HTMLInputElement>('genShowThinking'),
+  genAutoScroll: byId<HTMLInputElement>('genAutoScroll'),
+  genConfirmActions: byId<HTMLInputElement>('genConfirmActions'),
+  genSaveHistory: byId<HTMLInputElement>('genSaveHistory'),
 
   newProfileNameInput: byId<HTMLInputElement>('newProfileNameInput'),
   createProfileBtn: byId<HTMLButtonElement>('createProfileBtn'),
@@ -121,9 +149,6 @@ export const getSidePanelElements = (): SidePanelElements => ({
   permissionTabs: byId<HTMLInputElement>('permissionTabs'),
   permissionScreenshots: byId<HTMLInputElement>('permissionScreenshots'),
   allowedDomains: byId<HTMLTextAreaElement>('allowedDomains'),
-  exportSettingsBtn: byId<HTMLButtonElement>('exportSettingsBtn'),
-  importSettingsBtn: byId<HTMLButtonElement>('importSettingsBtn'),
-  importSettingsInput: byId<HTMLInputElement>('importSettingsInput'),
 
   // Account + billing
   accountOnboardingModal: byId<HTMLElement>('accountOnboardingModal'),
@@ -159,9 +184,8 @@ export const getSidePanelElements = (): SidePanelElements => ({
   accountManageBtn: byId<HTMLButtonElement>('accountManageBtn'),
   accountRefreshBtn: byId<HTMLButtonElement>('accountRefreshBtn'),
   accountSignOutBtn: byId<HTMLButtonElement>('accountSignOutBtn'),
-
   // Relay
-  relayEnabled: byId<HTMLSelectElement>('relayEnabled'),
+  relayEnabled: byId<HTMLInputElement>('relayEnabled'),
   relayUrl: byId<HTMLInputElement>('relayUrl'),
   relayToken: byId<HTMLInputElement>('relayToken'),
   saveRelayBtn: byId<HTMLButtonElement>('saveRelayBtn'),
@@ -197,7 +221,7 @@ export const getSidePanelElements = (): SidePanelElements => ({
   // Form elements - Behavior
   showThinking: byId<HTMLInputElement>('showThinking'),
   streamResponses: byId<HTMLInputElement>('streamResponses'),
-  autoScroll: byId<HTMLSelectElement>('autoScroll'),
+  autoScroll: byId<HTMLInputElement>('autoScroll'),
   confirmActions: byId<HTMLInputElement>('confirmActions'),
   saveHistory: byId<HTMLInputElement>('saveHistory'),
   autoSaveSession: byId<HTMLSelectElement>('autoSaveSession'),
@@ -207,9 +231,9 @@ export const getSidePanelElements = (): SidePanelElements => ({
   // Form elements - Orchestrator
   orchestratorToggle: byId<HTMLInputElement>('orchestratorToggle'),
   orchestratorProfile: byId<HTMLSelectElement>('orchestratorProfile'),
-  orchestratorEnabledVisible: byId<HTMLSelectElement>('orchestratorEnabledVisible'),
-  orchestratorProfileVisible: byId<HTMLSelectElement>('orchestratorProfileVisible'),
-  orchestratorProfileSelectGroup: byId<HTMLElement>('orchestratorProfileSelectGroup'),
+  orchestratorEnabledVisible: byId<HTMLInputElement>('orchestratorToggle'),
+  orchestratorProfileVisible: byId<HTMLSelectElement>('orchestratorProfile'),
+  orchestratorProfileSelectGroup: byId<HTMLElement>('orchestratorProfile')?.closest('.form-group'),
 
   // Form elements - System prompt
   systemPrompt: byId<HTMLTextAreaElement>('systemPrompt'),
@@ -222,6 +246,7 @@ export const getSidePanelElements = (): SidePanelElements => ({
   uiZoom: byId<HTMLInputElement>('uiZoom'),
   uiZoomValue: byId<HTMLElement>('uiZoomValue'),
   fontPreset: byId<HTMLSelectElement>('fontPreset'),
+  themeSelect: byId<HTMLSelectElement>('themeSelect'),
   fontStylePreset: byId<HTMLSelectElement>('fontStylePreset'),
   themeGrid: byId<HTMLElement>('themeGrid'),
 

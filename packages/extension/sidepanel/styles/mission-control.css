@@ -1,0 +1,620 @@
+/* ============================================================================
+   Mission Control — Subagent Command Center
+   Design: utilitarian control panel aesthetic. Clean, structured, zero fluff.
+   ============================================================================ */
+
+/* ---- Trigger FAB ---- */
+.mission-control-panel,
+.mc-agent-card,
+.subagent-inline {
+  --agent-accent: var(--accent);
+  --agent-accent-rgb: var(--accent-rgb);
+}
+
+.mission-control-fab {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: none;
+  background: var(--card);
+  color: var(--foreground);
+  display: none; /* hidden until subagents exist */
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 220ms var(--ease-spring);
+  opacity: 0.65;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 8px rgba(0, 0, 0, 0.3);
+  position: relative;
+}
+
+.mission-control-fab.visible {
+  display: flex;
+}
+
+.mission-control-fab:hover {
+  transform: scale(1.04);
+  opacity: 1;
+  background: var(--card-hover);
+}
+
+.mission-control-fab.has-running {
+  opacity: 1;
+  border: 1px solid rgb(var(--accent-rgb) / 0.3);
+  box-shadow: 0 0 12px rgb(var(--accent-rgb) / 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.mission-control-fab .mc-fab-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #09090b;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+/* ---- Overlay panel ---- */
+.mission-control-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(3px);
+  z-index: 80;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-normal) var(--ease-out-expo);
+}
+
+.mission-control-scrim.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mission-control-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: clamp(320px, 70vw, 480px);
+  background: var(--background);
+  border-left: 1px solid var(--border);
+  z-index: 81;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform var(--duration-normal) var(--ease-out-expo);
+  overflow: hidden;
+}
+
+.mission-control-panel.open {
+  transform: translateX(0);
+}
+
+/* ---- Panel header ---- */
+.mc-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.mc-header-title {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  flex: 1;
+}
+
+.mc-header-meta {
+  font-size: 11px;
+  color: var(--muted-dim);
+  font-weight: 500;
+}
+
+.mc-close-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 150ms ease;
+}
+
+.mc-close-btn:hover {
+  background: var(--ink-2);
+  color: var(--foreground);
+}
+
+/* ---- Agent list (left column when detail view isn't open) ---- */
+.mc-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mc-agent-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-2) transparent;
+}
+
+.mc-agent-card {
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 180ms ease;
+  margin-bottom: 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+.mc-agent-card::before {
+  content: "";
+  width: 3px;
+  flex-shrink: 0;
+  background: var(--agent-accent);
+  border-radius: 8px 0 0 8px;
+  opacity: 0.5;
+  transition: opacity 180ms ease;
+}
+
+.mc-agent-card:hover {
+  background: var(--ink-1);
+  border-color: var(--ink-2);
+}
+
+.mc-agent-card:hover::before {
+  opacity: 1;
+}
+
+.mc-agent-card.selected {
+  background: rgb(var(--agent-accent-rgb) / 0.06);
+  border-color: rgb(var(--agent-accent-rgb) / 0.2);
+}
+
+.mc-agent-card.selected::before {
+  opacity: 1;
+  box-shadow: 0 0 8px rgb(var(--agent-accent-rgb) / 0.3);
+}
+
+.mc-agent-card.completed::before {
+  background: var(--success);
+}
+
+.mc-agent-card.error::before {
+  background: var(--error);
+}
+
+.mc-agent-card.running::before {
+  animation: mcBarPulse 2s ease-in-out infinite;
+}
+
+@keyframes mcBarPulse {
+  0%,
+  100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.mc-agent-body {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.mc-agent-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--foreground);
+  line-height: 1.3;
+  margin-bottom: 3px;
+}
+
+.mc-agent-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--muted-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.mc-agent-meta-sep {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--muted-dim);
+  opacity: 0.5;
+}
+
+.mc-agent-status-label {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mc-agent-card.running .mc-agent-status-label {
+  color: color-mix(in srgb, var(--agent-accent) 78%, white);
+}
+.mc-agent-card.completed .mc-agent-status-label {
+  color: var(--success);
+}
+.mc-agent-card.error .mc-agent-status-label {
+  color: var(--error);
+}
+
+/* ---- Detail view ---- */
+.mc-detail {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  animation: mcSlideIn 200ms var(--ease-out-expo);
+}
+
+.mc-detail.visible {
+  display: flex;
+}
+
+@keyframes mcSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.mc-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.mc-detail-back {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 150ms ease;
+  flex-shrink: 0;
+}
+
+.mc-detail-back:hover {
+  background: var(--ink-2);
+  color: var(--foreground);
+}
+
+.mc-detail-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-detail-status-pill {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.mc-detail-status-pill.running {
+  background: rgb(var(--accent-rgb) / 0.15);
+  color: var(--accent-light);
+}
+
+.mc-detail-status-pill.completed {
+  background: rgb(var(--success-rgb) / 0.12);
+  color: var(--success);
+}
+
+.mc-detail-status-pill.error {
+  background: rgb(var(--error-rgb) / 0.12);
+  color: var(--error);
+}
+
+/* Detail body with sections */
+.mc-detail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-2) transparent;
+}
+
+.mc-detail-section {
+  margin-bottom: 16px;
+}
+
+.mc-detail-section-title {
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-dim);
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--ink-1);
+}
+
+/* Tasks list */
+.mc-task-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.mc-task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  padding: 5px 0 5px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  border-left: 2px solid var(--ink-2);
+}
+
+.mc-task-item.active {
+  border-left-color: var(--accent);
+  color: var(--foreground);
+  background: linear-gradient(90deg, rgb(var(--accent-rgb) / 0.04), transparent 60%);
+}
+
+.mc-task-text {
+  flex: 1;
+}
+
+/* Activity feed */
+.mc-activity-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mc-activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--muted);
+  position: relative;
+}
+
+.mc-activity-item:hover {
+  background: var(--ink-1);
+}
+
+.mc-activity-ts {
+  font-size: 10px;
+  color: var(--muted-dim);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  min-width: 36px;
+}
+
+.mc-activity-text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.mc-activity-text code {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  background: var(--ink-2);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* Summary section */
+.mc-summary-block {
+  padding: 8px 10px;
+  background: var(--ink-1);
+  border-radius: 6px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--foreground);
+}
+
+.mc-summary-block p {
+  margin: 0 0 6px;
+}
+
+.mc-summary-block p:last-child {
+  margin-bottom: 0;
+}
+
+/* Message input at bottom of detail */
+.mc-message-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.mc-message-input {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--ink-2);
+  border-radius: 6px;
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color 150ms ease;
+}
+
+.mc-message-input::placeholder {
+  color: var(--muted-dim);
+}
+
+.mc-message-input:focus {
+  border-color: rgb(var(--accent-rgb) / 0.4);
+}
+
+.mc-message-send {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: #09090b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 150ms ease;
+  flex-shrink: 0;
+}
+
+.mc-message-send:hover {
+  background: var(--accent-light);
+}
+
+.mc-message-send:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ---- Inline chat indicators (replaces old subagent-block cards) ---- */
+.subagent-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin: 4px 0;
+  font-size: 11.5px;
+  color: var(--muted);
+  border-left: 2px solid var(--ink-2);
+  transition: all 200ms ease;
+  cursor: pointer;
+  border-radius: 0 4px 4px 0;
+}
+
+.subagent-inline:hover {
+  background: var(--ink-1);
+  color: var(--foreground);
+}
+
+.subagent-inline.running {
+  border-left-color: var(--agent-accent);
+  background: linear-gradient(90deg, rgb(var(--agent-accent-rgb) / 0.08), transparent 65%);
+}
+
+.subagent-inline.completed {
+  border-left-color: var(--success);
+}
+
+.subagent-inline.error {
+  border-left-color: var(--error);
+}
+
+.subagent-inline-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.subagent-inline.running .subagent-inline-dot {
+  background: var(--agent-accent);
+  box-shadow: 0 0 10px rgb(var(--agent-accent-rgb) / 0.4);
+  animation: mcBarPulse 2s ease-in-out infinite;
+}
+
+.subagent-inline.completed .subagent-inline-dot {
+  background: var(--success);
+}
+
+.subagent-inline.error .subagent-inline-dot {
+  background: var(--error);
+}
+
+.subagent-inline-name {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.subagent-inline-status {
+  font-size: 10px;
+  color: var(--muted-dim);
+}
+
+/* ---- Empty state for mission control ---- */
+.mc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  flex: 1;
+}
+
+.mc-empty-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+  margin-bottom: 4px;
+}
+
+.mc-empty-desc {
+  font-size: 11.5px;
+  color: var(--muted-dim);
+  line-height: 1.5;
+  max-width: 240px;
+}

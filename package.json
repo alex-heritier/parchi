@@ -29,6 +29,7 @@
     "test:api": "node scripts/build.mjs && node dist/tests/api/run-api-tests.js",
     "test:orchestrator": "node scripts/build.mjs && node dist/tests/orchestrator/run-fixture-executor.js",
     "test:e2e": "node scripts/build.mjs && node dist/tests/e2e/run-e2e.js",
+    "test:e2e:orchestrator": "node scripts/build.mjs && node dist/tests/e2e/run-orchestrator-runtime-e2e.js",
     "test:relay": "node scripts/build.mjs && node dist/tests/relay/run-relay-tests.js && node dist/tests/relay/run-electron-agent-tests.js",
     "bench:relay": "node scripts/build.mjs && node dist/tests/relay/run-relay-benchmark.js",
     "perf:tabs": "node scripts/build.mjs && node dist/tests/perf/run-tab-cpu-audit.js",

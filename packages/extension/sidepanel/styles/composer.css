@@ -19,7 +19,7 @@
   background: var(--card);
   border: 1px solid var(--ink-2);
   border-radius: 16px;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: none;
   transition: box-shadow 0.3s, border-color 0.3s;
   position: relative;
@@ -189,6 +189,56 @@
   justify-content: flex-end;
   min-width: 0;
   overflow: visible;
+}
+
+.composer-legacy-controls {
+  display: none;
+}
+
+.composer-more {
+  position: relative;
+}
+
+.composer-more-btn {
+  width: 30px;
+  height: 30px;
+}
+
+.composer-more-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  min-width: 164px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--ink-2);
+  background: rgb(18 20 24 / 0.98);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.45);
+  z-index: 180;
+}
+
+.composer-more-menu.hidden {
+  display: none;
+}
+
+.composer-more-item {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 7px;
+  padding: 7px 9px;
+  text-align: left;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--duration-fast) ease;
+}
+
+.composer-more-item:hover {
+  background: rgb(255 255 255 / 0.06);
+  color: var(--foreground);
 }
 
 /* Zoom controls — hidden from toolbar, accessible via settings */

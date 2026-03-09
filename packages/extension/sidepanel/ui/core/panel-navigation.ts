@@ -1,6 +1,6 @@
 import type { SidePanelElements } from './panel-elements.js';
 
-export type RightPanelName = 'settings' | null;
+export type RightPanelName = 'settings' | 'account' | null;
 
 const PANEL_SELECTOR = '.right-panel-content';
 

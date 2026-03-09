@@ -10,6 +10,7 @@ import {
   signOutAccount,
   signUpWithPassword,
 } from '../../../convex/client.js';
+import { buildProviderInstanceId } from '../../../state/provider-registry.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
@@ -394,6 +395,7 @@ sidePanelProto.ensureManagedProviderDefaults = async function ensureManagedProvi
   const stored = await chrome.storage.local.get([
     'activeConfig',
     'configs',
+    'providers',
     'provider',
     'apiKey',
     'model',
@@ -404,6 +406,7 @@ sidePanelProto.ensureManagedProviderDefaults = async function ensureManagedProvi
   ]);
   const activeConfig = String(stored.activeConfig || 'default');
   const configs = isRecord(stored.configs) ? { ...stored.configs } : {};
+  const providers = isRecord(stored.providers) ? { ...stored.providers } : {};
   const mode = String(stored[ACCOUNT_MODE_KEY] || '').toLowerCase();
   const shouldActivateManaged = Boolean(options.forceActivate);
   if (mode !== ACCOUNT_MODE_PAID && !options.forceActivate) return;
@@ -423,8 +426,30 @@ sidePanelProto.ensureManagedProviderDefaults = async function ensureManagedProvi
       PARCHI_PAID_DEFAULT_MODEL,
   ).trim();
 
+  const managedProviderId =
+    String(existingManaged.providerId || '') ||
+    buildProviderInstanceId({
+      providerType: 'parchi',
+      authType: 'managed',
+      name: 'Parchi Managed',
+    });
+  providers[managedProviderId] = {
+    id: managedProviderId,
+    name: 'Parchi Managed',
+    providerType: 'parchi',
+    authType: 'managed',
+    isConnected: true,
+    models: [{ id: normalizeManagedModelId(resolvedModel), label: normalizeManagedModelId(resolvedModel) }],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    source: 'manual',
+  };
+
   const managedProfile = {
     ...existingManaged,
+    providerId: managedProviderId,
+    modelId: normalizeManagedModelId(resolvedModel),
+    providerLabel: 'Parchi Managed',
     provider: 'parchi',
     apiKey: '',
     model: normalizeManagedModelId(resolvedModel),
@@ -436,6 +461,7 @@ sidePanelProto.ensureManagedProviderDefaults = async function ensureManagedProvi
 
   await chrome.storage.local.set({
     activeConfig: nextActiveConfig,
+    providers,
     configs,
     provider: String(nextActiveProfile.provider || ''),
     apiKey: String(nextActiveProfile.apiKey || ''),
@@ -448,6 +474,10 @@ sidePanelProto.ensureManagedProviderDefaults = async function ensureManagedProvi
   this.configs = {
     ...this.configs,
     ...configs,
+  };
+  this.providers = {
+    ...(this.providers || {}),
+    ...providers,
   };
   if (this.configs[MANAGED_PROFILE_NAME]) {
     this.configs[MANAGED_PROFILE_NAME].provider = 'parchi';
@@ -897,6 +927,7 @@ sidePanelProto.refreshAccountPanel = async function refreshAccountPanel({ silent
     setHidden(this.elements.accountAuthSignedOut, true);
     setHidden(this.elements.accountAuthSignedIn, true);
     updateStatusCopy(this, 'Paid mode unavailable in this build. Use BYOK or set CONVEX_URL and rebuild.');
+    this.syncAccountAvatar?.();
     await this.refreshSetupFlowUi();
     return;
   }
@@ -910,6 +941,7 @@ sidePanelProto.refreshAccountPanel = async function refreshAccountPanel({ silent
       setHidden(this.elements.accountAuthSignedOut, false);
       setHidden(this.elements.accountAuthSignedIn, true);
       updateStatusCopy(this, 'Not signed in. Sign in and buy credits, or use BYOK in Setup.');
+      this.syncAccountAvatar?.();
       if (!silent) this.updateStatus('Account: signed out', 'warning');
       return;
     }
@@ -965,6 +997,7 @@ sidePanelProto.refreshAccountPanel = async function refreshAccountPanel({ silent
         : 'No credits. Buy credits or use BYOK to continue.';
     updateStatusCopy(this, statusMsg);
     if (!silent) this.updateStatus('Account refreshed', 'success');
+    this.syncAccountAvatar?.();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error ?? 'Failed to refresh account');
     updateStatusCopy(this, message);

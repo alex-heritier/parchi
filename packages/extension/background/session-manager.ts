@@ -1,10 +1,12 @@
 import { RUNTIME_MESSAGE_SCHEMA_VERSION } from '@parchi/shared';
 import { BrowserTools } from '../tools/browser-tools.js';
 import { estimateDataUrlBytes, trimReportImages } from './report-images.js';
-import type { RunMeta, SessionState, SessionTokenVisibility } from './service-types.js';
 import type { ServiceContext, TokenTracePayload } from './service-context.js';
+import type { RunMeta, SessionState, SessionTokenVisibility } from './service-types.js';
 
-export const MAX_SESSIONS = 10;
+// Keep enough room for the primary session plus spawned subagent sessions
+// without evicting active orchestrator state mid-run.
+export const MAX_SESSIONS = 24;
 export const MAX_FAILURE_TRACKER_ENTRIES = 250;
 
 export function defaultTokenVisibility(): SessionTokenVisibility {
@@ -75,10 +77,7 @@ export function emitTokenTrace(
   });
 }
 
-export function getSessionState(
-  sessionStateById: Map<string, SessionState>,
-  sessionId: string,
-): SessionState {
+export function getSessionState(sessionStateById: Map<string, SessionState>, sessionId: string): SessionState {
   const id = typeof sessionId === 'string' && sessionId.trim() ? sessionId : 'default';
   const existing = sessionStateById.get(id);
   if (existing) {
@@ -97,6 +96,18 @@ export function getSessionState(
     } else {
       updateSessionTokenVisibility(existing, {});
     }
+    if (!existing.runningSubagents) {
+      existing.runningSubagents = new Map();
+    }
+    if (!existing.subagentHistory) {
+      existing.subagentHistory = new Map();
+    }
+    if (!existing.orchestratorWhiteboard) {
+      existing.orchestratorWhiteboard = new Map();
+    }
+    if (!Object.prototype.hasOwnProperty.call(existing, 'orchestratorPlan')) {
+      existing.orchestratorPlan = null;
+    }
     trimReportImages(existing);
     return existing;
   }
@@ -108,6 +119,7 @@ export function getSessionState(
   const created: SessionState = {
     sessionId: id,
     currentPlan: null,
+    orchestratorPlan: null,
     subAgentCount: 0,
     subAgentProfileCursor: 0,
     lastBrowserAction: null,
@@ -119,6 +131,9 @@ export function getSessionState(
     reportImageBytes: 0,
     selectedReportImageIds: new Set(),
     tokenVisibility: defaultTokenVisibility(),
+    runningSubagents: new Map(),
+    subagentHistory: new Map(),
+    orchestratorWhiteboard: new Map(),
   };
   sessionStateById.set(id, created);
   return created;
@@ -216,11 +231,7 @@ export function cleanupRun(ctx: ServiceContext, runMeta: RunMeta, origin: 'sidep
   ctx.cancelledRunIds.delete(runMeta.runId);
 }
 
-export function sendRuntime(
-  ctx: ServiceContext,
-  runMeta: RunMeta,
-  payload: Record<string, unknown>,
-) {
+export function sendRuntime(ctx: ServiceContext, runMeta: RunMeta, payload: Record<string, unknown>) {
   if (isRunCancelled(ctx.cancelledRunIds, runMeta.runId)) return;
   const message = {
     schemaVersion: RUNTIME_MESSAGE_SCHEMA_VERSION,

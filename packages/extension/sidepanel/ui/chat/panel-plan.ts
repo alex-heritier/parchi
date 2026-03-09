@@ -23,6 +23,9 @@ sidePanelProto.setupPlanDrawer = function setupPlanDrawer() {
  */
 sidePanelProto.togglePlanDrawer = function togglePlanDrawer() {
   this.elements.planDrawer?.classList.toggle('collapsed');
+  if (this.elements.planDrawer) {
+    this.elements.planDrawer.dataset.autoCollapsed = 'false';
+  }
 };
 
 /**
@@ -30,7 +33,6 @@ sidePanelProto.togglePlanDrawer = function togglePlanDrawer() {
  */
 sidePanelProto.showPlanDrawer = function showPlanDrawer() {
   this.elements.planDrawer?.classList.remove('hidden');
-  this.elements.planDrawer?.classList.remove('collapsed');
 };
 
 /**
@@ -63,6 +65,7 @@ sidePanelProto.renderPlanDrawer = function renderPlanDrawer(plan: RunPlan) {
   const steps = plan.steps;
   const completedCount = steps.filter((s) => s.status === 'done').length;
   const totalCount = steps.length;
+  const isComplete = totalCount > 0 && completedCount === totalCount;
 
   // Update step count
   if (this.elements.planStepCount) {
@@ -124,6 +127,15 @@ sidePanelProto.renderPlanDrawer = function renderPlanDrawer(plan: RunPlan) {
   }
 
   this.showPlanDrawer();
+  if (this.elements.planDrawer) {
+    if (isComplete) {
+      this.elements.planDrawer.classList.add('collapsed');
+      this.elements.planDrawer.dataset.autoCollapsed = 'true';
+    } else if (this.elements.planDrawer.dataset.autoCollapsed === 'true') {
+      this.elements.planDrawer.classList.remove('collapsed');
+      this.elements.planDrawer.dataset.autoCollapsed = 'false';
+    }
+  }
 };
 
 /**

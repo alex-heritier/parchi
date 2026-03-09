@@ -1,4 +1,5 @@
 import { normalizeOAuthModelIdForProvider } from '../../../oauth/model-normalization.js';
+import { ensureProviderModel, getProviderInstance, materializeProfileWithProvider } from '../../../state/provider-registry.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
@@ -86,6 +87,12 @@ const setControlValue = (elements: Record<string, any>, elementKey: string, valu
   control.value = String(value);
 };
 
+const setCheckboxValue = (elements: Record<string, any>, elementKey: string, value: boolean) => {
+  const control = elements[elementKey] as HTMLInputElement | null;
+  if (!control) return;
+  control.checked = value;
+};
+
 const parseNumeric = (raw: string, fallback: number, parseMode: 'int' | 'float') => {
   const parsed = parseMode === 'float' ? Number.parseFloat(raw) : Number.parseInt(raw, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -99,15 +106,15 @@ const applyBooleanBindings = (
   bindings: BooleanBinding[],
 ) => {
   bindings.forEach(({ elementKey, configKey, defaultTrue }) => {
-    setControlValue(elements, elementKey, toBooleanWithDefault(config[configKey], defaultTrue) ? 'true' : 'false');
+    setCheckboxValue(elements, elementKey, toBooleanWithDefault(config[configKey], defaultTrue));
   });
 };
 
 const readBooleanBindings = (elements: Record<string, any>, bindings: BooleanBinding[]) => {
   const result: Record<string, boolean> = {};
   bindings.forEach(({ elementKey, configKey, defaultTrue }) => {
-    const raw = readControlValue(elements, elementKey);
-    result[configKey] = raw ? raw === 'true' : defaultTrue;
+    const control = elements[elementKey] as HTMLInputElement | null;
+    result[configKey] = control ? control.checked : defaultTrue;
   });
   return result;
 };
@@ -246,7 +253,7 @@ sidePanelProto.refreshConfigDropdown = function refreshConfigDropdown() {
   }
   this.refreshProfileSelectors();
   this.updateModelDisplay();
-  this.renderProfileGrid();
+  this.renderTeamProfileList?.();
   this.updateContextUsage();
 };
 
@@ -295,21 +302,23 @@ sidePanelProto.renderProfileGrid = function renderProfileGrid() {
       card.classList.add('editing');
     }
     card.dataset.profile = name;
-    const config = this.configs[name] || {};
+    const config = materializeProfileWithProvider({ providers: this.providers, configs: this.configs }, name, this.configs[name] || {});
     const isOAuth = String(config.provider || '').endsWith('-oauth');
     if (isOAuth) card.classList.add('oauth-profile');
     const rolePills = ['main', 'vision', 'orchestrator', 'aux']
       .map((role) => {
         const isActive = this.isProfileActiveForRole(name, role, currentVision, currentOrchestrator);
         const label = this.getRoleLabel(role);
-        return `<span class="role-pill ${isActive ? 'active' : ''} ${role}-pill" data-role="${role}" data-profile="${name}">${label}</span>`;
+        return `<span class="role-pill ${isActive ? 'active' : ''} ${role}-pill" data-role="${role}" data-profile="${name}" title="Assign ${this.escapeHtml(
+          name,
+        )} as ${label.toLowerCase()} profile">${label}</span>`;
       })
       .join('');
     const deleteBtn =
       name !== 'default' && !isOAuth
         ? `<button class="agent-card-delete" data-delete-profile="${this.escapeHtml(name)}" title="Delete profile">&times;</button>`
         : '';
-    const providerLabel = isOAuth ? config.provider.replace(/-oauth$/, '') : config.provider || 'Provider';
+    const providerLabel = config.providerLabel || (isOAuth ? config.provider.replace(/-oauth$/, '') : config.provider || 'Provider');
     const oauthTag = isOAuth ? '<span class="oauth-badge">OAuth</span>' : '';
     card.innerHTML = `
         <div class="agent-card-header">
@@ -398,19 +407,14 @@ sidePanelProto.toggleProfileRole = function toggleProfileRole(elementId: string,
   element.value = isSelecting ? profileName : '';
   if (elementId === 'orchestratorProfile') {
     if (this.elements.orchestratorToggle) {
-      this.elements.orchestratorToggle.value = isSelecting ? 'true' : 'false';
-    }
-    if (this.elements.orchestratorEnabledVisible) {
-      this.elements.orchestratorEnabledVisible.value = isSelecting ? 'true' : 'false';
-    }
-    if (this.elements.orchestratorProfileVisible) {
-      this.elements.orchestratorProfileVisible.value = isSelecting ? profileName : '';
+      this.elements.orchestratorToggle.checked = isSelecting;
     }
     if (this.elements.orchestratorProfileSelectGroup) {
       this.elements.orchestratorProfileSelectGroup.style.display = isSelecting ? '' : 'none';
     }
   }
   this.renderProfileGrid();
+  this.renderTeamProfileList?.();
 };
 
 sidePanelProto.toggleAuxProfile = function toggleAuxProfile(profileName: string) {
@@ -427,9 +431,8 @@ sidePanelProto.toggleAuxProfile = function toggleAuxProfile(profileName: string)
 sidePanelProto.editProfile = function editProfile(name: string, silent = false) {
   if (!name || !this.configs[name]) return;
   this.profileEditorTarget = name;
-  const config = this.configs[name];
+  const config = materializeProfileWithProvider({ providers: this.providers, configs: this.configs }, name, this.configs[name]);
   const isOAuth = String(config.provider || '').endsWith('-oauth');
-
   // Only update profile editor elements if they exist
   if (this.elements.profileEditorTitle) {
     const oauthBadge = isOAuth ? ' <span class="oauth-badge">OAuth</span>' : '';
@@ -441,40 +444,14 @@ sidePanelProto.editProfile = function editProfile(name: string, silent = false) 
     this.elements.profileEditorName.classList.toggle('oauth-readonly', isOAuth);
   }
   if (this.elements.profileEditorProvider) {
-    // Ensure OAuth provider options exist in the select
-    if (isOAuth) {
-      const providerVal = config.provider || '';
-      const select = this.elements.profileEditorProvider as HTMLSelectElement;
-      if (!Array.from(select.options).some((o: HTMLOptionElement) => o.value === providerVal)) {
-        const opt = document.createElement('option');
-        opt.value = providerVal;
-        const baseKey = providerVal.replace(/-oauth$/, '');
-        opt.textContent = `${baseKey.charAt(0).toUpperCase() + baseKey.slice(1)} (OAuth)`;
-        select.appendChild(opt);
-      }
-      select.value = providerVal;
-      select.disabled = true;
-    } else {
-      this.elements.profileEditorProvider.value = config.provider || '';
-      (this.elements.profileEditorProvider as HTMLSelectElement).disabled = false;
-    }
-  }
-  // Hide API key for OAuth profiles
-  const apiKeyGroup = this.elements.profileEditorApiKey?.closest('.form-group') as HTMLElement | null;
-  if (apiKeyGroup) {
-    apiKeyGroup.style.display = isOAuth ? 'none' : '';
-  }
-  if (this.elements.profileEditorApiKey && !isOAuth) {
-    this.elements.profileEditorApiKey.value = config.apiKey || '';
-  }
-  if (this.elements.profileEditorApiKey && isOAuth) {
-    this.elements.profileEditorApiKey.value = '';
+    this.elements.profileEditorProvider.value = config.providerId || '';
+    (this.elements.profileEditorProvider as HTMLSelectElement).disabled = false;
   }
   if (this.elements.profileEditorModelInput) {
-    this.elements.profileEditorModelInput.value = config.model || '';
+    this.elements.profileEditorModelInput.value = config.modelId || config.model || '';
   }
   if (this.elements.profileEditorModel) {
-    const modelVal = config.model || '';
+    const modelVal = config.modelId || config.model || '';
     const modelSelect = this.elements.profileEditorModel as HTMLSelectElement;
     if (modelVal && !Array.from(modelSelect.options).some((o: HTMLOptionElement) => o.value === modelVal)) {
       const opt = document.createElement('option');
@@ -484,9 +461,6 @@ sidePanelProto.editProfile = function editProfile(name: string, silent = false) 
     }
     modelSelect.value = modelVal;
   }
-  if (this.elements.profileEditorEndpoint) this.elements.profileEditorEndpoint.value = config.customEndpoint || '';
-  if (this.elements.profileEditorHeaders)
-    this.elements.profileEditorHeaders.value = formatHeadersJson(config.extraHeaders) || '';
   applyNumberBindings(this.elements, config, PROFILE_EDITOR_NUMBER_BINDINGS);
   if (this.elements.profileEditorTemperatureValue) {
     this.elements.profileEditorTemperatureValue.textContent = readControlValue(
@@ -501,7 +475,7 @@ sidePanelProto.editProfile = function editProfile(name: string, silent = false) 
     this.elements.profileEditorPrompt.value = config.systemPrompt || this.getDefaultSystemPrompt();
   resizeProfilePromptInput(this.elements.profileEditorPrompt);
 
-  this.toggleProfileEditorEndpoint();
+  this.refreshProviderMetaForProfileEditor?.();
   this.refreshProfileJsonEditor?.();
   this.refreshModelCatalogForProfileEditor?.();
   this.renderProfileGrid();
@@ -511,29 +485,27 @@ sidePanelProto.editProfile = function editProfile(name: string, silent = false) 
 };
 
 sidePanelProto.collectProfileEditorData = function collectProfileEditorData() {
-  const provider = String(this.elements.profileEditorProvider.value || '').trim();
+  const providerId = String(this.elements.profileEditorProvider.value || '').trim();
+  const providerInstance = getProviderInstance({ providers: this.providers }, providerId);
+  const provider = String(providerInstance?.providerType || '').trim();
   const rawModel = (
     this.elements.profileEditorModelInput?.value ||
     this.elements.profileEditorModel.value ||
     ''
   ).trim();
   const model = provider.endsWith('-oauth') ? normalizeOAuthModelIdForProvider(provider, rawModel) : rawModel;
-  const isOAuth = provider.endsWith('-oauth');
   const numericValues = readNumberBindings(this.elements, PROFILE_EDITOR_NUMBER_BINDINGS);
   const booleanValues = readBooleanBindings(this.elements, PROFILE_EDITOR_BOOLEAN_BINDINGS);
   return {
+    providerId,
+    providerLabel: providerInstance?.name || '',
     provider,
-    apiKey: isOAuth ? '' : this.elements.profileEditorApiKey.value,
+    apiKey: providerInstance?.authType === 'api-key' ? providerInstance.apiKey || '' : '',
+    modelId: model,
     model,
-    customEndpoint: this.elements.profileEditorEndpoint.value,
+    customEndpoint: providerInstance?.customEndpoint || '',
     extraHeaders: (() => {
-      const raw = this.elements.profileEditorHeaders?.value || '';
-      if (!raw.trim()) return {};
-      try {
-        return parseHeadersJson(raw);
-      } catch {
-        return {};
-      }
+      return providerInstance?.extraHeaders || {};
     })(),
     ...numericValues,
     ...booleanValues,
@@ -573,6 +545,15 @@ sidePanelProto.saveProfileEdits = async function saveProfileEdits() {
 
   const existing = this.configs[target] || {};
   const updated = { ...existing, ...this.collectProfileEditorData() };
+  const providerInstance = getProviderInstance({ providers: this.providers }, String(updated.providerId || ''));
+  if (providerInstance && updated.modelId) {
+    const nextProvider = ensureProviderModel(providerInstance, updated.modelId);
+    this.providers = { ...(this.providers || {}), [nextProvider.id]: nextProvider };
+    if (!updated.contextLimit) {
+      const matchedModel = nextProvider.models.find((model) => model.id === updated.modelId);
+      if (matchedModel?.contextWindow) updated.contextLimit = matchedModel.contextWindow;
+    }
+  }
 
   if (isRename) {
     // Move config to new key
@@ -639,6 +620,16 @@ sidePanelProto.refreshProfileJsonEditor = function refreshProfileJsonEditor() {
   const target = this.profileEditorTarget || this.currentConfig;
   const config = this.configs[target] || {};
   this.elements.profileJsonEditor.value = JSON.stringify(config, null, 2);
+};
+
+sidePanelProto.refreshProviderMetaForProfileEditor = function refreshProviderMetaForProfileEditor() {
+  const providerId = String(this.elements.profileEditorProvider?.value || '').trim();
+  const provider = getProviderInstance({ providers: this.providers }, providerId);
+  const title = this.elements.profileEditorTitle as HTMLElement | null;
+  const target = this.profileEditorTarget || this.currentConfig;
+  if (title && provider) {
+    title.innerHTML = `Editing: ${this.escapeHtml(target)} <span class="oauth-badge">${this.escapeHtml(provider.name)}</span>`;
+  }
 };
 
 sidePanelProto.copyProfileJsonEditor = async function copyProfileJsonEditor() {

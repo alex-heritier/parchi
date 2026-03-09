@@ -11,6 +11,7 @@
 import type * as aiProxy from "../aiProxy.js";
 import type * as auth from "../auth.js";
 import type * as http from "../http.js";
+import type * as openrouterManagement from "../openrouterManagement.js";
 import type * as payments from "../payments.js";
 import type * as subscriptions from "../subscriptions.js";
 import type * as users from "../users.js";
@@ -25,6 +26,7 @@ declare const fullApi: ApiFromModules<{
   aiProxy: typeof aiProxy;
   auth: typeof auth;
   http: typeof http;
+  openrouterManagement: typeof openrouterManagement;
   payments: typeof payments;
   subscriptions: typeof subscriptions;
   users: typeof users;

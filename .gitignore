@@ -12,6 +12,8 @@ server/dist/
 *.map
 *.xpi
 
+
+
 .env.publish
 # OS files
 .DS_Store
@@ -23,6 +25,10 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+
+temp_pi_agent_core
+temp_pi_ai
 
 # Logs
 *.log

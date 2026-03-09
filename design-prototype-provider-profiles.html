@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Provider Settings Redesign v4 — Parchi</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --background: #09090b;
+    --foreground: #fafafa;
+    --muted: #a1a1aa;
+    --muted-dim: #71717a;
+    --border: #27272a;
+    --card: #131315;
+    --card-hover: #1a1a1d;
+    --accent: #818cf8;
+    --accent-rgb: 129 140 248;
+    --accent-light: #a5b4fc;
+    --accent-dark: #6366f1;
+    --success: #4ade80;
+    --success-rgb: 74 222 128;
+    --warning: #fbbf24;
+    --warning-rgb: 251 191 36;
+    --error: #f87171;
+    --error-rgb: 248 113 113;
+    --ink-1: rgba(255,255,255,0.05);
+    --ink-2: rgba(255,255,255,0.08);
+    --ink-3: rgba(255,255,255,0.14);
+    --radius: 0.5rem;
+    --radius-sm: 0.375rem;
+    --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+    --font-mono: "JetBrains Mono", "SF Mono", monospace;
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    --duration-fast: 150ms;
+    --duration-normal: 250ms;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--foreground);
+    background: #050506;
+    display: flex;
+    justify-content: center;
+    padding: 24px;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .comparison {
+    display: flex;
+    gap: 48px;
+    max-width: 1200px;
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  /* ── Panel Frame ── */
+  .panel-frame {
+    width: 400px;
+    min-width: 400px;
+    background: var(--background);
+    border-radius: 16px;
+    border: 1px solid var(--ink-2);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .panel-label {
+    padding: 10px 16px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted-dim);
+    background: var(--card);
+    border-bottom: 1px solid var(--ink-1);
+    text-align: center;
+  }
+  .panel-label span { color: var(--accent-light); }
+
+  .panel-body {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: 85vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--ink-2) transparent;
+  }
+
+  /* ── Notes ── */
+  .notes { flex: 1; min-width: 300px; max-width: 380px; }
+  .note-card {
+    background: var(--card);
+    border: 1px solid var(--ink-1);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .note-card h3 {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--accent-light);
+    margin-bottom: 8px;
+  }
+  .note-card p { font-size: 12px; line-height: 1.6; color: var(--muted); }
+  .note-card p + p { margin-top: 6px; }
+  .note-card strong { color: var(--foreground); font-weight: 600; }
+  .note-card code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--ink-2);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--accent-light);
+  }
+
+  /* ════════════════════════════════════════
+     TYPOGRAPHY — structure without cards
+     ════════════════════════════════════════ */
+
+  .eyebrow {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--accent-light);
+  }
+  .section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--foreground);
+    line-height: 1.4;
+  }
+  .section-sub {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted-dim);
+    padding: 6px 0 2px;
+  }
+  .divider { height: 1px; background: var(--ink-1); margin: 2px 0; }
+
+  /* ── Tabs — sticky bar, only structural border ── */
+  .settings-tabs {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    padding: 4px;
+    background: color-mix(in srgb, var(--background) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--ink-1);
+    border-radius: var(--radius-sm);
+  }
+  .settings-tab-button {
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 550;
+    letter-spacing: 0.01em;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 200ms var(--ease-spring);
+    font-family: var(--font-sans);
+  }
+  .settings-tab-button:hover {
+    color: var(--foreground);
+    background: rgba(255,255,255,0.04);
+  }
+  .settings-tab-button:active { transform: scale(0.95); transition-duration: 80ms; }
+  .settings-tab-button.active {
+    border-color: rgb(var(--accent-rgb) / 0.45);
+    color: var(--accent-light);
+    box-shadow: 0 0 10px rgb(var(--accent-rgb) / 0.08);
+  }
+
+  .settings-tab-pane {
+    display: none;
+    flex-direction: column;
+    gap: 0;
+    animation: fadeInUp var(--duration-normal) var(--ease-out-expo);
+  }
+  .settings-tab-pane.active { display: flex; }
+
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  /* ════════════════════════════════════════
+     PROVIDER ROWS — flat list, no card wrappers
+     Rows use bottom-border separation, not individual cards.
+     ════════════════════════════════════════ */
+
+  .provider-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .provider-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--ink-1);
+    transition: background var(--duration-fast) ease;
+    cursor: default;
+  }
+  .provider-row:last-child { border-bottom: none; }
+  .provider-row:hover { background: var(--ink-1); border-radius: 8px; margin: 0 -4px; padding: 10px 8px; }
+  .provider-row.dim { opacity: 0.55; }
+  .provider-row.dim:hover { opacity: 0.8; }
+
+  .provider-logo {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    opacity: 0.6;
+    color: var(--muted);
+  }
+  .provider-row:hover .provider-logo { opacity: 0.9; }
+  .provider-row.connected .provider-logo { opacity: 0.85; color: var(--foreground); }
+
+  .provider-logo-sm {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    opacity: 0.5;
+    color: var(--muted);
+  }
+
+  .provider-info { flex: 1; min-width: 0; }
+  .provider-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--foreground);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .provider-meta {
+    font-size: 11px;
+    color: var(--muted-dim);
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .badge {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--ink-2);
+    color: var(--muted);
+  }
+
+  .provider-status {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--success);
+    flex-shrink: 0;
+    box-shadow: 0 0 6px rgb(var(--success-rgb) / 0.4);
+  }
+  .provider-status.off {
+    background: var(--muted-dim);
+    box-shadow: none;
+  }
+
+  .model-count {
+    font-size: 10px;
+    color: var(--muted-dim);
+    flex-shrink: 0;
+  }
+
+  .connect-btn {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent-light);
+    background: none;
+    border: 1px solid rgb(var(--accent-rgb) / 0.3);
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: all 150ms ease;
+    flex-shrink: 0;
+  }
+  .connect-btn:hover {
+    background: rgb(var(--accent-rgb) / 0.1);
+    border-color: rgb(var(--accent-rgb) / 0.5);
+  }
+
+  /* Inline action icons (edit/delete) */
+  .row-actions {
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+  .provider-row:hover .row-actions { opacity: 1; }
+
+  .icon-btn {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    border-radius: 5px;
+    color: var(--muted-dim);
+    cursor: pointer;
+    transition: all 120ms ease;
+  }
+  .icon-btn:hover { color: var(--foreground); background: var(--ink-2); }
+  .icon-btn.danger:hover { color: var(--error); background: rgb(var(--error-rgb) / 0.1); }
+
+  /* ── Add Provider Form — inline, no card wrapper ── */
+  .add-provider-form {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 0 4px;
+    border-top: 1px solid rgb(var(--accent-rgb) / 0.2);
+    animation: fadeInUp var(--duration-normal) var(--ease-out-expo);
+  }
+  .add-provider-form.open { display: flex; }
+  .add-provider-form .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .add-provider-form-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .add-provider-form-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .btn {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 150ms ease;
+    border: none;
+  }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: var(--accent-dark); }
+  .btn-ghost { background: none; color: var(--muted); }
+  .btn-ghost:hover { color: var(--foreground); }
+
+  /* Form inputs */
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .form-group label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted-dim);
+    letter-spacing: 0.02em;
+  }
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    padding: 7px 10px;
+    background: var(--card);
+    border: 1px solid var(--ink-1);
+    border-radius: var(--radius-sm);
+    color: var(--foreground);
+    font-size: 13px;
+    font-family: var(--font-sans);
+    width: 100%;
+    transition: all var(--duration-fast) ease;
+  }
+  .form-group input:focus,
+  .form-group textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 0.1);
+    outline: none;
+  }
+
+  /* ════════════════════════════════════════
+     MODEL LIST — flat rows, no wrapper card
+     ════════════════════════════════════════ */
+
+  .model-group-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted-dim);
+    padding: 10px 4px 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .model-group-label:first-child { padding-top: 0; }
+
+  .model-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 120ms ease;
+  }
+  .model-option:hover { background: var(--ink-1); }
+  .model-option.active {
+    background: rgb(var(--accent-rgb) / 0.08);
+  }
+
+  .model-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--foreground);
+    flex: 1;
+  }
+  .model-ctx {
+    font-size: 10px;
+    color: var(--muted-dim);
+    font-family: var(--font-mono);
+  }
+  .model-check {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1.5px solid var(--ink-3);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 150ms ease;
+  }
+  .model-option.active .model-check {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .model-option.active .model-check::after {
+    content: "";
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: white;
+  }
+
+  /* ════════════════════════════════════════
+     GENERATION — inline fields, no cards
+     ════════════════════════════════════════ */
+
+  .gen-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 4px 0;
+  }
+
+  .gen-param-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted-dim);
+    margin-bottom: 3px;
+  }
+  .gen-param-input {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--foreground);
+    background: var(--card);
+    border: 1px solid var(--ink-1);
+    border-radius: var(--radius-sm);
+    padding: 7px 10px;
+    width: 100%;
+    outline: none;
+    transition: border-color var(--duration-fast) ease;
+  }
+  .gen-param-input:focus {
+    border-color: var(--accent);
+    color: var(--accent-light);
+  }
+
+  .temp-row { padding: 4px 0; }
+  .temp-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .temp-value {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent-light);
+  }
+  input[type="range"] {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--ink-2);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 8px rgb(var(--accent-rgb) / 0.4);
+  }
+
+  /* Capabilities — simple rows */
+  .cap-list {
+    display: flex;
+    flex-direction: column;
+  }
+  .cap-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--ink-1);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .cap-row:last-child { border-bottom: none; }
+
+  .switch-track {
+    position: relative;
+    width: 38px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--ink-2);
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background 140ms ease;
+  }
+  .switch-track::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: white;
+    transition: transform 140ms ease;
+  }
+  .switch-track.on { background: rgb(var(--accent-rgb) / 0.8); }
+  .switch-track.on::after { transform: translateX(16px); }
+
+  /* ════════════════════════════════════════
+     ADVANCED — flat, no nested cards
+     ════════════════════════════════════════ */
+
+  .role-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+  }
+  .role-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--foreground);
+    width: 80px;
+    flex-shrink: 0;
+  }
+  .role-select {
+    flex: 1;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    color: var(--foreground);
+    background: var(--card);
+    border: 1px solid var(--ink-1);
+    border-radius: var(--radius-sm);
+    padding: 5px 8px;
+    outline: none;
+  }
+  .role-select:focus { border-color: var(--accent); }
+
+  /* Team agents — simple toggle list */
+  .team-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--ink-1);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--foreground);
+  }
+  .team-row:last-child { border-bottom: none; }
+
+  /* Collapsible — ONE level, used only in Advanced */
+  .collapsible > summary {
+    padding: 8px 0;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    transition: color var(--duration-fast) ease;
+  }
+  .collapsible > summary::-webkit-details-marker { display: none; }
+  .collapsible > summary::before {
+    content: "";
+    width: 0; height: 0;
+    border-left: 4px solid var(--muted-dim);
+    border-top: 3px solid transparent;
+    border-bottom: 3px solid transparent;
+    transition: transform var(--duration-fast) var(--ease-out-back);
+  }
+  .collapsible[open] > summary::before { transform: rotate(90deg); }
+  .collapsible > summary:hover { color: var(--foreground); }
+  .collapsible-body {
+    padding: 4px 0 8px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ════════════════════════════════════════
+     COMPOSER BAR + FLYOUT
+     ════════════════════════════════════════ */
+
+  .composer-bar {
+    background: var(--card);
+    border-top: 1px solid var(--ink-1);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+  }
+  .composer-model-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px 4px 6px;
+    background: var(--ink-1);
+    border: 1px solid var(--ink-2);
+    border-radius: 999px;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--foreground);
+    cursor: pointer;
+    transition: all 150ms ease;
+  }
+  .composer-model-btn:hover { background: var(--ink-2); border-color: var(--ink-3); }
+  .composer-chevron { color: var(--muted-dim); font-size: 10px; margin-left: 2px; }
+
+  .flyout {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 14px;
+    width: 280px;
+    background: var(--card);
+    border: 1px solid var(--ink-2);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    padding: 6px;
+    display: none;
+    z-index: 10;
+  }
+  .flyout.open { display: block; animation: flyIn 200ms var(--ease-out-expo); }
+  @keyframes flyIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .flyout-group-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted-dim);
+    padding: 8px 10px 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .flyout-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 100ms ease;
+    font-size: 12px;
+    color: var(--foreground);
+  }
+  .flyout-item:hover { background: var(--ink-1); }
+  .flyout-item.active { background: rgb(var(--accent-rgb) / 0.1); color: var(--accent-light); }
+  .flyout-model { flex: 1; font-weight: 500; }
+  .flyout-ctx { font-size: 10px; font-family: var(--font-mono); color: var(--muted-dim); }
+
+  /* ── Section spacer ── */
+  .section-gap { height: 8px; }
+
+  /* ── Active model indicator in header ── */
+  .active-indicator {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--success);
+  }
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div class="comparison">
+
+  <div class="panel-frame">
+    <div class="panel-label"><span>v4</span> — Flat, no nesting</div>
+    <div class="panel-body">
+
+      <!-- Header — just text, no card -->
+      <div>
+        <div class="eyebrow">Settings</div>
+        <div class="section-title">Connections & Models</div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="settings-tabs" id="mainTabs">
+        <button class="settings-tab-button active" data-tab="providers">Providers</button>
+        <button class="settings-tab-button" data-tab="model">Model</button>
+        <button class="settings-tab-button" data-tab="generation">Generation</button>
+        <button class="settings-tab-button" data-tab="advanced">Advanced</button>
+      </div>
+
+      <!-- ═══ TAB: Providers ═══ -->
+      <div class="settings-tab-pane active" data-content="providers">
+
+        <div class="section-label">OAuth</div>
+        <div class="provider-list">
+          <div class="provider-row connected">
+            <svg class="provider-logo" viewBox="0 0 24 24" fill="none"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.998 5.998 0 0 0-3.998 2.9 6.042 6.042 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z" fill="currentColor"/></svg>
+            <div class="provider-info">
+              <div class="provider-name">Codex</div>
+              <div class="provider-meta">sero@pm.me</div>
+            </div>
+            <span class="model-count">11 models</span>
+            <div class="provider-status"></div>
+          </div>
+
+          <div class="provider-row connected">
+            <svg class="provider-logo" viewBox="0 0 24 24" fill="none"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" fill="currentColor"/></svg>
+            <div class="provider-info">
+              <div class="provider-name">GitHub Copilot</div>
+              <div class="provider-meta">sero@github</div>
+            </div>
+            <span class="model-count">18 models</span>
+            <div class="provider-status"></div>
+          </div>
+
+          <div class="provider-row connected">
+            <svg class="provider-logo" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 1.5a8.5 8.5 0 0 1 0 17 8.5 8.5 0 0 1 0-17z" fill="currentColor"/><path d="M15.5 8.5c0 3.59-2.91 6.5-6.5 6.5a6.46 6.46 0 0 1-3-.735A8.46 8.46 0 0 0 12 17.5a8.5 8.5 0 0 0 8.5-8.5c0-1.17-.237-2.29-.665-3.31A6.46 6.46 0 0 1 15.5 8.5z" fill="currentColor"/></svg>
+            <div class="provider-info">
+              <div class="provider-name">Kimi</div>
+              <div class="provider-meta">sero@kimi</div>
+            </div>
+            <span class="model-count">3 models</span>
+            <div class="provider-status"></div>
+          </div>
+
+          <div class="provider-row dim">
+            <svg class="provider-logo" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 1.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17z" fill="currentColor"/><path d="M12 6a6 6 0 0 0-4.24 10.24l-1.42 1.42A8 8 0 1 1 20 12a7.95 7.95 0 0 1-2.34 5.66l-1.42-1.42A6 6 0 0 0 12 6z" fill="currentColor" opacity="0.5"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/></svg>
+            <div class="provider-info">
+              <div class="provider-name">Qwen</div>
+              <div class="provider-meta">Device code OAuth</div>
+            </div>
+            <button class="connect-btn">Connect</button>
+          </div>
+        </div>
+
+        <div class="section-gap"></div>
+        <div class="section-label">API Keys</div>
+        <div class="provider-list">
+          <div class="provider-row connected">
+            <svg class="provider-logo" viewBox="0 0 24 24" fill="none"><path d="M12.46 3L1 17.52h5.27L12.46 3z" fill="currentColor"/><path d="M17.65 17.52H23L14.39 3h-5.3l8.56 14.52z" fill="currentColor" opacity="0.6"/><path d="M12.02 13.4l-2.86 4.12h5.66l-2.8-4.12z" fill="currentColor"/></svg>
+            <div class="provider-info">
+              <div class="provider-name">Anthropic</div>
+              <div class="provider-meta">sk-ant-...4f2a</div>
+            </div>
+            <span class="model-count">6 models</span>
+            <div class="provider-status"></div>
+          </div>
+
+          <div class="provider-row dim">
+            <svg class="provider-logo" viewBox="0 0 24 24" fill="none"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.998 5.998 0 0 0-3.998 2.9 6.042 6.042 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073z" fill="currentColor"/></svg>
+            <div class="provider-info">
+              <div class="provider-name">OpenAI</div>
+              <div class="provider-meta">Bring your own key</div>
+            </div>
+            <button class="connect-btn">Add Key</button>
+          </div>
+
+          <div class="provider-row dim">
+            <svg class="provider-logo" viewBox="0 0 24 24" fill="none"><path d="M4 12h16M4 12l4-4m-4 4l4 4M20 12l-4-4m4 4l-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="5" r="2" fill="currentColor" opacity="0.5"/><circle cx="12" cy="19" r="2" fill="currentColor" opacity="0.5"/></svg>
+            <div class="provider-info">
+              <div class="provider-name">OpenRouter</div>
+              <div class="provider-meta">Multi-provider gateway</div>
+            </div>
+            <button class="connect-btn">Add Key</button>
+          </div>
+        </div>
+
+        <div class="section-gap"></div>
+        <div class="section-label">Custom</div>
+        <div class="provider-list">
+          <div class="provider-row connected">
+            <svg class="provider-logo" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M8 12h8M12 8v8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <div class="provider-info">
+              <div class="provider-name">Local Ollama</div>
+              <div class="provider-meta">http://localhost:11434/v1</div>
+            </div>
+            <div class="row-actions">
+              <button class="icon-btn" title="Edit" onclick="openAddForm()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button class="icon-btn danger" title="Delete">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </div>
+            <div class="provider-status"></div>
+          </div>
+        </div>
+
+        <!-- Add provider button -->
+        <button class="connect-btn" onclick="openAddForm()" id="addProviderBtn" style="align-self: flex-start; margin-top: 4px;">+ Add Provider</button>
+
+        <!-- Inline add form — no card, just a bordered-top section -->
+        <div class="add-provider-form" id="addProviderForm">
+          <div class="add-provider-form-header">
+            <span class="eyebrow">New Provider</span>
+            <button class="icon-btn" onclick="closeAddForm()" title="Close">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Name</label>
+              <input type="text" placeholder="My Provider">
+            </div>
+            <div class="form-group">
+              <label>Type</label>
+              <select>
+                <option>OpenAI-compatible</option>
+                <option>Anthropic-compatible</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Base URL</label>
+            <input type="text" placeholder="https://api.example.com/v1" style="font-family: var(--font-mono); font-size: 12px;">
+          </div>
+          <div class="form-group">
+            <label>API Key</label>
+            <input type="password" placeholder="sk-...">
+          </div>
+          <div class="form-group">
+            <label>Model IDs</label>
+            <input type="text" placeholder="llama-3.1-70b, mixtral-8x7b" style="font-family: var(--font-mono); font-size: 12px;">
+          </div>
+          <div class="add-provider-form-actions">
+            <button class="btn btn-ghost" onclick="closeAddForm()">Cancel</button>
+            <button class="btn btn-primary" onclick="closeAddForm()">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ TAB: Model ═══ -->
+      <div class="settings-tab-pane" data-content="model">
+        <div class="section-header">
+          <span class="section-label" style="padding:0;">Active Model</span>
+          <span class="active-indicator">In use</span>
+        </div>
+
+        <div class="model-group-label">
+          <svg class="provider-logo-sm" viewBox="0 0 24 24" fill="none"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.998 5.998 0 0 0-3.998 2.9 6.042 6.042 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073z" fill="currentColor"/></svg>
+          Codex
+        </div>
+        <div class="model-option">
+          <div class="model-name">gpt-5.3-codex</div>
+          <div class="model-ctx">200k</div>
+          <div class="model-check"></div>
+        </div>
+        <div class="model-option active">
+          <div class="model-name">gpt-5.2-codex</div>
+          <div class="model-ctx">200k</div>
+          <div class="model-check"></div>
+        </div>
+        <div class="model-option">
+          <div class="model-name">gpt-4o</div>
+          <div class="model-ctx">128k</div>
+          <div class="model-check"></div>
+        </div>
+
+        <div class="model-group-label">
+          <svg class="provider-logo-sm" viewBox="0 0 24 24" fill="none"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" fill="currentColor"/></svg>
+          GitHub Copilot
+        </div>
+        <div class="model-option">
+          <div class="model-name">claude-sonnet-4.6</div>
+          <div class="model-ctx">200k</div>
+          <div class="model-check"></div>
+        </div>
+        <div class="model-option">
+          <div class="model-name">claude-opus-4.6</div>
+          <div class="model-ctx">200k</div>
+          <div class="model-check"></div>
+        </div>
+        <div class="model-option">
+          <div class="model-name">gemini-2.5-pro</div>
+          <div class="model-ctx">1M</div>
+          <div class="model-check"></div>
+        </div>
+
+        <div class="model-group-label">
+          <svg class="provider-logo-sm" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 1.5a8.5 8.5 0 0 1 0 17 8.5 8.5 0 0 1 0-17z" fill="currentColor"/><path d="M15.5 8.5c0 3.59-2.91 6.5-6.5 6.5a6.46 6.46 0 0 1-3-.735A8.46 8.46 0 0 0 12 17.5a8.5 8.5 0 0 0 8.5-8.5c0-1.17-.237-2.29-.665-3.31A6.46 6.46 0 0 1 15.5 8.5z" fill="currentColor"/></svg>
+          Kimi
+        </div>
+        <div class="model-option">
+          <div class="model-name">kimi-k2.5</div>
+          <div class="model-ctx">128k</div>
+          <div class="model-check"></div>
+        </div>
+
+        <div class="model-group-label">
+          <svg class="provider-logo-sm" viewBox="0 0 24 24" fill="none"><path d="M12.46 3L1 17.52h5.27L12.46 3z" fill="currentColor"/><path d="M17.65 17.52H23L14.39 3h-5.3l8.56 14.52z" fill="currentColor" opacity="0.6"/><path d="M12.02 13.4l-2.86 4.12h5.66l-2.8-4.12z" fill="currentColor"/></svg>
+          Anthropic
+        </div>
+        <div class="model-option">
+          <div class="model-name">claude-sonnet-4-6</div>
+          <div class="model-ctx">200k</div>
+          <div class="model-check"></div>
+        </div>
+        <div class="model-option">
+          <div class="model-name">claude-opus-4-6</div>
+          <div class="model-ctx">200k</div>
+          <div class="model-check"></div>
+        </div>
+      </div>
+
+      <!-- ═══ TAB: Generation ═══ -->
+      <div class="settings-tab-pane" data-content="generation">
+        <div class="section-label">Generation Parameters</div>
+
+        <div class="temp-row">
+          <div class="temp-header">
+            <span class="gen-param-label">Temperature</span>
+            <span class="temp-value" id="tempValue">0.70</span>
+          </div>
+          <input type="range" min="0" max="2" step="0.05" value="0.7" id="tempSlider">
+        </div>
+
+        <div class="gen-grid">
+          <div>
+            <div class="gen-param-label">Max Tokens</div>
+            <input class="gen-param-input" type="number" value="400000">
+          </div>
+          <div>
+            <div class="gen-param-label">Context Limit</div>
+            <input class="gen-param-input" type="number" value="400000">
+          </div>
+          <div>
+            <div class="gen-param-label">Timeout (ms)</div>
+            <input class="gen-param-input" type="number" value="30000">
+          </div>
+          <div>
+            <div class="gen-param-label">Screenshot Quality</div>
+            <select class="gen-param-input" style="font-family: var(--font-sans);">
+              <option>Low</option>
+              <option>High</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="section-gap"></div>
+        <div class="section-label">Capabilities</div>
+        <div class="cap-list">
+          <div class="cap-row">Screenshots <div class="switch-track on" onclick="this.classList.toggle('on')"></div></div>
+          <div class="cap-row">Send as Images <div class="switch-track" onclick="this.classList.toggle('on')"></div></div>
+          <div class="cap-row">Streaming <div class="switch-track on" onclick="this.classList.toggle('on')"></div></div>
+          <div class="cap-row">Reasoning <div class="switch-track" onclick="this.classList.toggle('on')"></div></div>
+        </div>
+      </div>
+
+      <!-- ═══ TAB: Advanced ═══ -->
+      <div class="settings-tab-pane" data-content="advanced">
+
+        <details class="collapsible" open>
+          <summary>Roles</summary>
+          <div class="collapsible-body">
+            <div class="role-row">
+              <span class="role-label">Orchestrator</span>
+              <select class="role-select">
+                <option>Use active model</option>
+                <option>Codex / gpt-5.2-codex</option>
+                <option>Copilot / claude-opus-4.6</option>
+                <option>Anthropic / claude-sonnet-4-6</option>
+              </select>
+            </div>
+            <div class="role-row">
+              <span class="role-label">Vision</span>
+              <select class="role-select">
+                <option>Use active model</option>
+                <option>Codex / gpt-4o</option>
+                <option>Anthropic / claude-sonnet-4-6</option>
+              </select>
+            </div>
+          </div>
+        </details>
+
+        <details class="collapsible">
+          <summary>Team Agents</summary>
+          <div class="collapsible-body">
+            <div class="team-row">Codex / gpt-5.2-codex <div class="switch-track on" onclick="this.classList.toggle('on')"></div></div>
+            <div class="team-row">Copilot / claude-opus-4.6 <div class="switch-track" onclick="this.classList.toggle('on')"></div></div>
+            <div class="team-row">Kimi / kimi-k2.5 <div class="switch-track" onclick="this.classList.toggle('on')"></div></div>
+          </div>
+        </details>
+
+        <details class="collapsible">
+          <summary>System Prompt</summary>
+          <div class="collapsible-body">
+            <div class="form-group">
+              <textarea style="min-height: 80px; resize: vertical; font-family: var(--font-mono); font-size: 12px;" placeholder="Custom system prompt for this model..."></textarea>
+            </div>
+          </div>
+        </details>
+      </div>
+
+    </div>
+
+    <!-- Composer -->
+    <div class="composer-bar">
+      <div style="flex:1; font-size:12px; color:var(--muted-dim);">Ready</div>
+      <button class="composer-model-btn" onclick="toggleFlyout()">
+        <svg class="provider-logo-sm" viewBox="0 0 24 24" fill="none" style="opacity:0.7"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.998 5.998 0 0 0-3.998 2.9 6.042 6.042 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073z" fill="currentColor"/></svg>
+        <span class="composer-model-label">gpt-5.2-codex</span>
+        <span class="composer-chevron">&#9662;</span>
+      </button>
+      <div class="flyout" id="composerFlyout">
+        <div class="flyout-group-label"><svg class="provider-logo-sm" viewBox="0 0 24 24" fill="none"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.998 5.998 0 0 0-3.998 2.9 6.042 6.042 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073z" fill="currentColor"/></svg> Codex</div>
+        <div class="flyout-item"><span class="flyout-model">gpt-5.3-codex</span><span class="flyout-ctx">200k</span></div>
+        <div class="flyout-item active"><span class="flyout-model">gpt-5.2-codex</span><span class="flyout-ctx">200k</span></div>
+        <div class="flyout-item"><span class="flyout-model">gpt-4o</span><span class="flyout-ctx">128k</span></div>
+        <div class="flyout-group-label"><svg class="provider-logo-sm" viewBox="0 0 24 24" fill="none"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" fill="currentColor"/></svg> Copilot</div>
+        <div class="flyout-item"><span class="flyout-model">claude-sonnet-4.6</span><span class="flyout-ctx">200k</span></div>
+        <div class="flyout-item"><span class="flyout-model">claude-opus-4.6</span><span class="flyout-ctx">200k</span></div>
+        <div class="flyout-item"><span class="flyout-model">gemini-2.5-pro</span><span class="flyout-ctx">1M</span></div>
+        <div class="flyout-group-label"><svg class="provider-logo-sm" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 1.5a8.5 8.5 0 0 1 0 17 8.5 8.5 0 0 1 0-17z" fill="currentColor"/><path d="M15.5 8.5c0 3.59-2.91 6.5-6.5 6.5a6.46 6.46 0 0 1-3-.735A8.46 8.46 0 0 0 12 17.5a8.5 8.5 0 0 0 8.5-8.5c0-1.17-.237-2.29-.665-3.31A6.46 6.46 0 0 1 15.5 8.5z" fill="currentColor"/></svg> Kimi</div>
+        <div class="flyout-item"><span class="flyout-model">kimi-k2.5</span><span class="flyout-ctx">128k</span></div>
+        <div class="flyout-group-label"><svg class="provider-logo-sm" viewBox="0 0 24 24" fill="none"><path d="M12.46 3L1 17.52h5.27L12.46 3z" fill="currentColor"/><path d="M17.65 17.52H23L14.39 3h-5.3l8.56 14.52z" fill="currentColor" opacity="0.6"/><path d="M12.02 13.4l-2.86 4.12h5.66l-2.8-4.12z" fill="currentColor"/></svg> Anthropic</div>
+        <div class="flyout-item"><span class="flyout-model">claude-sonnet-4-6</span><span class="flyout-ctx">200k</span></div>
+        <div class="flyout-item"><span class="flyout-model">claude-opus-4-6</span><span class="flyout-ctx">200k</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notes -->
+  <div class="notes">
+    <div class="note-card">
+      <h3>v4 — Flat Structure</h3>
+      <p><strong>No more cards in cards.</strong> Eliminated every wrapper card. Provider rows use bottom-border separation. Model options sit directly in the pane. Generation params are bare label+input pairs. Capabilities are simple list rows.</p>
+      <p><strong>One border max.</strong> The only bordered containers are: the tab bar (structural), the flyout (floating), and form inputs. Everything else uses typography and spacing.</p>
+    </div>
+
+    <div class="note-card">
+      <h3>Hierarchy via Typography</h3>
+      <p><strong>Section labels</strong> (uppercase, dim, small) replace card wrappers for grouping: "OAuth", "API Keys", "Custom".</p>
+      <p><strong>Dividers</strong> are gone between sections — whitespace does the job.</p>
+      <p><strong>Collapsibles</strong> in Advanced tab are borderless <code>&lt;details&gt;</code> — just a summary line that rotates an arrow.</p>
+    </div>
+
+    <div class="note-card">
+      <h3>Custom Providers</h3>
+      <p>The "Custom" section shows user-added providers as regular rows with hover-reveal edit/delete icons. The "+ Add Provider" button opens an inline form (no modal, no card wrapper — just fields separated by a top border).</p>
+      <p>Form fields: Name, Type (OpenAI/Anthropic-compatible), Base URL, API Key, Model IDs.</p>
+    </div>
+
+    <div class="note-card">
+      <h3>Data Model</h3>
+      <p><code>providers: Record&lt;id, ProviderInstance&gt;</code></p>
+      <p><code>activeModel: { providerId, modelId }</code></p>
+      <p><code>modelOverrides: Record&lt;key, GenParams&gt;</code></p>
+      <p><code>roles: { orchestrator?, vision?, team[] }</code></p>
+      <p><code>preferences: { autoScroll, confirmActions, ... }</code></p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // Tab switching
+  document.getElementById('mainTabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.settings-tab-button');
+    if (!btn) return;
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('#mainTabs .settings-tab-button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    btn.closest('.panel-body').querySelectorAll('.settings-tab-pane').forEach(c => {
+      c.classList.toggle('active', c.dataset.content === tab);
+    });
+  });
+
+  // Model selection
+  document.querySelectorAll('.model-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      document.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
+      opt.classList.add('active');
+      const name = opt.querySelector('.model-name').textContent;
+      document.querySelector('.composer-model-label').textContent = name;
+      // Update composer logo — walk back to find the group label's logo
+      let el = opt.previousElementSibling;
+      while (el && !el.classList.contains('model-group-label')) el = el.previousElementSibling;
+      if (el) {
+        const logo = el.querySelector('.provider-logo-sm');
+        if (logo) {
+          const composerLogo = document.querySelector('.composer-model-btn .provider-logo-sm');
+          if (composerLogo) composerLogo.outerHTML = logo.outerHTML;
+        }
+      }
+      document.querySelectorAll('.flyout-item').forEach(fi => {
+        fi.classList.toggle('active', fi.querySelector('.flyout-model')?.textContent === name);
+      });
+    });
+  });
+
+  // Temperature slider
+  document.getElementById('tempSlider').addEventListener('input', function() {
+    document.getElementById('tempValue').textContent = parseFloat(this.value).toFixed(2);
+  });
+
+  // Composer flyout
+  function toggleFlyout() {
+    document.getElementById('composerFlyout').classList.toggle('open');
+  }
+
+  document.querySelectorAll('.flyout-item').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.flyout-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      const model = item.querySelector('.flyout-model').textContent;
+      document.querySelector('.composer-model-label').textContent = model;
+      let el = item.previousElementSibling;
+      while (el && !el.classList.contains('flyout-group-label')) el = el.previousElementSibling;
+      if (el) {
+        const logo = el.querySelector('.provider-logo-sm');
+        if (logo) {
+          const composerLogo = document.querySelector('.composer-model-btn .provider-logo-sm');
+          if (composerLogo) composerLogo.outerHTML = logo.outerHTML;
+        }
+      }
+      document.getElementById('composerFlyout').classList.remove('open');
+      document.querySelectorAll('.model-option').forEach(mo => {
+        mo.classList.toggle('active', mo.querySelector('.model-name')?.textContent === model);
+      });
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.composer-bar')) {
+      document.getElementById('composerFlyout').classList.remove('open');
+    }
+  });
+
+  // Add provider form
+  function openAddForm() {
+    document.getElementById('addProviderForm').classList.add('open');
+    document.getElementById('addProviderBtn').style.display = 'none';
+  }
+  function closeAddForm() {
+    document.getElementById('addProviderForm').classList.remove('open');
+    document.getElementById('addProviderBtn').style.display = '';
+  }
+</script>
+
+</body>
+</html>

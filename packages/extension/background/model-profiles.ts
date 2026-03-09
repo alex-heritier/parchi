@@ -1,5 +1,6 @@
 import { normalizeOpenRouterModelId } from '../ai/sdk-client.js';
 import { invalidateRuntimeAuthSession, isUsableRuntimeJwt, refreshRuntimeAuthSession } from '../convex/client.js';
+import { materializeProfileWithProvider } from '../state/provider-registry.js';
 import {
   getAccessToken as getOAuthAccessToken,
   getApiBaseUrl as getOAuthApiBaseUrl,
@@ -109,7 +110,7 @@ export function applyConvexProxyProfile(profile: Record<string, any>, settings: 
   const preferredProvider =
     profile?.provider === 'kimi'
       ? 'kimi'
-      : profile?.provider === 'anthropic'
+      : profile?.provider === 'anthropic' || profile?.provider === 'glm' || profile?.provider === 'minimax'
         ? 'anthropic'
         : profile?.provider === 'openrouter' || profile?.provider === 'parchi'
           ? 'openrouter'
@@ -176,7 +177,10 @@ export function resolveRuntimeModelProfile(profile: Record<string, any>, setting
 export function resolveProfile(settings: Record<string, any>, name = 'default') {
   const base = {
     provider: settings.provider,
+    providerId: settings.providerId,
+    providerLabel: settings.providerLabel,
     apiKey: settings.apiKey,
+    modelId: settings.modelId,
     model: settings.model,
     customEndpoint: settings.customEndpoint,
     extraHeaders: settings.extraHeaders,
@@ -192,7 +196,7 @@ export function resolveProfile(settings: Record<string, any>, name = 'default') 
     enableScreenshots: settings.enableScreenshots,
   };
   const profile = settings.configs && settings.configs[name] ? settings.configs[name] : {};
-  return { ...base, ...profile };
+  return materializeProfileWithProvider(settings, name, { ...base, ...profile });
 }
 
 export function resolveTeamProfiles(settings: Record<string, any>) {
@@ -217,6 +221,8 @@ export function isVisionModelProfile(profile: Record<string, any> | null | undef
   if (!provider) return false;
   if (provider === 'anthropic' || provider === 'claude-oauth') return true;
   if (provider === 'kimi') return true;
+  if (provider === 'glm') return /4\.6v|vision/.test(model);
+  if (provider === 'minimax') return /vision/.test(model);
   if (provider === 'codex-oauth' || provider === 'copilot-oauth') {
     return /gpt-4o|vision/i.test(model);
   }

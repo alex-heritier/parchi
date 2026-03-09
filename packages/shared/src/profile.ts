@@ -1,4 +1,6 @@
 export interface ProfileConfig {
+  providerId?: string;
+  modelId?: string;
   provider: string;
   model: string;
   apiKey: string;

@@ -1,17 +1,24 @@
 <div id="settingsPanel" class="right-panel-content hidden" data-panel="settings">
-    <div class="panel-header">
-        <span class="panel-title">Settings</span>
+    <div class="panel-header panel-header-with-actions">
+        <div>
+            <span class="panel-title">Settings</span>
+            <span class="panel-subtitle">Providers, model, generation, and advanced controls.</span>
+        </div>
+        <button id="settingsOpenAccountBtn" class="panel-avatar-button" type="button" title="Open account">
+            <span id="settingsAccountAvatar" class="panel-avatar-initials">A</span>
+            <span class="panel-avatar-label">Account</span>
+        </button>
     </div>
-    <div class="settings-content">
-        <div class="settings-tabs">
-            <button id="settingsTabProvidersBtn" class="settings-tab-button active" data-tab="providers">Providers</button>
-            <button id="settingsTabProfilesBtn" class="settings-tab-button" data-tab="profiles">Profiles</button>
-            <button id="settingsTabDesignBtn" class="settings-tab-button" data-tab="design">Appearance</button>
-            <button id="settingsTabAdvancedBtn" class="settings-tab-button" data-tab="advanced">Advanced</button>
+    <div class="settings-content settings-content-redesign">
+        <div class="settings-tabs settings-tabs-redesign" role="tablist" aria-label="Settings sections">
+            <button id="settingsTabProvidersBtn" class="settings-tab-button active" data-tab="providers" role="tab" aria-selected="true">Providers</button>
+            <button id="settingsTabModelBtn" class="settings-tab-button" data-tab="model" role="tab" aria-selected="false">Model</button>
+            <button id="settingsTabGenerationBtn" class="settings-tab-button" data-tab="generation" role="tab" aria-selected="false">Generation</button>
+            <button id="settingsTabAdvancedBtn" class="settings-tab-button" data-tab="advanced" role="tab" aria-selected="false">Advanced</button>
         </div>
         <div id="settingsTabProviders" class="tab-panel" data-tab="providers"></div>
-        <div id="settingsTabProfiles" class="tab-panel hidden" data-tab="profiles"></div>
-        <div id="settingsTabDesign" class="tab-panel hidden" data-tab="design"></div>
+        <div id="settingsTabModel" class="tab-panel hidden" data-tab="model"></div>
+        <div id="settingsTabGeneration" class="tab-panel hidden" data-tab="generation"></div>
         <div id="settingsTabAdvanced" class="tab-panel hidden" data-tab="advanced"></div>
     </div>
 </div>

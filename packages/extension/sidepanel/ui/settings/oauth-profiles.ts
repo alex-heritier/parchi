@@ -2,6 +2,7 @@ import { OAUTH_PROVIDERS, fetchProviderModels } from '../../../oauth/manager.js'
 import { normalizeOAuthModelIdForProvider } from '../../../oauth/model-normalization.js';
 import type { OAuthProviderKey } from '../../../oauth/types.js';
 import type { OAuthProviderConfig } from '../../../oauth/types.js';
+import { buildProviderInstanceId, ensureProviderModel } from '../../../state/provider-registry.js';
 import type { SidePanelUI } from '../core/panel-ui.js';
 
 const OAUTH_PROFILE_PREFIX = 'oauth:';
@@ -26,6 +27,7 @@ function oauthKeyFromProfile(name: string): string | null {
 export async function syncOAuthProfiles(ui: SidePanelUI): Promise<void> {
   const states = await ui.getAllOAuthProviderStates?.();
   const configs = ui.configs || {};
+  const providers = ui.providers || {};
   let changed = false;
 
   for (const config of Object.values(OAUTH_PROVIDERS)) {
@@ -46,9 +48,36 @@ export async function syncOAuthProfiles(ui: SidePanelUI): Promise<void> {
       config.key,
       discoveredModels[0] || config.models[0]?.id || '',
     );
+    const providerId = buildProviderInstanceId({
+      providerType: `${config.key}-oauth`,
+      authType: 'oauth',
+      oauthProviderKey: config.key,
+      name: config.name,
+    });
+    const priorProvider = providers[providerId];
+    providers[providerId] = ensureProviderModel(
+      {
+        id: providerId,
+        name: config.name,
+        providerType: `${config.key}-oauth`,
+        authType: 'oauth',
+        oauthProviderKey: config.key,
+        oauthEmail: state?.email,
+        oauthError: state?.error,
+        isConnected: connected,
+        models: priorProvider?.models || config.models || [],
+        createdAt: Number(priorProvider?.createdAt || Date.now()),
+        updatedAt: Date.now(),
+        source: priorProvider?.source || 'oauth-sync',
+      },
+      defaultModel,
+    );
 
     if (connected && !configs[profileName]) {
       configs[profileName] = {
+        providerId,
+        modelId: defaultModel,
+        providerLabel: config.name,
         provider: `${config.key}-oauth`,
         apiKey: '',
         model: defaultModel,
@@ -73,11 +102,22 @@ export async function syncOAuthProfiles(ui: SidePanelUI): Promise<void> {
         existing.apiKey = '';
         changed = true;
       }
+      if (existing.providerId !== providerId) {
+        existing.providerId = providerId;
+        existing.providerLabel = config.name;
+        changed = true;
+      }
       if (nextModel && nextModel !== currentModel) {
         existing.model = nextModel;
-        const matchedContextWindow = config.models.find((model) => model.id === nextModel)?.contextWindow;
-        if (matchedContextWindow) {
-          existing.contextLimit = matchedContextWindow;
+        existing.modelId = nextModel;
+        // Only set contextLimit from model metadata if the profile doesn't already
+        // have a user-customized value — otherwise OAuth sync overwrites user edits
+        // on every sidepanel open.
+        if (!existing.contextLimit) {
+          const matchedContextWindow = config.models.find((model) => model.id === nextModel)?.contextWindow;
+          if (matchedContextWindow) {
+            existing.contextLimit = matchedContextWindow;
+          }
         }
         changed = true;
       }
@@ -92,6 +132,7 @@ export async function syncOAuthProfiles(ui: SidePanelUI): Promise<void> {
 
   if (changed) {
     ui.configs = configs;
+    ui.providers = providers;
     await ui.persistAllSettings?.({ silent: true });
     ui.refreshConfigDropdown?.();
     ui.populateModelSelect?.();

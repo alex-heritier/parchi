@@ -1,11 +1,17 @@
 import { CORE_THEMES } from './theme-catalog-core.js';
 import { EXTENDED_THEMES_A } from './theme-catalog-extended-a.js';
 import { EXTENDED_THEMES_B } from './theme-catalog-extended-b.js';
+import { HIGH_CONTRAST_THEMES } from './theme-catalog-high-contrast.js';
 import type { ThemeDefinition } from './theme-definition.js';
 
 export type { ThemeDefinition } from './theme-definition.js';
 
-export const THEMES: ThemeDefinition[] = [...CORE_THEMES, ...EXTENDED_THEMES_A, ...EXTENDED_THEMES_B];
+export const THEMES: ThemeDefinition[] = [
+  ...CORE_THEMES,
+  ...EXTENDED_THEMES_A,
+  ...EXTENDED_THEMES_B,
+  ...HIGH_CONTRAST_THEMES,
+];
 
 export const DEFAULT_THEME_ID = 'void';
 

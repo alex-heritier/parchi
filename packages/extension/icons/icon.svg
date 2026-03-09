@@ -1,44 +1,50 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Parchi logo">
   <defs>
-    <linearGradient id="stroke-grad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#a5b4fc"/>
-      <stop offset="100%" stop-color="#6366f1"/>
+    <linearGradient id="bg" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#c084e0"/>
+      <stop offset="40%" stop-color="#9b4dca"/>
+      <stop offset="100%" stop-color="#5b21a0"/>
     </linearGradient>
+    <radialGradient id="sh" cx="0.35" cy="0.25" r="0.5">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.25)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </radialGradient>
   </defs>
 
-  <!-- Squircle outline — the frame IS the head shape -->
-  <path
-    d="M64 12
-       C 34 12 12 34 12 64
-       C 12 94 34 116 64 116
-       C 94 116 116 94 116 64
-       C 116 34 94 12 64 12 Z"
-    fill="none"
-    stroke="url(#stroke-grad)"
-    stroke-width="5"
-    stroke-linejoin="round"
-  />
+  <!-- Body — bell/dome shape, flat bottom -->
+  <path d="
+    M 16 108
+    L 112 108
+    L 112 62
+    C 112 22, 92 6, 64 6
+    C 36 6, 16 22, 16 62
+    Z
+  " fill="url(#bg)"/>
 
-  <!-- Ears — two small squares sitting on top corners -->
-  <rect x="28" y="16" width="14" height="14" rx="4"
-    fill="none" stroke="url(#stroke-grad)" stroke-width="4.5"
-  />
-  <rect x="86" y="16" width="14" height="14" rx="4"
-    fill="none" stroke="url(#stroke-grad)" stroke-width="4.5"
-  />
+  <!-- Sheen overlay — top-left highlight -->
+  <path d="
+    M 16 62
+    C 16 22, 36 6, 64 6
+    C 92 6, 112 22, 112 62
+    L 112 72
+    C 98 72, 88 32, 64 18
+    C 44 18, 28 42, 24 72
+    L 16 72
+    Z
+  " fill="url(#sh)"/>
 
-  <!-- Left eye — circle -->
-  <circle cx="48" cy="60" r="8"
-    fill="none" stroke="url(#stroke-grad)" stroke-width="4.5"
-  />
+  <!-- Left eye -->
+  <circle cx="46" cy="64" r="14" fill="#fff"/>
+  <!-- Right eye -->
+  <circle cx="82" cy="64" r="14" fill="#fff"/>
 
-  <!-- Right eye — circle -->
-  <circle cx="80" cy="60" r="8"
-    fill="none" stroke="url(#stroke-grad)" stroke-width="4.5"
-  />
+  <!-- Left pupil (subtle inner shadow) -->
+  <circle cx="46" cy="66" r="6" fill="rgba(90,30,130,0.08)"/>
+  <!-- Right pupil (subtle inner shadow) -->
+  <circle cx="82" cy="66" r="6" fill="rgba(90,30,130,0.08)"/>
 
-  <!-- Mouth — simple arc -->
-  <path d="M50 82 Q64 94 78 82"
-    fill="none" stroke="url(#stroke-grad)" stroke-width="4.5" stroke-linecap="round"
-  />
+  <!-- Bubbles — top right -->
+  <circle cx="106" cy="14" r="7" fill="rgba(180,130,220,0.5)"/>
+  <circle cx="116" cy="28" r="4.5" fill="rgba(180,130,220,0.35)"/>
+  <circle cx="120" cy="10" r="3" fill="rgba(180,130,220,0.25)"/>
 </svg>
