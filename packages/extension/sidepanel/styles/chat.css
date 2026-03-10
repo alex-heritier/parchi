@@ -409,7 +409,7 @@ body.sidebar-open .context-inspector-popover {
   display: none;
 }
 
-/* Empty state */
+/* Empty state — Gravity Well */
 .chat-empty-state {
   position: absolute;
   inset: 0;
@@ -417,58 +417,142 @@ body.sidebar-open .context-inspector-popover {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 24px;
   text-align: center;
-  pointer-events: none;
   padding: 24px;
+  overflow: hidden;
 }
 
-.chat-empty-orb {
-  width: 120px;
-  height: 120px;
+.chat-empty-gravity-well {
+  position: relative;
+  width: 90px;
+  height: 90px;
+}
+
+.chat-empty-orbit {
+  position: absolute;
   border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, rgb(var(--accent-rgb) / 0.5), rgba(10, 10, 15, 0.35));
-  box-shadow: 0 0 40px rgb(var(--accent-rgb) / 0.18), inset 0 0 30px rgba(255, 255, 255, 0.06);
-  animation: orbPulse 4s ease-in-out infinite, orbFloat 6s ease-in-out infinite;
+  border: 1px solid rgb(var(--accent-rgb) / 0.07);
+  will-change: transform;
+  animation: emptyOrbitSpin 30s linear infinite;
 }
 
-/* Pause orb animations when the empty state is hidden */
-.chat-empty-state.hidden .chat-empty-orb {
+.chat-empty-orbit:nth-child(1) {
+  inset: 12px;
+  animation-duration: 20s;
+}
+
+.chat-empty-orbit:nth-child(2) {
+  inset: -6px;
+  animation-duration: 35s;
+  animation-direction: reverse;
+  border-color: rgb(var(--accent-rgb) / 0.04);
+}
+
+.chat-empty-orbit-dot {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--accent-light);
+  opacity: 0.6;
+  box-shadow: 0 0 6px rgb(var(--accent-rgb) / 0.3);
+}
+
+.chat-empty-orbit:nth-child(1) .chat-empty-orbit-dot {
+  top: -1.5px;
+  left: 50%;
+}
+
+.chat-empty-orbit:nth-child(2) .chat-empty-orbit-dot {
+  top: 50%;
+  right: -1.5px;
+}
+
+@keyframes emptyOrbitSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.chat-empty-singularity {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent) 0%, var(--accent-dark) 70%, transparent 100%);
+  box-shadow: 0 0 16px rgb(var(--accent-rgb) / 0.25);
+}
+
+/* Glow layer: animate opacity instead of box-shadow for zero-paint cost */
+.chat-empty-singularity::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(var(--accent-rgb) / 0.12), transparent 70%);
+  will-change: opacity;
+  animation: emptySingularityBreathe 5s ease-in-out infinite;
+}
+
+@keyframes emptySingularityBreathe {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Pause animations when the empty state is hidden */
+.chat-empty-state.hidden .chat-empty-orbit,
+.chat-empty-state.hidden .chat-empty-singularity::after {
   animation-play-state: paused;
 }
 
-@keyframes orbFloat {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
-}
-
 .chat-empty-title {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--foreground);
 }
 
-.chat-empty-subtitle {
-  font-size: 13px;
-  color: var(--muted-dim);
-  max-width: 320px;
+.chat-empty-starters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 340px;
 }
 
-@keyframes orbPulse {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.7;
-  }
-  50% {
-    transform: scale(1.05);
-    opacity: 1;
-  }
+.chat-empty-starter {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--ink-2);
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) ease, background var(--duration-fast) ease, color var(--duration-fast) ease;
+  text-align: left;
+}
+
+.chat-empty-starter:hover {
+  border-color: rgb(var(--accent-rgb) / 0.25);
+  background: rgb(var(--accent-rgb) / 0.04);
+  color: var(--foreground);
+}
+
+.chat-empty-starter:active {
+  transform: scale(0.98);
+  transition-duration: 80ms;
 }
 
 /* Pruned messages placeholder */
