@@ -523,6 +523,7 @@ const EMPTY_TIPS = [
 
 let _tipTimer: ReturnType<typeof setInterval> | null = null;
 let _tipIndex = Math.floor(Math.random() * EMPTY_TIPS.length);
+let _startersWired = false;
 
 sidePanelProto.updateChatEmptyState = function updateChatEmptyState() {
   const emptyState = this.elements.chatEmptyState;
@@ -531,6 +532,20 @@ sidePanelProto.updateChatEmptyState = function updateChatEmptyState() {
     (this.displayHistory && this.displayHistory.length > 0) ||
     (this.elements.chatMessages && this.elements.chatMessages.children.length > 0);
   emptyState.classList.toggle('hidden', hasMessages);
+
+  // Wire up prompt starters once via event delegation
+  if (!_startersWired) {
+    _startersWired = true;
+    emptyState.addEventListener('click', (e: Event) => {
+      const starter = (e.target as HTMLElement).closest('.chat-empty-starter') as HTMLElement | null;
+      if (!starter) return;
+      const prompt = starter.dataset.prompt;
+      if (!prompt || !this.elements.userInput) return;
+      this.elements.userInput.value = prompt;
+      this.elements.userInput.focus();
+      this.sendMessage();
+    });
+  }
 
   const tipEl = emptyState.querySelector('#emptyTip') as HTMLElement | null;
   if (!tipEl) return;
