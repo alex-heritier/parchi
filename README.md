@@ -63,11 +63,11 @@ Use your own API key from any supported provider:
 
 | Provider | API URL | Example Models |
 |----------|---------|----------------|
-| **OpenAI** | `https://api.openai.com/v1` | `gpt-4o`, `gpt-4-turbo`, `o1` |
-| **Anthropic** | `https://api.anthropic.com/v1` | `claude-sonnet-4-20250514`, `claude-3-5-sonnet-20241022` |
-| **Kimi** | `https://api.moonshot.cn/v1` | `moonshot-v1-128k` |
+| **OpenAI** | `https://api.openai.com/v1` | `gpt-5.4`, `gpt-5-nano`, `gpt-5.3-codex` |
+| **Anthropic** | `https://api.anthropic.com/v1` | `claude-sonnet-4-6`, `claude-opus-4-6` |
+| **Kimi** | `https://api.moonshot.cn/v1` | `kimi-for-coding` (recommended) |
 | **OpenRouter** | `https://openrouter.ai/api/v1` | Any model on OpenRouter |
-| **Local (Ollama, LM Studio)** | `http://localhost:11434/v1` | `llama3`, `mistral`, etc. |
+| **Local (Ollama, LM Studio)** | `http://localhost:11434/v1` | `qwen`, `mistral`, etc. |
 | **Any OpenAI-compatible** | Your endpoint URL | Your model name |
 
 **Steps:**
