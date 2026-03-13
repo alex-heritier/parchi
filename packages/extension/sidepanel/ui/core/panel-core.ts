@@ -24,6 +24,26 @@ const resolveTextAreaMaxHeight = (textarea: HTMLTextAreaElement, fallbackHeight:
   return fallbackHeight;
 };
 
+const extractFilesFromClipboardEvent = (event: ClipboardEvent): File[] => {
+  const clipboardData = event.clipboardData;
+  if (!clipboardData) return [];
+  const directFiles = Array.from(clipboardData.files || []).filter((file): file is File => file instanceof File);
+  if (directFiles.length) return directFiles;
+
+  const itemFiles = Array.from(clipboardData.items || [])
+    .filter((item) => item.kind === 'file')
+    .map((item, index) => {
+      const file = item.getAsFile();
+      if (!file) return null;
+      if (file.name) return file;
+      const extension = file.type?.split('/')[1] || 'bin';
+      return new File([file], `pasted-${index + 1}.${extension}`, { type: file.type || 'application/octet-stream' });
+    })
+    .filter((file): file is File => file instanceof File);
+
+  return itemFiles;
+};
+
 const autoResizeTextArea = (textarea: HTMLTextAreaElement | null, maxHeight: number, minHeight = 0) => {
   if (!textarea) return;
   const resolvedMaxHeight = resolveTextAreaMaxHeight(textarea, maxHeight);
@@ -265,12 +285,22 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
     closeQuickActionsMenu();
     this.openHistoryDrawer();
   });
-  this.elements.quickActionNewSession?.addEventListener('click', () => {
-    closeQuickActionsMenu();
-    this.startNewSession();
+  this.elements.quickActionTextSizeDown?.addEventListener('click', (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    this.adjustUiZoom(-0.05);
   });
-  document.getElementById('quickActionResetProfiles')?.addEventListener('click', () => {
-    closeQuickActionsMenu();
+  this.elements.quickActionTextSizeReset?.addEventListener('click', (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    this.applyUiZoom(1);
+  });
+  this.elements.quickActionTextSizeUp?.addEventListener('click', (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    this.adjustUiZoom(0.05);
+  });
+  this.elements.settingsResetProfilesBtn?.addEventListener('click', () => {
     this.resetAllProfiles?.();
   });
 
@@ -596,7 +626,7 @@ export PARCHI_RELAY_PORT="${port}"`;
     }
   });
   this.elements.userInput?.addEventListener('paste', (event: ClipboardEvent) => {
-    const files = Array.from(event.clipboardData?.files || []) as File[];
+    const files = extractFilesFromClipboardEvent(event);
     if (!files.length) return;
     event.preventDefault();
     void this.ingestFilesIntoComposer?.(files, 'paste');

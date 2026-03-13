@@ -121,6 +121,58 @@ body.sidebar-open .fab-group {
   color: var(--foreground);
 }
 
+.quick-actions-size-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 4px 8px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.quick-actions-size-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted-dim);
+  letter-spacing: 0.02em;
+}
+
+.quick-actions-size-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quick-actions-size-btn,
+.quick-actions-size-value {
+  border: 1px solid var(--ink-2);
+  background: rgb(255 255 255 / 0.03);
+  color: var(--foreground);
+  border-radius: 8px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all var(--duration-fast) ease;
+}
+
+.quick-actions-size-btn {
+  width: 34px;
+  flex: 0 0 34px;
+}
+
+.quick-actions-size-value {
+  min-width: 58px;
+  padding: 0 10px;
+  font-weight: 600;
+}
+
+.quick-actions-size-btn:hover,
+.quick-actions-size-value:hover {
+  background: rgb(255 255 255 / 0.08);
+  border-color: rgb(var(--accent-rgb) / 0.35);
+}
 .context-inspector-fab {
   height: 34px;
   min-width: 110px;
@@ -412,15 +464,19 @@ body.sidebar-open .context-inspector-popover {
 /* Empty state — Gravity Well */
 .chat-empty-state {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: clamp(112px, 16vh, 156px);
+  left: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 24px;
+  gap: clamp(16px, 3vh, 24px);
   text-align: center;
-  padding: 24px;
-  overflow: hidden;
+  padding: clamp(24px, 6vh, 48px) 24px 20px;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .chat-empty-gravity-well {
@@ -553,6 +609,22 @@ body.sidebar-open .context-inspector-popover {
 .chat-empty-starter:active {
   transform: scale(0.98);
   transition-duration: 80ms;
+}
+
+@media (max-height: 760px) {
+  .chat-empty-state {
+    justify-content: flex-start;
+    padding-top: max(42px, 9vh);
+  }
+
+  .chat-empty-gravity-well {
+    width: 72px;
+    height: 72px;
+  }
+
+  .chat-empty-title {
+    font-size: 16px;
+  }
 }
 
 /* Pruned messages placeholder */

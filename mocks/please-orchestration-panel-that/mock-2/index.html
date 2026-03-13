@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Orchestration Panel Mock 2</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+  </head>
+  <body>
+    <div class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Portfolio board</p>
+          <h1>Cross-team orchestration</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="secondary">View dependencies</button>
+          <button>Resume live session</button>
+        </div>
+      </header>
+
+      <section class="overview-grid">
+        <article class="spotlight card">
+          <div class="section-heading">
+            <h2>Task narrative</h2>
+            <span>Session-aware roadmap</span>
+          </div>
+          <p>
+            This version uses a board layout: the left side frames the larger task while the right side lets operators jump between sessions and check progress lane-by-lane.
+          </p>
+          <div class="summary-strip">
+            <div><strong>3</strong><span>Active milestones</span></div>
+            <div><strong>5</strong><span>Sessions in review</span></div>
+            <div><strong>14</strong><span>Open subtasks</span></div>
+          </div>
+        </article>
+
+        <article class="navigator card">
+          <div class="section-heading">
+            <h2>Session navigator</h2>
+            <span>Swipe through context</span>
+          </div>
+          <div class="session-rail">
+            <button class="session-chip active">Discovery</button>
+            <button class="session-chip">Planning</button>
+            <button class="session-chip">Execution</button>
+            <button class="session-chip">QA</button>
+            <button class="session-chip">Launch</button>
+          </div>
+          <div class="session-preview">
+            <strong>Execution session selected</strong>
+            <p>2 milestones ahead of baseline, but one QA dependency remains unresolved.</p>
+          </div>
+        </article>
+      </section>
+
+      <section class="board-layout">
+        <article class="lane card">
+          <div class="section-heading">
+            <h3>Milestones</h3>
+            <span>By delivery stage</span>
+          </div>
+          <div class="stack">
+            <div class="ticket accent">
+              <strong>Define migration scope</strong>
+              <p>Completed in Session 02</p>
+            </div>
+            <div class="ticket active">
+              <strong>Coordinate execution streams</strong>
+              <p>In Session 04 · 67% complete</p>
+            </div>
+            <div class="ticket">
+              <strong>Confirm success metrics</strong>
+              <p>Planned for Session 05</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="lane card wide">
+          <div class="section-heading">
+            <h3>Subtask lanes</h3>
+            <span>Grouped by operating mode</span>
+          </div>
+          <div class="kanban-grid">
+            <div class="kanban-col">
+              <h4>Queued</h4>
+              <div class="kanban-card">
+                <strong>Package rollout summary</strong>
+                <p>Depends on final validation numbers.</p>
+              </div>
+              <div class="kanban-card">
+                <strong>Prepare executive recap</strong>
+                <p>Session jump target: Launch</p>
+              </div>
+            </div>
+            <div class="kanban-col">
+              <h4>In progress</h4>
+              <div class="kanban-card active-card">
+                <strong>Resolve QA dependency</strong>
+                <p>Owned in Session 04 with blocker notes attached.</p>
+              </div>
+              <div class="kanban-card active-card">
+                <strong>Verify fallback pathways</strong>
+                <p>Running in parallel across two sessions.</p>
+              </div>
+            </div>
+            <div class="kanban-col">
+              <h4>Done</h4>
+              <div class="kanban-card done-card">
+                <strong>Inventory all accounts</strong>
+                <p>Closed in Planning session.</p>
+              </div>
+              <div class="kanban-card done-card">
+                <strong>Map owner assignments</strong>
+                <p>Closed in Execution session.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="lane card">
+          <div class="section-heading">
+            <h3>Progress lens</h3>
+            <span>Session-over-session</span>
+          </div>
+          <div class="radial-wrap">
+            <div class="radial">
+              <div>
+                <strong>74%</strong>
+                <span>Task completion</span>
+              </div>
+            </div>
+          </div>
+          <ul class="signal-list">
+            <li><span></span>Velocity is rising over last 3 sessions</li>
+            <li><span></span>Risk concentration sits in QA lane</li>
+            <li><span></span>Milestone 2 exceeded planned throughput</li>
+          </ul>
+        </article>
+      </section>
+    </div>
+  </body>
+</html>
