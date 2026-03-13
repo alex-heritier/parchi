@@ -4,6 +4,13 @@ import { getSettingsFormElements } from './panel-elements-settings.js';
 type NullableElement<T extends Element> = T | null;
 const byId = <T extends HTMLElement>(id: string): NullableElement<T> =>
   document.getElementById(id) as NullableElement<T>;
+const byIdAny = <T extends HTMLElement>(...ids: string[]): NullableElement<T> => {
+  for (const id of ids) {
+    const el = byId<T>(id);
+    if (el) return el;
+  }
+  return null;
+};
 const bySelector = <T extends Element>(selector: string): NullableElement<T> =>
   document.querySelector(selector) as NullableElement<T>;
 export type SidePanelElements = Record<string, any>;
@@ -39,8 +46,8 @@ export const getSidePanelElements = (): SidePanelElements => ({
 
   ...getMissionControlElements(),
 
-  tabSelectorBtn: byId<HTMLButtonElement>('tabSelectorBtn'),
-  exportBtn: byId<HTMLButtonElement>('exportBtn'),
+  tabSelectorBtn: byIdAny<HTMLButtonElement>('tabSelectorBtn', 'composerActionSelectTabs'),
+  exportBtn: byIdAny<HTMLButtonElement>('exportBtn', 'composerActionExport'),
   tabSelector: byId<HTMLElement>('tabSelector'),
   tabSelectorSummary: byId<HTMLElement>('tabSelectorSummary'),
   tabSelectorAddActive: byId<HTMLButtonElement>('tabSelectorAddActive'),
@@ -74,6 +81,7 @@ export const getSidePanelElements = (): SidePanelElements => ({
   settingsTabModel: byId<HTMLElement>('settingsTabModel'),
   settingsTabGeneration: byId<HTMLElement>('settingsTabGeneration'),
   settingsTabAdvanced: byId<HTMLElement>('settingsTabAdvanced'),
+  settingsResetProfilesBtn: byId<HTMLButtonElement>('settingsResetProfilesBtn'),
   // Provider card grid and editor
   apiProviderGrid: byId<HTMLElement>('apiProviderGrid'),
   apiProviderEditor: byId<HTMLElement>('apiProviderEditor'),
@@ -216,7 +224,7 @@ export const getSidePanelElements = (): SidePanelElements => ({
   setupAccessBtn: byId<HTMLButtonElement>('setupAccessBtn'),
   modelSelectorWrap: byId<HTMLElement>('modelSelectorWrap'),
   modelSelect: byId<HTMLSelectElement>('modelSelect'),
-  fileBtn: byId<HTMLButtonElement>('fileBtn'),
+  fileBtn: byIdAny<HTMLButtonElement>('fileBtn', 'composerActionAttachFile'),
   fileInput: byId<HTMLInputElement>('fileInput'),
   zoomOutBtn: byId<HTMLButtonElement>('zoomOutBtn'),
   zoomInBtn: byId<HTMLButtonElement>('zoomInBtn'),
@@ -229,7 +237,7 @@ export const getSidePanelElements = (): SidePanelElements => ({
   stopRunBtn: byId<HTMLButtonElement>('stopRunBtn'), // legacy, stop is now handled by sendBtn
 
   // Recording
-  recordBtn: byId<HTMLButtonElement>('recordBtn'),
+  recordBtn: byIdAny<HTMLButtonElement>('recordBtn', 'composerActionRecordContext'),
   recordingTimer: byId<HTMLElement>('recordingTimer'),
   recordedContextBadge: byId<HTMLElement>('recordedContextBadge'),
   recordedContextRemove: byId<HTMLButtonElement>('recordedContextRemove'),

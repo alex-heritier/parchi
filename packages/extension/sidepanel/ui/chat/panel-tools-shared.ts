@@ -48,6 +48,8 @@ export const toolIcons: Record<string, string> = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
   browser_execute_script:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
+  browser_network:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h10M4 17h16"/><circle cx="18" cy="12" r="2"/></svg>',
   browser_wait:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
   browser_set_viewport:
@@ -74,6 +76,9 @@ Object.assign(toolIcons, {
   scroll: toolIcons.browser_scroll,
   getContent: toolIcons.browser_get_page_text,
   findHtml: toolIcons.browser_find_element,
+  evaluate: toolIcons.browser_execute_script,
+  watchNetwork: toolIcons.browser_network,
+  getNetworkLog: toolIcons.browser_network,
   screenshot: toolIcons.browser_screenshot,
   getTabs: toolIcons.browser_get_page_text,
   switchTab: toolIcons.browser_go_forward,

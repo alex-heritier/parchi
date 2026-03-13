@@ -1,4 +1,5 @@
 import { clickAtTool, clickTool } from './browser-click-tools.js';
+import { BrowserDebugManager, evaluateTool, getNetworkLogTool, watchNetworkTool } from './browser-debug-tools.js';
 import { pressKeyTool, scrollTool, typeTool } from './browser-input-tools.js';
 import { getVideoInfoTool, screenshotTool, watchVideoTool } from './browser-media-tools.js';
 import { findHtmlTool, getContentTool } from './browser-read-tools.js';
@@ -41,6 +42,7 @@ export class BrowserTools {
   sessionTabGroupId: number | null;
   supportsTabGroups: boolean;
   screenshotQuality: 'high' | 'medium' | 'low' | undefined;
+  debugManager: BrowserDebugManager;
 
   constructor() {
     this.sessionTabs = new Map();
@@ -49,6 +51,7 @@ export class BrowserTools {
     this.supportsTabGroups =
       typeof globalThis.chrome?.tabs?.group === 'function' &&
       typeof globalThis.chrome?.tabGroups?.update === 'function';
+    this.debugManager = new BrowserDebugManager();
     this.tools = getBrowserToolMap(this.supportsTabGroups);
     this.toolHandlers = {
       navigate: (args) => navigateTool(this, args),
@@ -60,6 +63,9 @@ export class BrowserTools {
       scroll: (args) => scrollTool(this, args),
       getContent: (args) => getContentTool(this, args),
       findHtml: (args) => findHtmlTool(this, args),
+      evaluate: (args) => evaluateTool(this, args),
+      watchNetwork: (args) => watchNetworkTool(this, args),
+      getNetworkLog: (args) => getNetworkLogTool(this, args),
       screenshot: (args) => screenshotTool(this, args),
       getTabs: () => getTabsTool(),
       closeTab: (args) => closeTabTool(this, args),
@@ -230,6 +236,28 @@ export class BrowserTools {
         details: formatToolError(error),
       };
     }
+  }
+
+  async evaluateInTab(tabId: number, expression: string, awaitPromise = true) {
+    return await this.debugManager.evaluate(tabId, expression, awaitPromise);
+  }
+
+  async watchNetwork(tabId: number, clearExisting = true) {
+    return await this.debugManager.watchNetwork(tabId, clearExisting);
+  }
+
+  async readNetworkLog(
+    tabId: number,
+    options: {
+      urlIncludes?: string;
+      method?: string;
+      status?: number;
+      limit?: number;
+      includeBody?: boolean;
+      clearAfterRead?: boolean;
+    } = {},
+  ) {
+    return await this.debugManager.getNetworkLog(tabId, options);
   }
 
   async sendOverlay(tabId: number, payload: ActionOverlayPayload, retries = 0) {

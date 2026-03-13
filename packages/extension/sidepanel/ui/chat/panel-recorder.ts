@@ -376,7 +376,7 @@ sidePanelProto.removeRecordedContext = function removeRecordedContext() {
 
 sidePanelProto.showRecordedContextBadge = function showRecordedContextBadge() {
   const badge = this.elements.recordedContextBadge;
-  if (badge) badge.classList.add('hidden');
+  if (badge) badge.classList.remove('hidden');
 };
 
 sidePanelProto.hideRecordedContextBadge = function hideRecordedContextBadge() {

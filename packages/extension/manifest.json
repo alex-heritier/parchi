@@ -9,6 +9,7 @@
     "scripting",
     "tabs",
     "tabGroups",
+    "debugger",
     "identity",
     "storage",
     "declarativeNetRequest",

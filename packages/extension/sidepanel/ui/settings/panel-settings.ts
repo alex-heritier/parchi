@@ -43,6 +43,7 @@ sidePanelProto.applyUiZoom = function applyUiZoom(value: number, { persist = tru
   document.documentElement.style.setProperty('--ui-zoom', String(clamped));
   if (this.elements.uiZoom) this.elements.uiZoom.value = clamped.toFixed(2);
   if (this.elements.uiZoomValue) this.elements.uiZoomValue.textContent = `${Math.round(clamped * 100)}%`;
+  if (this.elements.quickActionTextSizeValue) this.elements.quickActionTextSizeValue.textContent = `${Math.round(clamped * 100)}%`;
   if (persist) {
     void patchSettingsStoreSnapshot({ uiZoom: clamped }).catch(() => {});
   }
