@@ -38,7 +38,7 @@ const FONT_STYLE_WEIGHTS: Record<string, string> = {
 
 sidePanelProto.applyUiZoom = function applyUiZoom(value: number, { persist = true } = {}) {
   const next = Number.isFinite(value) ? value : 1;
-  const clamped = Math.min(1.25, Math.max(0.85, next));
+  const clamped = Math.min(1.5, Math.max(0.85, next));
   this.uiZoom = clamped;
   document.documentElement.style.setProperty('--ui-zoom', String(clamped));
   if (this.elements.uiZoom) this.elements.uiZoom.value = clamped.toFixed(2);

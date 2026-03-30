@@ -139,7 +139,7 @@ test('New session stays as the + button and reset lives in Settings', async ({ p
   await setSidebarOpen(panel, false);
 });
 
-test('Quick actions exposes text size controls and updates ui zoom', async ({ panel }) => {
+test('Quick actions exposes text size controls and supports up to 150%', async ({ panel }) => {
   await panel.evaluate(() => {
     document.documentElement.style.setProperty('--ui-zoom', '1');
     const ui = (window).sidePanelUI;
@@ -149,8 +149,18 @@ test('Quick actions exposes text size controls and updates ui zoom', async ({ pa
   await panel.waitForSelector('#quickActionTextSizeUp', { state: 'visible', timeout: timeoutMs });
   await panel.click('#quickActionTextSizeUp');
   await panel.waitForFunction(() => getComputedStyle(document.documentElement).getPropertyValue('--ui-zoom').trim() === '1.05', { timeout: timeoutMs });
-  const label = await panel.locator('#quickActionTextSizeValue').textContent();
+  let label = await panel.locator('#quickActionTextSizeValue').textContent();
   assert(label?.includes('105'), 'Expected quick text size label to update to 105%.');
+
+  await panel.evaluate(() => {
+    const ui = (window).sidePanelUI;
+    if (!ui || typeof ui.applyUiZoom !== 'function') throw new Error('applyUiZoom unavailable');
+    ui.applyUiZoom(1.5);
+  });
+  await panel.waitForFunction(() => getComputedStyle(document.documentElement).getPropertyValue('--ui-zoom').trim() === '1.5', { timeout: timeoutMs });
+  label = await panel.locator('#quickActionTextSizeValue').textContent();
+  assert(label?.includes('150'), 'Expected text size to support 150%.');
+
   await panel.click('#quickActionTextSizeReset');
   await panel.waitForFunction(() => getComputedStyle(document.documentElement).getPropertyValue('--ui-zoom').trim() === '1', { timeout: timeoutMs });
 });
