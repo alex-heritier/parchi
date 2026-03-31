@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Orchestration Panel Mock 3</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+  </head>
+  <body>
+    <div class="canvas-shell">
+      <aside class="left-rail panel">
+        <p class="eyebrow">Dependency map <span class="mascot" aria-label="mascot" style="font-size: 1.2em; vertical-align: middle;">🐙</span></p>
+        <h1>Program orchestration graph</h1>
+        <p class="muted">A network-centric control room for moving across sessions while understanding milestone and subtask dependencies.</p>
+
+        <div class="metric-blocks">
+          <div>
+            <strong>9</strong>
+            <span>Connected sessions</span>
+          </div>
+          <div>
+            <strong>23</strong>
+            <span>Dependency edges</span>
+          </div>
+          <div>
+            <strong>76%</strong>
+            <span>Critical path done</span>
+          </div>
+        </div>
+
+        <div class="legend">
+          <h2>Graph legend</h2>
+          <div><span class="dot milestone"></span> Milestone nodes</div>
+          <div><span class="dot session"></span> Session nodes</div>
+          <div><span class="dot subtask"></span> Subtask nodes</div>
+        </div>
+      </aside>
+
+      <main class="graph-stage panel">
+        <header class="stage-header">
+          <div>
+            <p class="eyebrow">Live traversal</p>
+            <h2>Execution cluster</h2>
+          </div>
+          <div class="header-actions">
+            <button class="ghost">Center graph</button>
+            <button>Open selected session</button>
+          </div>
+        </header>
+
+        <section class="graph-board" aria-label="Dependency graph">
+          <div class="edge edge-1"></div>
+          <div class="edge edge-2"></div>
+          <div class="edge edge-3"></div>
+          <div class="edge edge-4"></div>
+          <button class="node milestone-node n1">Milestone A<br /><span>Scope locked</span></button>
+          <button class="node session-node n2 active">Session 04<br /><span>Execution</span></button>
+          <button class="node subtask-node n3">Subtask<br /><span>Resolve QA gate</span></button>
+          <button class="node session-node n4">Session 05<br /><span>Validation</span></button>
+          <button class="node milestone-node n5">Milestone B<br /><span>Signoff prep</span></button>
+          <button class="node subtask-node n6">Subtask<br /><span>Stakeholder brief</span></button>
+        </section>
+      </main>
+
+      <aside class="right-rail panel">
+        <section class="inspector">
+          <div class="section-heading">
+            <h3>Selected node</h3>
+            <span>Session 04</span>
+          </div>
+          <p class="muted">This session is the bridge between the execution milestone and the downstream validation chain.</p>
+          <div class="inspector-card active-card">
+            <strong>Current milestone</strong>
+            <p>Coordinate execution streams</p>
+          </div>
+          <div class="inspector-card">
+            <strong>Open subtasks</strong>
+            <ul>
+              <li>Resolve QA dependency</li>
+              <li>Confirm fallback coverage</li>
+              <li>Route blocker summary</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="journey">
+          <div class="section-heading">
+            <h3>Session journey</h3>
+            <span>Progression path</span>
+          </div>
+          <div class="journey-step done">
+            <strong>Session 02</strong>
+            <span>Scope baseline captured</span>
+          </div>
+          <div class="journey-step done">
+            <strong>Session 03</strong>
+            <span>Dependencies triaged</span>
+          </div>
+          <div class="journey-step current">
+            <strong>Session 04</strong>
+            <span>Execution bottleneck active</span>
+          </div>
+          <div class="journey-step">
+            <strong>Session 05</strong>
+            <span>Validation handoff next</span>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>

@@ -50,6 +50,8 @@ type TestContext = {
   panel: import('playwright').Page;
   testPage: import('playwright').Page;
   context: import('playwright').BrowserContext;
+  testTabId: number;
+  sessionId: string;
 };
 
 const tests: Array<{ name: string; fn: (ctx: TestContext) => Promise<void> }> = [];
@@ -68,22 +70,36 @@ async function executeTool(
   page: import('playwright').Page,
   tool: string,
   args: Record<string, unknown>,
+  sessionId?: string,
 ): Promise<unknown> {
   const result = await page.evaluate(
     async (payload) => {
       return new Promise((resolve) => {
-        chrome.runtime.sendMessage({ type: 'execute_tool', tool: payload.tool, args: payload.args }, (response) => {
-          if (chrome.runtime.lastError) {
-            resolve({ success: false, error: chrome.runtime.lastError.message });
-          } else {
-            resolve(response);
-          }
-        });
+        chrome.runtime.sendMessage(
+          { type: 'execute_tool', tool: payload.tool, args: payload.args, sessionId: payload.sessionId },
+          (response) => {
+            if (chrome.runtime.lastError) {
+              resolve({ success: false, error: chrome.runtime.lastError.message });
+            } else {
+              resolve(response);
+            }
+          },
+        );
       });
     },
-    { tool, args },
+    { tool, args, sessionId },
   );
   return result;
+}
+
+async function executeToolOnTestTab(
+  page: import('playwright').Page,
+  sessionId: string,
+  testTabId: number,
+  tool: string,
+  args: Record<string, unknown>,
+) {
+  return await executeTool(page, tool, { ...args, tabId: testTabId }, sessionId);
 }
 
 // Test HTML page with various input types
@@ -165,7 +181,18 @@ const TEST_PAGE_HTML = `
     </div>
   </div>
 
+  <div class="section">
+    <h3>Page State</h3>
+    <button id="fetchDataBtn" type="button">Fetch data</button>
+    <div id="fetchResult" class="result" style="display:none"></div>
+  </div>
+
   <script>
+    window.testAppState = {
+      user: { name: 'Parchi' },
+      counts: { sections: document.querySelectorAll('.section').length }
+    };
+
     // Track input changes for verification
     document.getElementById('textInput').addEventListener('input', (e) => {
       const result = document.getElementById('textInputResult');
@@ -191,16 +218,24 @@ const TEST_PAGE_HTML = `
       document.getElementById('cmHiddenTextarea').value = e.target.textContent;
       result.style.display = 'block';
     });
+
+    document.getElementById('fetchDataBtn').addEventListener('click', async () => {
+      const response = await fetch('/api/data?source=test-browser-tools');
+      const payload = await response.json();
+      const result = document.getElementById('fetchResult');
+      result.textContent = JSON.stringify(payload);
+      result.style.display = 'block';
+    });
   </script>
 </body>
 </html>
 `;
 
-test('type() works with text input', async ({ testPage, panel }) => {
+test('type() works with text input', async ({ testPage, panel, testTabId, sessionId }) => {
   const testText = 'Hello World 123';
 
   // Clear and type
-  const response = (await executeTool(panel, 'type', {
+  const response = (await executeToolOnTestTab(panel, sessionId, testTabId, 'type', {
     selector: '#textInput',
     text: testText,
   })) as any;
@@ -215,10 +250,10 @@ test('type() works with text input', async ({ testPage, panel }) => {
   log(`✓ Text input type works: "${value}"`, 'success');
 });
 
-test('type() works with textarea', async ({ testPage, panel }) => {
+test('type() works with textarea', async ({ testPage, panel, testTabId, sessionId }) => {
   const testText = 'Line 1\nLine 2\nLine 3';
 
-  const response = (await executeTool(panel, 'type', {
+  const response = (await executeToolOnTestTab(panel, sessionId, testTabId, 'type', {
     selector: '#textareaInput',
     text: testText,
   })) as any;
@@ -232,10 +267,10 @@ test('type() works with textarea', async ({ testPage, panel }) => {
   log('✓ Textarea type works', 'success');
 });
 
-test('type() works with contenteditable div', async ({ testPage, panel }) => {
+test('type() works with contenteditable div', async ({ testPage, panel, testTabId, sessionId }) => {
   const testText = 'Contenteditable content';
 
-  const response = (await executeTool(panel, 'type', {
+  const response = (await executeToolOnTestTab(panel, sessionId, testTabId, 'type', {
     selector: '#contenteditableDiv',
     text: testText,
   })) as any;
@@ -249,11 +284,11 @@ test('type() works with contenteditable div', async ({ testPage, panel }) => {
   log(`✓ Contenteditable div type works: "${textContent}"`, 'success');
 });
 
-test('type() works with CodeMirror-like wrapper (selector targets wrapper)', async ({ testPage, panel }) => {
+test('type() works with CodeMirror-like wrapper (selector targets wrapper)', async ({ testPage, panel, testTabId, sessionId }) => {
   const testText = 'CodeMirror content';
 
   // When selector points at the wrapper, it should find the contenteditable child
-  const response = (await executeTool(panel, 'type', {
+  const response = (await executeToolOnTestTab(panel, sessionId, testTabId, 'type', {
     selector: '#cmWrapper',
     text: testText,
   })) as any;
@@ -267,10 +302,10 @@ test('type() works with CodeMirror-like wrapper (selector targets wrapper)', asy
   log(`✓ CodeMirror wrapper type works: "${textContent}"`, 'success');
 });
 
-test('type() works with nested contenteditable (selector targets wrapper)', async ({ testPage, panel }) => {
+test('type() works with nested contenteditable (selector targets wrapper)', async ({ testPage, panel, testTabId, sessionId }) => {
   const testText = 'Nested content';
 
-  const response = (await executeTool(panel, 'type', {
+  const response = (await executeToolOnTestTab(panel, sessionId, testTabId, 'type', {
     selector: '#nestedWrapper',
     text: testText,
   })) as any;
@@ -284,7 +319,7 @@ test('type() works with nested contenteditable (selector targets wrapper)', asyn
   log(`✓ Nested contenteditable type works: "${textContent}"`, 'success');
 });
 
-test('type() works without selector (uses focused element)', async ({ testPage, panel }) => {
+test('type() works without selector (uses focused element)', async ({ testPage, panel, testTabId, sessionId }) => {
   const testText = 'Focused typing';
 
   // First click to focus
@@ -292,7 +327,7 @@ test('type() works without selector (uses focused element)', async ({ testPage, 
   await testPage.waitForTimeout(100);
 
   // Type without selector - should use active element
-  const response = (await executeTool(panel, 'type', {
+  const response = (await executeToolOnTestTab(panel, sessionId, testTabId, 'type', {
     text: testText,
   })) as any;
 
@@ -305,8 +340,8 @@ test('type() works without selector (uses focused element)', async ({ testPage, 
   log(`✓ Type without selector works: "${value}"`, 'success');
 });
 
-test('type() fails gracefully on checkbox', async ({ panel }) => {
-  const response = (await executeTool(panel, 'type', {
+test('type() fails gracefully on checkbox', async ({ panel, testTabId, sessionId }) => {
+  const response = (await executeToolOnTestTab(panel, sessionId, testTabId, 'type', {
     selector: '#testCheckbox',
     text: 'test',
   })) as any;
@@ -324,6 +359,47 @@ test('type() fails gracefully on checkbox', async ({ panel }) => {
   log('✓ Type correctly rejects checkbox', 'success');
 });
 
+test('evaluate() reads page JavaScript state', async ({ panel, testTabId, sessionId }) => {
+  const response = (await executeToolOnTestTab(panel, sessionId, testTabId, 'evaluate', {
+    expression: 'window.testAppState.user.name',
+  })) as any;
+
+  const result = response?.result;
+  assert(result?.success, `evaluate() should succeed: ${JSON.stringify(result)}`);
+  assert(result?.value === 'Parchi', `Expected page state value "Parchi", got ${JSON.stringify(result)}`);
+
+  log('✓ evaluate() reads page JavaScript state', 'success');
+});
+
+test('watchNetwork() + getNetworkLog() capture fetch responses', async ({ panel, testPage, testTabId, sessionId }) => {
+  const watchResponse = (await executeToolOnTestTab(panel, sessionId, testTabId, 'watchNetwork', {
+    clearExisting: true,
+  })) as any;
+  const watchResult = watchResponse?.result;
+  assert(watchResult?.success, `watchNetwork() should succeed: ${JSON.stringify(watchResult)}`);
+
+  await testPage.click('#fetchDataBtn');
+  await testPage.waitForSelector('#fetchResult', { state: 'visible', timeout: timeoutMs });
+
+  const logResponse = (await executeToolOnTestTab(panel, sessionId, testTabId, 'getNetworkLog', {
+    urlIncludes: '/api/data',
+    includeBody: true,
+    limit: 5,
+  })) as any;
+  const logResult = logResponse?.result;
+  assert(logResult?.success, `getNetworkLog() should succeed: ${JSON.stringify(logResult)}`);
+  assert(Array.isArray(logResult?.entries) && logResult.entries.length > 0, 'Expected captured network entries.');
+  const match = logResult.entries.find((entry: any) => String(entry.url || '').includes('/api/data'));
+  assert(match, `Expected /api/data entry in network log: ${JSON.stringify(logResult.entries)}`);
+  assert(Number(match.status) === 200, `Expected HTTP 200, got ${match.status}`);
+  assert(
+    String(match.body || '').includes('hello-network'),
+    `Expected response body to include hello-network, got ${JSON.stringify(match)}`,
+  );
+
+  log('✓ watchNetwork() + getNetworkLog() capture fetch responses', 'success');
+});
+
 async function run() {
   log('╔════════════════════════════════════════╗', 'info');
   log('║     Browser Tools E2E Tests           ║', 'info');
@@ -339,6 +415,9 @@ async function run() {
     if (req.url === '/' || req.url === '/test-page.html') {
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end(TEST_PAGE_HTML);
+    } else if (req.url?.startsWith('/api/data')) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ message: 'hello-network', ok: true }));
     } else {
       res.writeHead(404);
       res.end('Not found');
@@ -379,19 +458,20 @@ async function run() {
       waitUntil: 'domcontentloaded',
     });
 
-    // Wait for extension to be ready
-    await panel.waitForSelector('#statusText', { timeout: timeoutMs });
+    // Wait for extension UI to be ready
+    await panel.waitForSelector('#userInput', { timeout: timeoutMs });
 
     // Give the background service a moment to fully initialize
     await new Promise((r) => setTimeout(r, 500));
 
     // Find the test page tab ID and configure session tabs from the panel context
     log('Configuring session tabs...', 'info');
-    const configResult = await panel.evaluate(async () => {
+    const sessionId = 'browser-tools-e2e';
+    const configResult = await panel.evaluate(async (sessionIdArg) => {
       try {
         const tabs = await chrome.tabs.query({ currentWindow: true });
         const testTab = tabs.find((t) => t.title?.includes('Browser Tools Test Page'));
-        if (!testTab) return { success: false, error: 'Test page tab not found' };
+        if (!testTab?.id) return { success: false, error: 'Test page tab not found' };
 
         // Configure via background
         return new Promise((resolve) => {
@@ -400,12 +480,13 @@ async function run() {
               type: 'configure_session_tabs_test',
               tabs: [testTab],
               tabId: testTab.id,
+              sessionId: sessionIdArg,
             },
             (response) => {
               if (chrome.runtime.lastError) {
                 resolve({ success: false, error: chrome.runtime.lastError.message });
               } else {
-                resolve(response);
+                resolve({ ...response, tabId: testTab.id });
               }
             },
           );
@@ -413,13 +494,15 @@ async function run() {
       } catch (err) {
         return { success: false, error: String(err) };
       }
-    });
+    }, sessionId);
     log(`Session tabs config result: ${JSON.stringify(configResult)}`, 'info');
+    const testTabId = Number((configResult as any)?.tabId || 0);
+    assert(testTabId > 0, `Expected configured test tab id, got ${JSON.stringify(configResult)}`);
 
     let passed = 0;
     for (const t of tests) {
       try {
-        await t.fn({ panel, testPage, context });
+        await t.fn({ panel, testPage, context, testTabId, sessionId });
         passed += 1;
         log(`✓ ${t.name}`, 'success');
       } catch (error: any) {

@@ -211,7 +211,13 @@ export const aiProxy = httpActionGeneric(async (ctx, request) => {
     return jsonResponse(500, { error: `Missing ${providerTarget.provider.toUpperCase()}_API_KEY` });
   }
 
-  const userId = await getAuthUserId(ctx);
+  let userId: string | null = null;
+  try {
+    userId = await getAuthUserId(ctx);
+  } catch (error) {
+    console.warn('[aiProxy] Invalid auth token:', error);
+    return jsonResponse(401, { error: 'Unauthorized' });
+  }
   if (!userId) {
     return jsonResponse(401, { error: 'Unauthorized' });
   }

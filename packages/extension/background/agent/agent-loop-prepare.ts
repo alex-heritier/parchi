@@ -50,14 +50,6 @@ export async function prepareAgentLoopRun(
 
   try {
     await browserTools.configureSessionTabs(selectedTabs || [], { title: 'Parchi', color: 'blue' });
-    const tabState = browserTools.getSessionState();
-    ctx.sendRuntime(runMeta, {
-      type: 'session_tabs_update',
-      tabs: tabState.tabs,
-      activeTabId: tabState.activeTabId,
-      maxTabs: tabState.maxTabs,
-      groupTitle: tabState.groupTitle,
-    });
   } catch (error) {
     console.warn('Failed to configure session tabs:', error);
   }

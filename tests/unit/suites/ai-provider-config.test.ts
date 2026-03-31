@@ -7,7 +7,7 @@ export function runAiProviderConfigSuite(runner: TestRunner) {
   runner.test('OpenAI provider config is valid', () => {
     const config: ProviderConfig = {
       provider: 'openai',
-      apiKey: 'sk-test123',
+      apiKey: 'sk-placeholder',
       model: 'gpt-4o',
       systemPrompt: 'Test prompt',
     };

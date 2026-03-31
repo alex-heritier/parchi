@@ -44,6 +44,11 @@ export function normalizeOpenRouterModelId(modelId: string): string {
   return model;
 }
 
+const toAnthropicBaseUrl = (value: string) => {
+  const base = value.replace(/\/v1\/messages\/?$/i, '').replace(/\/messages\/?$/i, '').replace(/\/+$/, '');
+  return /\/v1$/i.test(base) ? base : `${base}/v1`;
+};
+
 export function resolveLanguageModel(settings: SDKModelSettings) {
   const provider = settings.provider || 'openai';
   const modelId = String(settings.model || '').trim();
@@ -59,7 +64,7 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
     const normalizedBase = settings.proxyBaseUrl.replace(/\/+$/, '');
     const proxyProvider =
       settings.proxyProvider ||
-      (provider === 'anthropic' || provider === 'kimi'
+      (provider === 'anthropic' || provider === 'kimi' || provider === 'glm' || provider === 'minimax'
         ? 'anthropic'
         : provider === 'openrouter' || provider === 'parchi'
           ? 'openrouter'
@@ -119,22 +124,14 @@ export function resolveLanguageModel(settings: SDKModelSettings) {
     return providerInstance(modelId);
   }
 
-  if (provider === 'kimi') {
-    let baseURL = (settings.customEndpoint || 'https://api.kimi.com/coding')
-      .replace(/\/v1\/messages\/?$/i, '')
-      .replace(/\/messages\/?$/i, '')
-      .replace(/\/+$/, '');
-
-    if (!/\/v1$/i.test(baseURL)) {
-      baseURL = `${baseURL}/v1`;
-    }
-
-    const kimiProvider = createAnthropic({
-      apiKey,
-      baseURL,
-      headers: extraHeaders,
-    });
-    return kimiProvider(modelId);
+  if (provider === 'glm' || provider === 'minimax' || provider === 'kimi') {
+    const fallbackBase =
+      provider === 'glm'
+        ? 'https://api.z.ai/api/anthropic'
+        : provider === 'minimax'
+          ? 'https://api.minimax.io/anthropic'
+          : 'https://api.kimi.com/coding';
+    return createAnthropic({ apiKey, baseURL: toAnthropicBaseUrl(settings.customEndpoint || fallbackBase), headers: extraHeaders })(modelId);
   }
 
   if (provider === 'openrouter' || provider === 'parchi') {

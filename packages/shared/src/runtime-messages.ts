@@ -22,6 +22,7 @@ export {
   type RuntimeMessageBase,
   type SessionTabsUpdate,
   type SubagentComplete,
+  type SubagentTabAssigned,
   type SubagentStart,
   type TokenTraceEvent,
   type TokenTraceSnapshot,
@@ -54,6 +55,7 @@ export const runtimeMessageTypes = [
   'report_image_captured',
   'report_images_selection',
   'subagent_complete',
+  'subagent_tab_assigned',
   'session_tabs_update',
 ] as const;
 

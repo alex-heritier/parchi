@@ -115,11 +115,164 @@ test('Side panel loads and shows ready state', async ({ panel }) => {
   );
 });
 
-test('Settings sidebar opens and Profiles tab renders', async ({ panel }) => {
+test('New session stays as the + button and reset lives in Settings', async ({ panel }) => {
+  await panel.waitForSelector('#quickActionsFab', { timeout: timeoutMs });
+  await panel.evaluate(() => (document.getElementById('quickActionsFab') as HTMLButtonElement | null)?.click());
+  await panel.waitForSelector('#quickActionsMenu', { state: 'visible', timeout: timeoutMs });
+  const quickState = await panel.evaluate(() => ({
+    hasNewSession: Boolean(document.getElementById('quickActionNewSession')),
+    hasResetProfiles: Boolean(document.getElementById('quickActionResetProfiles')),
+    hasRecordContext: Boolean(document.getElementById('quickActionRecordContext')),
+  }));
+  assert(!quickState.hasNewSession, 'Quick actions should not contain a New session item.');
+  assert(!quickState.hasResetProfiles, 'Quick actions should not contain Reset all profiles.');
+  assert(!quickState.hasRecordContext, 'Quick actions should not contain Record context.');
+  const composerRecordVisible = await panel.evaluate(() => Boolean(document.getElementById('composerActionRecordContext')));
+  assert(composerRecordVisible, 'Composer should contain the Record context icon.');
+  const plusGlyphCount = await panel.locator('#newSessionFab svg path').count();
+  assert(plusGlyphCount >= 2, 'New session FAB should remain the icon-only plus button.');
+  await panel.evaluate(() => (document.getElementById('quickActionsFab') as HTMLButtonElement | null)?.click());
+
+  await setSidebarOpen(panel, true);
+  await panel.click('#settingsTabAdvancedBtn');
+  await panel.waitForSelector('#settingsResetProfilesBtn', { state: 'visible', timeout: timeoutMs });
+  await setSidebarOpen(panel, false);
+});
+
+test('Quick actions exposes text size controls and supports up to 150%', async ({ panel }) => {
+  await panel.evaluate(() => {
+    document.documentElement.style.setProperty('--ui-zoom', '1');
+    const ui = (window).sidePanelUI;
+    if (ui && typeof ui.applyUiZoom === 'function') ui.applyUiZoom(1);
+  });
+  await panel.evaluate(() => (document.getElementById('quickActionsFab') as HTMLButtonElement | null)?.click());
+  await panel.waitForSelector('#quickActionTextSizeUp', { state: 'visible', timeout: timeoutMs });
+  await panel.click('#quickActionTextSizeUp');
+  await panel.waitForFunction(() => getComputedStyle(document.documentElement).getPropertyValue('--ui-zoom').trim() === '1.05', { timeout: timeoutMs });
+  let label = await panel.locator('#quickActionTextSizeValue').textContent();
+  assert(label?.includes('105'), 'Expected quick text size label to update to 105%.');
+
+  await panel.evaluate(() => {
+    const ui = (window).sidePanelUI;
+    if (!ui || typeof ui.applyUiZoom !== 'function') throw new Error('applyUiZoom unavailable');
+    ui.applyUiZoom(1.5);
+  });
+  await panel.waitForFunction(() => getComputedStyle(document.documentElement).getPropertyValue('--ui-zoom').trim() === '1.5', { timeout: timeoutMs });
+  label = await panel.locator('#quickActionTextSizeValue').textContent();
+  assert(label?.includes('150'), 'Expected text size to support 150%.');
+
+  await panel.click('#quickActionTextSizeReset');
+  await panel.waitForFunction(() => getComputedStyle(document.documentElement).getPropertyValue('--ui-zoom').trim() === '1', { timeout: timeoutMs });
+});
+
+test('Record context composer action is wired and toggles recording UI', async ({ panel }) => {
+  await panel.evaluate(() => {
+    const win = window as Window & {
+      sidePanelUI?: {
+        elements: { recordBtn?: HTMLButtonElement | null };
+        startRecording?: () => Promise<void> | void;
+        stopRecording?: () => Promise<void> | void;
+        showRecordingTimer?: () => void;
+        cleanupRecordingUI?: () => void;
+        recordingState: { status: string; elapsedMs: number; timerId: number | null };
+      };
+      __recordStartCalled?: number;
+      __recordStopCalled?: number;
+    };
+    const ui = win.sidePanelUI;
+    if (!ui) throw new Error('Missing sidePanelUI');
+    if (!ui.elements.recordBtn) throw new Error('recordBtn is not wired to the composer action');
+    ui.recordingState = { status: 'idle', elapsedMs: 0, timerId: null };
+    ui.elements.recordBtn.classList.remove('recording');
+    document.getElementById('recordingTimer')?.classList.add('hidden');
+    win.__recordStartCalled = 0;
+    win.__recordStopCalled = 0;
+
+    ui.startRecording = async function mockStartRecording(this: typeof ui) {
+      win.__recordStartCalled = (win.__recordStartCalled || 0) + 1;
+      this.recordingState.status = 'recording';
+      this.recordingState.elapsedMs = 0;
+      this.elements.recordBtn?.classList.add('recording');
+      this.showRecordingTimer?.();
+    };
+
+    ui.stopRecording = async function mockStopRecording(this: typeof ui) {
+      win.__recordStopCalled = (win.__recordStopCalled || 0) + 1;
+      this.cleanupRecordingUI?.();
+    };
+  });
+
+  await panel.evaluate(() => {
+    (document.getElementById('composerActionRecordContext') as HTMLButtonElement | null)?.click();
+  });
+  await panel.waitForFunction(
+    () => {
+      const win = window as Window & { __recordStartCalled?: number };
+      const button = document.getElementById('composerActionRecordContext');
+      const timer = document.getElementById('recordingTimer');
+      return (
+        (win.__recordStartCalled || 0) === 1 &&
+        button?.classList.contains('recording') === true &&
+        timer?.classList.contains('hidden') === false
+      );
+    },
+    { timeout: timeoutMs },
+  );
+
+  await panel.evaluate(() => {
+    (document.getElementById('composerActionRecordContext') as HTMLButtonElement | null)?.click();
+  });
+  await panel.waitForFunction(
+    () => {
+      const win = window as Window & { __recordStopCalled?: number };
+      const button = document.getElementById('composerActionRecordContext');
+      const timer = document.getElementById('recordingTimer');
+      return (
+        (win.__recordStopCalled || 0) === 1 &&
+        button?.classList.contains('recording') === false &&
+        timer?.classList.contains('hidden') === true
+      );
+    },
+    { timeout: timeoutMs },
+  );
+});
+
+test('Pasting media into the composer attaches it', async ({ panel }) => {
+  await panel.evaluate(() => {
+    const input = document.getElementById('userInput') as HTMLTextAreaElement | null;
+    if (!input) throw new Error('Missing user input');
+    input.value = '';
+    const ui = (window as Window & { sidePanelUI?: { pendingComposerAttachments?: unknown[] } }).sidePanelUI;
+    if (ui) ui.pendingComposerAttachments = [];
+
+    const data = new DataTransfer();
+    const file = new File([new Uint8Array([137,80,78,71,13,10,26,10])], 'clipboard-image.png', { type: 'image/png' });
+    data.items.add(file);
+    const event = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'clipboardData', { value: data });
+    input.dispatchEvent(event);
+  });
+
+  await panel.waitForFunction(() => {
+    const win = window as Window & { sidePanelUI?: { pendingComposerAttachments?: Array<{ name?: string }> } };
+    const attachments = win.sidePanelUI?.pendingComposerAttachments || [];
+    const input = document.getElementById('userInput') as HTMLTextAreaElement | null;
+    return attachments.length === 1 && attachments[0]?.name === 'clipboard-image.png' && !!input?.value.includes('[Attached image: clipboard-image.png]');
+  }, { timeout: timeoutMs });
+
+  const attachmentCount = await panel.evaluate(() => {
+    const win = window as Window & { sidePanelUI?: { pendingComposerAttachments?: unknown[] } };
+    return win.sidePanelUI?.pendingComposerAttachments?.length || 0;
+  });
+  assert(attachmentCount === 1, 'Expected one pasted media attachment.');
+});
+
+test('Settings sidebar opens and provider grids render', async ({ panel }) => {
   await setSidebarOpen(panel, true);
   await panel.waitForSelector('#settingsPanel', { state: 'visible', timeout: timeoutMs });
-  await panel.click('#settingsTabProfilesBtn');
-  await panel.waitForSelector('#agentGrid', { state: 'visible', timeout: timeoutMs });
+  await panel.click('#settingsTabProvidersBtn');
+  await panel.waitForSelector('#oauthProviderGrid', { state: 'visible', timeout: timeoutMs });
+  await panel.waitForSelector('#paidModeProviderGrid', { state: 'visible', timeout: timeoutMs });
   await setSidebarOpen(panel, false);
 });
 
@@ -130,7 +283,21 @@ test('Tab selector lists integration test page', async ({ panel, context }) => {
   const testPage = await context.newPage();
   await testPage.goto(testPageUrl);
 
-  await panel.click('#tabSelectorBtn');
+  const tabSelectorVisible = await panel.evaluate(() => {
+    const el = document.getElementById('tabSelectorBtn');
+    if (!el) return false;
+    const style = getComputedStyle(el);
+    return style.display !== 'none' && style.visibility !== 'hidden' && el.getBoundingClientRect().width > 0;
+  });
+
+  if (tabSelectorVisible) {
+    await panel.click('#tabSelectorBtn');
+  } else {
+    await panel.evaluate(() => {
+      (document.getElementById('composerActionSelectTabs') as HTMLButtonElement | null)?.click();
+    });
+  }
+
   await panel.waitForSelector('#tabSelector', { state: 'visible', timeout: timeoutMs });
   await panel.waitForSelector('.tab-item-title', { timeout: timeoutMs });
   const titles = await panel.$$eval('.tab-item-title', (nodes) => nodes.map((node) => (node.textContent || '').trim()));

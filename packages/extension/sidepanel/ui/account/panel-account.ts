@@ -3,12 +3,14 @@ import {
   createCreditCheckout,
   getAuthState,
   hasActiveSubscription,
+  isUsableRuntimeJwt,
   manageSubscription,
   signInWithOAuth,
   signInWithPassword,
   signOutAccount,
   signUpWithPassword,
 } from '../../../convex/client.js';
+import { buildProviderInstanceId } from '../../../state/provider-registry.js';
 import { SidePanelUI } from '../core/panel-ui.js';
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
@@ -112,8 +114,24 @@ const hasConfiguredModel = (profile: Record<string, any> | null | undefined) =>
 const hasConfiguredApiKey = (profile: Record<string, any> | null | undefined) =>
   Boolean(String(profile?.apiKey || '').trim());
 
+const isOAuthProvider = (provider: unknown) =>
+  String(provider || '')
+    .trim()
+    .toLowerCase()
+    .endsWith('-oauth');
+
+const hasRunnableExternalProfile = (profile: Record<string, any> | null | undefined) => {
+  if (!hasConfiguredModel(profile)) return false;
+  const provider = String(profile?.provider || '')
+    .trim()
+    .toLowerCase();
+  if (!provider || isManagedProvider(provider)) return false;
+  if (isOAuthProvider(provider)) return true;
+  return hasConfiguredApiKey(profile);
+};
+
 const hasRunnableByokProfile = (profiles: Array<Record<string, any>>) =>
-  profiles.some((profile) => hasConfiguredApiKey(profile) && hasConfiguredModel(profile));
+  profiles.some((profile) => hasRunnableExternalProfile(profile));
 
 const collectCandidateProfiles = (stored: Record<string, any>) => {
   const configs = isRecord(stored.configs) ? stored.configs : {};
@@ -393,6 +411,7 @@ sidePanelProto.ensureManagedProviderDefaults = async function ensureManagedProvi
   const stored = await chrome.storage.local.get([
     'activeConfig',
     'configs',
+    'providers',
     'provider',
     'apiKey',
     'model',
@@ -403,6 +422,7 @@ sidePanelProto.ensureManagedProviderDefaults = async function ensureManagedProvi
   ]);
   const activeConfig = String(stored.activeConfig || 'default');
   const configs = isRecord(stored.configs) ? { ...stored.configs } : {};
+  const providers = isRecord(stored.providers) ? { ...stored.providers } : {};
   const mode = String(stored[ACCOUNT_MODE_KEY] || '').toLowerCase();
   const shouldActivateManaged = Boolean(options.forceActivate);
   if (mode !== ACCOUNT_MODE_PAID && !options.forceActivate) return;
@@ -422,8 +442,30 @@ sidePanelProto.ensureManagedProviderDefaults = async function ensureManagedProvi
       PARCHI_PAID_DEFAULT_MODEL,
   ).trim();
 
+  const managedProviderId =
+    String(existingManaged.providerId || '') ||
+    buildProviderInstanceId({
+      providerType: 'parchi',
+      authType: 'managed',
+      name: 'Parchi Managed',
+    });
+  providers[managedProviderId] = {
+    id: managedProviderId,
+    name: 'Parchi Managed',
+    providerType: 'parchi',
+    authType: 'managed',
+    isConnected: true,
+    models: [{ id: normalizeManagedModelId(resolvedModel), label: normalizeManagedModelId(resolvedModel) }],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    source: 'manual',
+  };
+
   const managedProfile = {
     ...existingManaged,
+    providerId: managedProviderId,
+    modelId: normalizeManagedModelId(resolvedModel),
+    providerLabel: 'Parchi Managed',
     provider: 'parchi',
     apiKey: '',
     model: normalizeManagedModelId(resolvedModel),
@@ -435,6 +477,7 @@ sidePanelProto.ensureManagedProviderDefaults = async function ensureManagedProvi
 
   await chrome.storage.local.set({
     activeConfig: nextActiveConfig,
+    providers,
     configs,
     provider: String(nextActiveProfile.provider || ''),
     apiKey: String(nextActiveProfile.apiKey || ''),
@@ -447,6 +490,10 @@ sidePanelProto.ensureManagedProviderDefaults = async function ensureManagedProvi
   this.configs = {
     ...this.configs,
     ...configs,
+  };
+  this.providers = {
+    ...(this.providers || {}),
+    ...providers,
   };
   if (this.configs[MANAGED_PROFILE_NAME]) {
     this.configs[MANAGED_PROFILE_NAME].provider = 'parchi';
@@ -483,7 +530,7 @@ sidePanelProto.getSetupFlowState = async function getSetupFlowState() {
     paidProfiles.some((profile) => hasConfiguredModel(profile));
 
   const hasConvexUrl = Boolean(String(stored.convexUrl || CONVEX_DEPLOYMENT_URL || '').trim());
-  const signedInPaid = Boolean(String(stored.convexAccessToken || '').trim());
+  const signedInPaid = isUsableRuntimeJwt(stored.convexAccessToken, stored.convexTokenExpiresAt, { minRemainingMs: 0 });
   const creditCents = Number(stored.convexCreditBalanceCents || 0);
   const hasCredits = Number.isFinite(creditCents) && creditCents > 0;
   const subscriptionPlan = String(stored.convexSubscriptionPlan || '').toLowerCase();
@@ -504,9 +551,10 @@ sidePanelProto.getSetupFlowState = async function getSetupFlowState() {
       }
     : null;
 
+  const paidSetupComplete = hasPaidModelConfigured && hasConvexUrl && signedInPaid && paidAccess;
   let setupComplete = byokReady;
   if (!setupComplete && mode === ACCOUNT_MODE_PAID) {
-    setupComplete = hasPaidModelConfigured && hasConvexUrl && signedInPaid && paidAccess;
+    setupComplete = paidSetupComplete;
   }
 
   let setupButtonLabel = 'Pay or add your own key';
@@ -574,6 +622,10 @@ sidePanelProto.getSetupFlowState = async function getSetupFlowState() {
     hasAnyModel,
     byokReady,
     paidAccess,
+    paidActive,
+    hasConvexUrl,
+    signedInPaid,
+    paidSetupComplete,
     setupComplete,
     setupButtonLabel,
     paidStatusLabel,
@@ -593,7 +645,41 @@ sidePanelProto.refreshSetupFlowUi = async function refreshSetupFlowUi() {
     this.elements.setupAccessBtn.title = setupState.setupButtonLabel;
   }
 
+  await this.renderPaidModeProviderGrid?.();
   this.updateActivityState?.();
+};
+
+sidePanelProto.renderPaidModeProviderGrid = async function renderPaidModeProviderGrid() {
+  const grid = this.elements.paidModeProviderGrid || document.getElementById('paidModeProviderGrid');
+  if (!grid) return;
+
+  const setupState = await this.getSetupFlowState();
+  const row = document.createElement('div');
+  const connected = setupState.signedInPaid === true && setupState.paidAccess === true;
+  row.className = `provider-row${connected ? ' connected' : ' dim'}`;
+  row.innerHTML = `
+    <span class="provider-logo">☻</span>
+    <div class="provider-info">
+      <div class="provider-name">Parchi Managed <span class="optional-badge">Optional</span></div>
+      <div class="provider-meta">${this.escapeHtml(setupState.paidStatusLabel || 'Paid mode')}</div>
+    </div>
+    <span class="provider-status-dot${connected ? '' : ' off'}"></span>
+    <button class="connect-btn" data-action="open-account">${connected ? 'Manage' : 'Open billing'}</button>
+  `;
+
+  grid.innerHTML = '';
+  grid.appendChild(row);
+  row.addEventListener('click', async (event: Event) => {
+    const action = (event.target as HTMLElement).closest<HTMLElement>('[data-action]')?.dataset.action;
+    if (action !== 'open-account') return;
+    this.openAccountPanel?.();
+    if (!setupState.signedInPaid || !setupState.paidSetupComplete) {
+      this.updateStatus(
+        'Paid mode is optional. Sign in or buy credits from Account & Billing if you want managed routing.',
+        'active',
+      );
+    }
+  });
 };
 
 sidePanelProto.setParchiRuntimeHealth = async function setParchiRuntimeHealth(input: {
@@ -650,13 +736,13 @@ sidePanelProto.handleSetupAccessClick = async function handleSetupAccessClick() 
     return;
   }
 
-  this.openSettingsPanel?.();
   if (setupState.mode === ACCOUNT_MODE_PAID) {
-    this.switchSettingsTab?.('oauth');
-    this.updateStatus('Finish paid setup to unlock Parchi managed access.', 'active');
+    this.openAccountPanel?.();
+    this.updateStatus('Finish paid setup in Account & Billing to unlock Parchi managed access.', 'active');
     return;
   }
 
+  this.openSettingsPanel?.();
   this.switchSettingsTab?.('setup');
   this.updateStatus('Finish provider setup by adding your API key and model.', 'active');
 };
@@ -896,6 +982,7 @@ sidePanelProto.refreshAccountPanel = async function refreshAccountPanel({ silent
     setHidden(this.elements.accountAuthSignedOut, true);
     setHidden(this.elements.accountAuthSignedIn, true);
     updateStatusCopy(this, 'Paid mode unavailable in this build. Use BYOK or set CONVEX_URL and rebuild.');
+    this.syncAccountAvatar?.();
     await this.refreshSetupFlowUi();
     return;
   }
@@ -909,6 +996,7 @@ sidePanelProto.refreshAccountPanel = async function refreshAccountPanel({ silent
       setHidden(this.elements.accountAuthSignedOut, false);
       setHidden(this.elements.accountAuthSignedIn, true);
       updateStatusCopy(this, 'Not signed in. Sign in and buy credits, or use BYOK in Setup.');
+      this.syncAccountAvatar?.();
       if (!silent) this.updateStatus('Account: signed out', 'warning');
       return;
     }
@@ -964,6 +1052,7 @@ sidePanelProto.refreshAccountPanel = async function refreshAccountPanel({ silent
         : 'No credits. Buy credits or use BYOK to continue.';
     updateStatusCopy(this, statusMsg);
     if (!silent) this.updateStatus('Account refreshed', 'success');
+    this.syncAccountAvatar?.();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error ?? 'Failed to refresh account');
     updateStatusCopy(this, message);

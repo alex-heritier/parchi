@@ -25,6 +25,7 @@ export function createToolRuntimeEmitter(
         tool: toolName,
         id: callId,
         args,
+        ...(options.runtimeMeta || {}),
         ...computeCurrentStepMeta(),
       });
     },
@@ -35,6 +36,7 @@ export function createToolRuntimeEmitter(
         id: callId,
         args,
         result,
+        ...(options.runtimeMeta || {}),
         ...computeCurrentStepMeta(),
       });
     },

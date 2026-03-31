@@ -1,4 +1,5 @@
 import type { ComposedSkill, ToolDefinition } from '@parchi/shared';
+import { getOrchestratorToolDefinitions } from './orchestrator-tool-definitions.js';
 
 type BrowserToolProvider = {
   getToolDefinitions(): ToolDefinition[];
@@ -117,33 +118,7 @@ export function getToolsForSession(
     if (teamNames.length) {
       profileSchema.enum = teamNames;
     }
-    tools = tools.concat([
-      {
-        name: 'spawn_subagent',
-        description: 'Start a focused sub-agent with its own goal, prompt, and optional profile override.',
-        input_schema: {
-          type: 'object',
-          properties: {
-            profile: profileSchema,
-            prompt: { type: 'string', description: 'System prompt for the sub-agent' },
-            tasks: { type: 'array', items: { type: 'string' }, description: 'Task list for the sub-agent' },
-            goal: { type: 'string', description: 'Single goal string if tasks not provided' },
-          },
-        },
-      },
-      {
-        name: 'subagent_complete',
-        description: 'Sub-agent calls this when finished to return a summary payload.',
-        input_schema: {
-          type: 'object',
-          properties: {
-            summary: { type: 'string' },
-            data: { type: 'object' },
-          },
-          required: ['summary'],
-        },
-      },
-    ]);
+    tools = tools.concat(getOrchestratorToolDefinitions(profileSchema));
   }
   return tools;
 }

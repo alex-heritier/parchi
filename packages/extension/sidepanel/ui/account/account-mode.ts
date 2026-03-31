@@ -15,7 +15,13 @@ type StoredLike = {
 
 const hasByokCredentialsInProfile = (profile: ProfileLike | null | undefined) => {
   const apiKey = String(profile?.apiKey || '').trim();
-  return apiKey.length > 0;
+  if (apiKey.length > 0) return true;
+
+  const provider = String(profile?.provider || '')
+    .trim()
+    .toLowerCase();
+  const model = String(profile?.model || '').trim();
+  return provider.endsWith('-oauth') && model.length > 0;
 };
 
 export const hasConfiguredByokProvider = (stored: StoredLike) => {

@@ -62,6 +62,7 @@ sidePanelProto.startStreamingMessage = function startStreamingMessage() {
 
   const container = document.createElement('div');
   container.className = 'message assistant streaming';
+  this.tagAgentView?.(container, 'main');
   container.innerHTML = `
       <div class="message-content streaming-content markdown-body">
         <div class="stream-events"></div>

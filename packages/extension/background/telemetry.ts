@@ -14,7 +14,7 @@ export type TelemetryEvent = {
 };
 
 const MAX_EVENTS = 500;
-const STORAGE_KEY = 'parchi_telemetry_v1';
+const TELEMETRY_STORE_ID = 'parchi_telemetry_v1';
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
@@ -22,8 +22,8 @@ function generateId(): string {
 
 async function getStoredEvents(): Promise<TelemetryEvent[]> {
   try {
-    const result = await chrome.storage.local.get([STORAGE_KEY]);
-    return Array.isArray(result[STORAGE_KEY]) ? result[STORAGE_KEY] : [];
+    const result = await chrome.storage.local.get([TELEMETRY_STORE_ID]);
+    return Array.isArray(result[TELEMETRY_STORE_ID]) ? result[TELEMETRY_STORE_ID] : [];
   } catch {
     return [];
   }
@@ -31,7 +31,7 @@ async function getStoredEvents(): Promise<TelemetryEvent[]> {
 
 async function storeEvents(events: TelemetryEvent[]): Promise<void> {
   try {
-    await chrome.storage.local.set({ [STORAGE_KEY]: events.slice(-MAX_EVENTS) });
+    await chrome.storage.local.set({ [TELEMETRY_STORE_ID]: events.slice(-MAX_EVENTS) });
   } catch {
     // Silent fail - telemetry should never break functionality
   }
@@ -141,7 +141,7 @@ export async function getCompactionMetrics(sessionId: string): Promise<{
 
 export async function clearTelemetry(): Promise<void> {
   try {
-    await chrome.storage.local.remove([STORAGE_KEY]);
+    await chrome.storage.local.remove([TELEMETRY_STORE_ID]);
   } catch {
     // Silent fail
   }

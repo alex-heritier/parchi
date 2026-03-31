@@ -1,0 +1,271 @@
+/* ============================================================================
+   Mission Control — Subagent Command Center
+   Design: utilitarian control panel aesthetic. Clean, structured, zero fluff.
+   ============================================================================ */
+
+/* ---- Trigger FAB ---- */
+.mission-control-panel,
+.mc-agent-card,
+.subagent-inline {
+  --agent-accent: var(--accent);
+  --agent-accent-rgb: var(--accent-rgb);
+}
+
+.mission-control-fab {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: none;
+  background: var(--card);
+  color: var(--foreground);
+  display: none; /* hidden until subagents exist */
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 220ms var(--ease-spring);
+  opacity: 0.65;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 8px rgba(0, 0, 0, 0.3);
+  position: relative;
+}
+
+.mission-control-fab.visible {
+  display: flex;
+}
+
+.mission-control-fab:hover {
+  transform: scale(1.04);
+  opacity: 1;
+  background: var(--card-hover);
+}
+
+.mission-control-fab.has-running {
+  opacity: 1;
+  border: 1px solid rgb(var(--accent-rgb) / 0.3);
+  box-shadow: 0 0 12px rgb(var(--accent-rgb) / 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.mission-control-fab .mc-fab-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #09090b;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+/* ---- Overlay panel ---- */
+.mission-control-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(3px);
+  z-index: 80;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-normal) var(--ease-out-expo);
+}
+
+.mission-control-scrim.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mission-control-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: clamp(320px, 70vw, 480px);
+  background: var(--background);
+  border-left: 1px solid var(--border);
+  z-index: 81;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform var(--duration-normal) var(--ease-out-expo);
+  overflow: hidden;
+}
+
+.mission-control-panel.open {
+  transform: translateX(0);
+}
+
+/* ---- Panel header ---- */
+.mc-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.mc-header-title {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  flex: 1;
+}
+
+.mc-header-meta {
+  font-size: 11px;
+  color: var(--muted-dim);
+  font-weight: 500;
+}
+
+.mc-close-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 150ms ease;
+}
+
+.mc-close-btn:hover {
+  background: var(--ink-2);
+  color: var(--foreground);
+}
+
+/* ---- Agent list (left column when detail view isn't open) ---- */
+.mc-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mc-agent-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-2) transparent;
+}
+
+.mc-agent-card {
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 180ms ease;
+  margin-bottom: 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+.mc-agent-card::before {
+  content: "";
+  width: 3px;
+  flex-shrink: 0;
+  background: var(--agent-accent);
+  border-radius: 8px 0 0 8px;
+  opacity: 0.5;
+  transition: opacity 180ms ease;
+}
+
+.mc-agent-card:hover {
+  background: var(--ink-1);
+  border-color: var(--ink-2);
+}
+
+.mc-agent-card:hover::before {
+  opacity: 1;
+}
+
+.mc-agent-card.selected {
+  background: rgb(var(--agent-accent-rgb) / 0.06);
+  border-color: rgb(var(--agent-accent-rgb) / 0.2);
+}
+
+.mc-agent-card.selected::before {
+  opacity: 1;
+  box-shadow: 0 0 8px rgb(var(--agent-accent-rgb) / 0.3);
+}
+
+.mc-agent-card.completed::before {
+  background: var(--success);
+}
+
+.mc-agent-card.error::before {
+  background: var(--error);
+}
+
+.mc-agent-card.running::before {
+  animation: mcBarPulse 2s ease-in-out infinite;
+}
+
+@keyframes mcBarPulse {
+  0%,
+  100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.mc-agent-body {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.mc-agent-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--foreground);
+  line-height: 1.3;
+  margin-bottom: 3px;
+}
+
+.mc-agent-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--muted-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.mc-agent-meta-sep {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--muted-dim);
+  opacity: 0.5;
+}
+
+.mc-agent-status-label {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mc-agent-card.running .mc-agent-status-label {
+  color: color-mix(in srgb, var(--agent-accent) 78%, white);
+}
+.mc-agent-card.completed .mc-agent-status-label {
+  color: var(--success);
+}
+.mc-agent-card.error .mc-agent-status-label {
+  color: var(--error);
+}
