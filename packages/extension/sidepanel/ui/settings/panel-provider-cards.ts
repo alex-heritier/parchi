@@ -1,169 +1,234 @@
-import { PROVIDER_REGISTRY, getAllProviders, getApiKeyProviders } from '../../../ai/providers/registry.js';
+import type { ProviderInstance } from '@parchi/shared';
+import { PROVIDER_REGISTRY, fetchModelsForProvider, getApiKeyProviders } from '../../../ai/providers/registry.js';
+import { mergeProviderModels } from '../../../state/provider-models.js';
+import {
+  buildProviderInstanceId,
+  ensureProviderModel,
+  getProviderInstance,
+  listProviderInstances,
+} from '../../../state/provider-registry.js';
 import { SidePanelUI } from '../core/panel-ui.js';
+
 const sidePanelProto = SidePanelUI.prototype as SidePanelUI & Record<string, unknown>;
 
-const PROVIDER_ICONS: Record<string, string> = {
-  anthropic: '\u{1F7E3}',
-  openai: '\u{1F7E2}',
-  kimi: '\u{1F535}',
-  openrouter: '\u{1F7E0}',
-  parchi: '\u{1F7E1}',
-  custom: '\u{26AA}',
+import { getProviderSvg } from './panel-model-selector.js';
+
+const apiProviderPresets = () => getApiKeyProviders().filter((provider) => provider.key !== 'parchi');
+
+const providerSummary = (provider: ProviderInstance) => {
+  if (provider.authType === 'managed') return 'Managed';
+  if (provider.authType === 'oauth') return provider.isConnected ? provider.oauthEmail || 'Connected' : 'Disconnected';
+  return provider.isConnected ? 'Connected' : 'Missing API key';
 };
 
-function getProviderIcon(key: string): string {
-  const base = key.replace(/-oauth$/, '');
-  return PROVIDER_ICONS[base] || '\u{26AA}';
-}
-
 sidePanelProto.renderApiProviderGrid = function renderApiProviderGrid() {
-  const grid = this.elements.apiProviderGrid;
+  const grid = this.elements.apiProviderGrid as HTMLElement | null;
   if (!grid) return;
   grid.innerHTML = '';
 
-  const apiProviders = getApiKeyProviders().filter((p) => p.key !== 'parchi');
-  const configs = this.configs || {};
+  const providers = listProviderInstances({ providers: this.providers }).filter(
+    (provider) => provider.authType === 'api-key',
+  );
+  const configuredTypes = new Set(providers.map((provider) => provider.providerType));
 
-  for (const def of apiProviders) {
-    const hasKey = this.providerHasApiKey(def.key, configs);
-    const card = document.createElement('div');
-    card.className = `provider-card${hasKey ? ' connected' : ''}`;
-    card.dataset.providerKey = def.key;
-
-    const statusText = hasKey ? 'Connected' : 'Not configured';
-    const statusClass = hasKey ? 'status-connected' : 'status-none';
-    const actionLabel = hasKey ? 'Edit' : 'Add Key';
-
-    card.innerHTML = `
-      <div class="provider-card-row">
-        <span class="provider-card-icon">${getProviderIcon(def.key)}</span>
-        <span class="provider-card-name">${def.name}</span>
-        <span class="provider-card-status ${statusClass}">${statusText}</span>
+  for (const provider of providers) {
+    const row = document.createElement('div');
+    row.className = `provider-row${provider.isConnected ? ' connected' : ' dim'}`;
+    row.dataset.providerId = provider.id;
+    const svg = getProviderSvg(provider.providerType);
+    row.innerHTML = `
+      <span class="provider-logo">${svg}</span>
+      <div class="provider-info">
+        <div class="provider-name">${this.escapeHtml(provider.name)}</div>
+        <div class="provider-meta">${provider.models.length} model${provider.models.length === 1 ? '' : 's'} · ${this.escapeHtml(providerSummary(provider))}</div>
       </div>
-      <div class="provider-card-actions">
-        <button class="btn btn-secondary provider-card-action" data-action="configure">${actionLabel}</button>
-        ${hasKey ? '<button class="btn btn-secondary provider-card-action" data-action="remove">Remove</button>' : ''}
+      <span class="provider-status-dot${provider.isConnected ? '' : ' off'}"></span>
+      <div class="row-actions">
+        <button class="icon-btn" data-action="configure" title="Edit">&#9998;</button>
+        <button class="icon-btn danger" data-action="remove" title="Delete">&times;</button>
       </div>
     `;
-
-    card.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest('[data-action]') as HTMLElement | null;
-      if (!btn) return;
-      const action = btn.dataset.action;
-      if (action === 'configure') {
-        this.openProviderEditor(def.key);
-      } else if (action === 'remove') {
-        this.removeProviderKey(def.key);
-      }
+    row.addEventListener('click', (event) => {
+      const action = (event.target as HTMLElement).closest<HTMLElement>('[data-action]')?.dataset.action;
+      if (!action) return;
+      if (action === 'configure') this.openProviderEditor(provider.id);
+      if (action === 'remove') this.removeProviderKey(provider.id);
     });
+    grid.appendChild(row);
+  }
 
-    grid.appendChild(card);
+  for (const preset of apiProviderPresets()) {
+    if (configuredTypes.has(preset.key)) continue;
+    const row = document.createElement('div');
+    row.className = 'provider-row dim';
+    row.dataset.providerPreset = preset.key;
+    const svg = getProviderSvg(preset.key);
+    row.innerHTML = `
+      <span class="provider-logo">${svg}</span>
+      <div class="provider-info">
+        <div class="provider-name">${this.escapeHtml(preset.name)}</div>
+        <div class="provider-meta">Not configured</div>
+      </div>
+      <button class="connect-btn" data-action="configure">Add</button>
+    `;
+    row.addEventListener('click', (event) => {
+      const action = (event.target as HTMLElement).closest<HTMLElement>('[data-action]')?.dataset.action;
+      if (action === 'configure') this.openProviderEditor(preset.key);
+    });
+    grid.appendChild(row);
   }
 };
 
-sidePanelProto.providerHasApiKey = function providerHasApiKey(providerKey: string, configs: Record<string, any>) {
-  for (const name of Object.keys(configs)) {
-    const cfg = configs[name];
-    if (cfg?.provider === providerKey && String(cfg.apiKey || '').trim()) {
-      return true;
-    }
-  }
-  return false;
-};
-
-sidePanelProto.openProviderEditor = function openProviderEditor(providerKey: string) {
-  const editor = this.elements.apiProviderEditor;
+sidePanelProto.openProviderEditor = function openProviderEditor(providerKeyOrId: string) {
+  const editor = this.elements.apiProviderEditor as HTMLElement | null;
   if (!editor) return;
 
-  const def = PROVIDER_REGISTRY[providerKey];
+  const provider = getProviderInstance({ providers: this.providers }, providerKeyOrId);
+  const providerType = provider?.providerType || providerKeyOrId;
+  const def = PROVIDER_REGISTRY[providerType];
   if (!def) return;
 
-  this._editingProviderKey = providerKey;
+  this._editingProviderId = provider?.id || null;
+  this._editingProviderKey = providerType;
   editor.classList.remove('hidden');
 
-  const configs = this.configs || {};
-  let existingKey = '';
-  let existingEndpoint = '';
-  for (const name of Object.keys(configs)) {
-    const cfg = configs[name];
-    if (cfg?.provider === providerKey) {
-      existingKey = cfg.apiKey || '';
-      existingEndpoint = cfg.customEndpoint || '';
-      break;
-    }
-  }
-
   if (this.elements.providerEditorKey) {
-    this.elements.providerEditorKey.value = existingKey;
+    this.elements.providerEditorKey.value = provider?.apiKey || '';
   }
   if (this.elements.providerEditorEndpoint) {
-    this.elements.providerEditorEndpoint.value = existingEndpoint || '';
+    this.elements.providerEditorEndpoint.value = provider?.customEndpoint || def.defaultBaseUrl || '';
     this.elements.providerEditorEndpoint.placeholder = def.defaultBaseUrl || 'https://...';
   }
-  const showEndpoint = providerKey === 'custom' || providerKey === 'kimi' || providerKey === 'openrouter';
   if (this.elements.providerEditorEndpointGroup) {
-    this.elements.providerEditorEndpointGroup.style.display = showEndpoint ? '' : 'none';
+    this.elements.providerEditorEndpointGroup.style.display =
+      providerType === 'custom' ||
+      providerType === 'kimi' ||
+      providerType === 'openrouter' ||
+      providerType === 'glm' ||
+      providerType === 'minimax'
+        ? ''
+        : 'none';
   }
 };
 
 sidePanelProto.saveProviderEditorConfig = function saveProviderEditorConfig() {
-  const providerKey = this._editingProviderKey;
-  if (!providerKey) return;
+  const providerType = this._editingProviderKey;
+  if (!providerType) return;
+  const def = PROVIDER_REGISTRY[providerType];
+  if (!def) return;
 
   const apiKey = this.elements.providerEditorKey?.value?.trim() || '';
-  const endpoint = this.elements.providerEditorEndpoint?.value?.trim() || '';
-
-  if (!apiKey) {
+  const endpoint = this.elements.providerEditorEndpoint?.value?.trim() || def.defaultBaseUrl || '';
+  if (!apiKey && def.type === 'api-key') {
     this.updateStatus('API key is required', 'warning');
     return;
   }
 
-  const configs = this.configs || {};
-  let profileName = '';
-  for (const name of Object.keys(configs)) {
-    if (configs[name]?.provider === providerKey) {
-      profileName = name;
-      break;
-    }
-  }
+  const existing = this._editingProviderId
+    ? getProviderInstance({ providers: this.providers }, this._editingProviderId)
+    : null;
+  const providerId =
+    existing?.id ||
+    buildProviderInstanceId({
+      providerType,
+      authType: 'api-key',
+      customEndpoint: endpoint,
+      apiKey,
+      name: def.name,
+    });
+  // Always merge definition models with any existing models so the model grid
+  // shows every available model, even if the provider was previously saved with
+  // only a subset.
+  const defModels = (def.models || []).map((m) => ({
+    id: m.id,
+    label: m.label,
+    contextWindow: m.contextWindow,
+    supportsVision: m.supportsVision,
+  }));
+  const existingModels = existing?.models || [];
+  const seen = new Set(defModels.map((m) => m.id));
+  const seedModels = [...defModels, ...existingModels.filter((m: any) => !seen.has(m.id))];
+  const provider: ProviderInstance = ensureProviderModel(
+    {
+      id: providerId,
+      name: existing?.name || def.name,
+      providerType,
+      authType: 'api-key',
+      apiKey,
+      customEndpoint: endpoint,
+      extraHeaders: existing?.extraHeaders || {},
+      isConnected: Boolean(apiKey),
+      models: seedModels,
+      createdAt: Number(existing?.createdAt || Date.now()),
+      updatedAt: Date.now(),
+      source: existing?.source || 'manual',
+    },
+    def.models?.[0]?.id || '',
+  );
 
-  if (!profileName) {
-    const def = PROVIDER_REGISTRY[providerKey];
-    profileName = def?.name?.toLowerCase() || providerKey;
-    if (configs[profileName]) profileName = `${profileName}-1`;
-  }
-
-  configs[profileName] = {
-    ...(configs[profileName] || {}),
-    provider: providerKey,
-    apiKey,
-    customEndpoint: endpoint,
+  this.providers = {
+    ...(this.providers || {}),
+    [provider.id]: provider,
   };
 
-  this.configs = configs;
   this.closeProviderEditor();
-  void this.persistAllSettings();
+  this.populateProviderDropdown?.();
   this.renderApiProviderGrid();
-  this.renderProfileGrid?.();
-  this.refreshConfigDropdown?.();
-  this.updateStatus(`${PROVIDER_REGISTRY[providerKey]?.name || providerKey} configured`, 'success');
+  this.renderModelSelectorGrid?.();
+  void this.persistAllSettings();
+  this.updateStatus(`${def.name} configured`, 'success');
+
+  // Async: fetch full model list from API for providers that support it
+  if (def.supportsModelListing && apiKey) {
+    void (async () => {
+      try {
+        const fetched = await fetchModelsForProvider(def, { type: def.type, apiKey, customEndpoint: endpoint });
+        if (fetched.length > 0) {
+          const updated = {
+            ...this.providers[provider.id],
+            models: mergeProviderModels(provider.providerType, this.providers[provider.id]?.models || [], fetched),
+            updatedAt: Date.now(),
+          };
+          this.providers = { ...(this.providers || {}), [provider.id]: updated };
+          this.renderModelSelectorGrid?.();
+          this.renderApiProviderGrid();
+          void this.persistAllSettings({ silent: true });
+        }
+      } catch {}
+    })();
+  }
 };
 
-sidePanelProto.removeProviderKey = function removeProviderKey(providerKey: string) {
-  const configs = this.configs || {};
-  for (const name of Object.keys(configs)) {
-    if (configs[name]?.provider === providerKey) {
-      configs[name].apiKey = '';
-      break;
+sidePanelProto.removeProviderKey = function removeProviderKey(providerId: string) {
+  if (!providerId || !this.providers?.[providerId]) return;
+  const nextProviders = { ...(this.providers || {}) };
+  const removed = nextProviders[providerId];
+  delete nextProviders[providerId];
+  this.providers = nextProviders;
+
+  for (const [name, config] of Object.entries(this.configs || {})) {
+    if ((config as Record<string, any>)?.providerId === providerId) {
+      this.configs[name] = {
+        ...(config as Record<string, any>),
+        providerId: '',
+        provider: '',
+        providerLabel: '',
+        apiKey: '',
+        customEndpoint: '',
+        modelId: '',
+        model: '',
+      };
     }
   }
-  this.configs = configs;
-  void this.persistAllSettings();
+
+  this.populateProviderDropdown?.();
   this.renderApiProviderGrid();
-  this.updateStatus('Provider key removed', 'success');
+  void this.persistAllSettings();
+  this.updateStatus(`${removed?.name || 'Provider'} deleted`, 'success');
 };
 
 sidePanelProto.closeProviderEditor = function closeProviderEditor() {
+  this._editingProviderId = null;
   this._editingProviderKey = null;
   this.elements.apiProviderEditor?.classList.add('hidden');
 };
@@ -172,36 +237,20 @@ sidePanelProto.populateProviderDropdown = function populateProviderDropdown() {
   const select = this.elements.profileEditorProvider as HTMLSelectElement | null;
   if (!select) return;
 
-  select.innerHTML = '';
-  const emptyOpt = document.createElement('option');
-  emptyOpt.value = '';
-  emptyOpt.textContent = 'Select provider...';
-  select.appendChild(emptyOpt);
+  const currentValue = select.value;
+  select.innerHTML = '<option value="">Select provider...</option>';
 
-  const allProviders = getAllProviders();
-  const apiKeyGroup = document.createElement('optgroup');
-  apiKeyGroup.label = 'API Key';
-  const oauthGroup = document.createElement('optgroup');
-  oauthGroup.label = 'OAuth';
-  const managedGroup = document.createElement('optgroup');
-  managedGroup.label = 'Managed';
-
-  for (const def of allProviders) {
-    const opt = document.createElement('option');
-    opt.value = def.key;
-    opt.textContent = def.name;
-    if (def.type === 'oauth') {
-      oauthGroup.appendChild(opt);
-    } else if (def.type === 'managed') {
-      managedGroup.appendChild(opt);
-    } else {
-      apiKeyGroup.appendChild(opt);
-    }
+  const providers = listProviderInstances({ providers: this.providers });
+  for (const provider of providers) {
+    const option = document.createElement('option');
+    option.value = provider.id;
+    option.textContent = `${provider.name} · ${provider.providerType}`;
+    select.appendChild(option);
   }
 
-  if (apiKeyGroup.children.length > 0) select.appendChild(apiKeyGroup);
-  if (oauthGroup.children.length > 0) select.appendChild(oauthGroup);
-  if (managedGroup.children.length > 0) select.appendChild(managedGroup);
+  if (currentValue && Array.from(select.options).some((option) => option.value === currentValue)) {
+    select.value = currentValue;
+  }
 };
 
 sidePanelProto.initProviderCardListeners = function initProviderCardListeners() {

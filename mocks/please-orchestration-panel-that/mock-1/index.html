@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Orchestration Panel Mock 1</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div>
+          <p class="eyebrow">Program <span class="mascot" aria-label="mascot" style="font-size: 1.2em; vertical-align: middle;">🐙</span></p>
+          <h1>Q2 Customer Migration</h1>
+          <p class="muted">A mission-control layout for reviewing sessions, milestones, and blockers.</p>
+        </div>
+
+        <section class="sidebar-card progress-card">
+          <div class="card-row">
+            <span>Overall completion</span>
+            <strong>68%</strong>
+          </div>
+          <div class="progress-bar">
+            <span></span>
+          </div>
+          <div class="stats-grid">
+            <div>
+              <strong>12</strong>
+              <span>Sessions</span>
+            </div>
+            <div>
+              <strong>4</strong>
+              <span>Milestones</span>
+            </div>
+            <div>
+              <strong>19</strong>
+              <span>Subtasks</span>
+            </div>
+            <div>
+              <strong>3</strong>
+              <span>Risks</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="sidebar-card session-list">
+          <div class="section-heading">
+            <h2>Sessions</h2>
+            <button>Newest</button>
+          </div>
+          <button class="session-item active">
+            <span class="session-title">Session 12 · Validation pass</span>
+            <span class="session-meta">Active now · 4 subtasks</span>
+          </button>
+          <button class="session-item">
+            <span class="session-title">Session 11 · API rollout</span>
+            <span class="session-meta">Completed · 3 subtasks</span>
+          </button>
+          <button class="session-item">
+            <span class="session-title">Session 10 · Data mapping</span>
+            <span class="session-meta">Blocked · schema mismatch</span>
+          </button>
+          <button class="session-item">
+            <span class="session-title">Session 09 · QA prep</span>
+            <span class="session-meta">Completed · handoff ready</span>
+          </button>
+        </section>
+      </aside>
+
+      <main class="main-panel">
+        <header class="hero-card">
+          <div>
+            <p class="eyebrow">Focused session</p>
+            <h2>Session 12 · Validation pass</h2>
+            <p class="muted">Review the current milestone tree, compare neighboring sessions, and inspect task-level progression.</p>
+          </div>
+          <div class="hero-actions">
+            <button class="ghost">Previous session</button>
+            <button>Next session</button>
+          </div>
+        </header>
+
+        <section class="content-grid">
+          <article class="panel-card timeline-card">
+            <div class="section-heading">
+              <h3>Milestone breakdown</h3>
+              <span>Current phase: Validation</span>
+            </div>
+
+            <div class="milestone active">
+              <div class="milestone-marker"></div>
+              <div class="milestone-body">
+                <div class="card-row">
+                  <strong>Milestone 3 · Validate migrated accounts</strong>
+                  <span class="pill active">In progress</span>
+                </div>
+                <p>Verify sample cohorts, compare source/target records, and confirm exception handling.</p>
+                <ul class="subtask-list">
+                  <li class="done">Generate verification sample</li>
+                  <li class="done">Cross-check revenue fields</li>
+                  <li class="current">Review failed account queue</li>
+                  <li>Publish acceptance summary</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="milestone">
+              <div class="milestone-marker"></div>
+              <div class="milestone-body">
+                <div class="card-row">
+                  <strong>Milestone 4 · Stakeholder signoff</strong>
+                  <span class="pill">Queued</span>
+                </div>
+                <p>Prepare the package for final review once validation confidence reaches 90%.</p>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel-card detail-card">
+            <div class="section-heading">
+              <h3>Session progression</h3>
+              <span>Compared against last 4 sessions</span>
+            </div>
+            <div class="comparison-list">
+              <div>
+                <span>Scope clarity</span>
+                <strong>Improving</strong>
+              </div>
+              <div>
+                <span>Task completion rate</span>
+                <strong>81%</strong>
+              </div>
+              <div>
+                <span>Blocker resolution</span>
+                <strong>2 of 3 closed</strong>
+              </div>
+            </div>
+
+            <div class="mini-chart" aria-hidden="true">
+              <span style="height: 36%"></span>
+              <span style="height: 52%"></span>
+              <span style="height: 48%"></span>
+              <span style="height: 72%"></span>
+              <span class="highlight" style="height: 88%"></span>
+            </div>
+
+            <div class="callout">
+              <strong>Latest note</strong>
+              <p>The active session reduced unresolved edge cases from seven to two after replaying migration jobs.</p>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

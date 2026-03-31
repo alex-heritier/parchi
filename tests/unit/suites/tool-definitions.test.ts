@@ -34,6 +34,13 @@ export function runToolDefinitionsSuite(runner: TestRunner) {
     runner.assertTrue(toolMap.getVideoInfo === true, 'getVideoInfo should be executable');
   });
 
+  runner.test('Evaluation and network tools are included in the real tool map', () => {
+    const toolMap = getBrowserToolMap(true);
+    runner.assertTrue(toolMap.evaluate === true, 'evaluate should be executable');
+    runner.assertTrue(toolMap.watchNetwork === true, 'watchNetwork should be executable');
+    runner.assertTrue(toolMap.getNetworkLog === true, 'getNetworkLog should be executable');
+  });
+
   runner.test('Tab-group constrained definition set omits groupTabs', () => {
     const definitions = getBrowserToolDefinitions(false);
     runner.assertFalse(

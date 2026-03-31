@@ -115,13 +115,13 @@ sidePanelProto.updateMascotEyeState = function updateMascotEyeState() {
   const isRunning = !!(this.runStartedAt || this.isStreaming || this.pendingToolCount > 0);
   const isTyping = this._lastTypingAt && Date.now() - this._lastTypingAt < 5000;
 
-  mascot.classList.remove('sleeping', 'working', 'looking-up', 'thinking');
+  mascot.classList.remove('sleeping', 'working', 'looking-up', 'thinking', 'awake');
   if (isRunning) {
     mascot.classList.add('working');
   } else if (isTyping) {
     mascot.classList.add('looking-up');
   } else {
-    mascot.classList.add('sleeping');
+    mascot.classList.add('awake');
   }
 };
 

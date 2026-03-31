@@ -76,10 +76,68 @@ export async function handleMessage(
       }
 
       case 'execute_tool': {
-        const sessionId =
-          typeof message.sessionId === 'string' ? message.sessionId : ctx.currentSessionId || 'default';
+        const sessionId = typeof message.sessionId === 'string' ? message.sessionId : ctx.currentSessionId || 'default';
         const result = await ctx.getBrowserTools(sessionId).executeTool(message.tool, message.args);
         sendResponse({ success: true, result });
+        break;
+      }
+
+      case 'execute_runtime_tool_test': {
+        const sessionId =
+          typeof message.sessionId === 'string' && message.sessionId.trim()
+            ? message.sessionId.trim()
+            : ctx.currentSessionId || 'runtime-tool-test';
+        const toolName = typeof message.tool === 'string' ? message.tool.trim() : '';
+        if (!toolName) {
+          sendResponse({ success: false, error: 'Missing tool name.' });
+          break;
+        }
+        const settings = await chrome.storage.local.get(null);
+        const result = await ctx.executeToolByName(
+          toolName,
+          message.args && typeof message.args === 'object' ? message.args : {},
+          {
+            runMeta: {
+              runId: typeof message.runId === 'string' && message.runId.trim() ? message.runId.trim() : `test-run-${Date.now()}`,
+              turnId:
+                typeof message.turnId === 'string' && message.turnId.trim() ? message.turnId.trim() : `test-turn-${Date.now()}`,
+              sessionId,
+            },
+            settings,
+          },
+        );
+        sendResponse({ success: true, result });
+        break;
+      }
+
+      case 'subagent_instruction': {
+        const sessionId = typeof message.sessionId === 'string' ? message.sessionId.trim() : '';
+        const agentId = typeof message.agentId === 'string' ? message.agentId.trim() : '';
+        const instruction = typeof message.instruction === 'string' ? message.instruction.trim() : '';
+        if (!sessionId || !agentId || !instruction) {
+          sendResponse({ success: false, error: 'Missing session, agent, or instruction.' });
+          break;
+        }
+
+        const sessionState = ctx.getSessionState(sessionId);
+        const agent = sessionState.runningSubagents.get(agentId);
+        if (!agent || agent.status !== 'running') {
+          sendResponse({ success: false, error: 'That agent is no longer running.' });
+          break;
+        }
+
+        agent.pendingInstructions.push(instruction);
+        ctx.sendRuntime(agent.parentRunMeta, {
+          type: 'run_status',
+          phase: 'executing',
+          note: "Queued a new instruction for the agent's next tool step.",
+          agentId,
+          agentName: agent.name,
+          agentKind: 'subagent',
+          agentSessionId: agent.agentSessionId,
+          parentSessionId: sessionId,
+        });
+        sendResponse({ success: true });
         break;
       }
 
@@ -90,7 +148,8 @@ export async function handleMessage(
           return;
         }
         const sessionId = typeof message.sessionId === 'string' ? message.sessionId : ctx.currentSessionId || 'test';
-        ctx.getBrowserTools(sessionId)
+        ctx
+          .getBrowserTools(sessionId)
           .configureSessionTabs(tabs, { title: 'Test Session', color: 'blue' })
           .then(() => {
             console.log('[test] session tabs configured successfully');
@@ -159,6 +218,31 @@ export async function handleMessage(
 
       case 'content_perf_event': {
         void recordContentPerfEvent(message.event, sender);
+        sendResponse({ success: true });
+        break;
+      }
+
+      case 'content_script_ready': {
+        if (typeof sender.tab?.id === 'number') {
+          ctx.syncSubagentTabBadge(sender.tab.id);
+        }
+        sendResponse({ success: true });
+        break;
+      }
+
+      case 'reset_all_profiles': {
+        await chrome.storage.local.set({
+          configs: {},
+          providers: {},
+          activeConfig: 'default',
+          provider: '',
+          apiKey: '',
+          model: '',
+          customEndpoint: '',
+          extraHeaders: {},
+          providerId: '',
+          modelId: '',
+        });
         sendResponse({ success: true });
         break;
       }

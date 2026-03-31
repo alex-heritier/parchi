@@ -3,7 +3,7 @@
     "firefox": ["other"]
   },
   "summary": {
-    "en-US": "Warm-paper browser automation assistant with configurable LLM providers"
+    "en-US": "AI browser automation assistant - model agnostic"
   },
   "version": {
     "license": "MIT"

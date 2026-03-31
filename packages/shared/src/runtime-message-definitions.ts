@@ -7,6 +7,11 @@ export type RuntimeMessageBase = {
   sessionId: string;
   turnId?: string;
   timestamp: number;
+  agentId?: string;
+  agentName?: string;
+  agentKind?: 'orchestrator' | 'subagent';
+  agentSessionId?: string;
+  parentSessionId?: string;
 };
 
 export const runStatusPhases = ['planning', 'executing', 'finalizing', 'completed', 'stopped', 'failed'] as const;
@@ -198,6 +203,7 @@ export type SubagentStart = RuntimeMessageBase & {
   id: string;
   name: string;
   tasks?: string[];
+  agentSessionId: string;
   parentRunId?: string;
 };
 
@@ -251,7 +257,18 @@ export type SubagentComplete = RuntimeMessageBase & {
   id: string;
   success: boolean;
   summary?: string;
+  agentSessionId: string;
   parentRunId?: string;
+};
+
+export type SubagentTabAssigned = RuntimeMessageBase & {
+  type: 'subagent_tab_assigned';
+  id: string;
+  name: string;
+  tabId: number;
+  url: string;
+  agentSessionId: string;
+  colorIndex: number;
 };
 
 export type RuntimeMessage =
@@ -275,4 +292,5 @@ export type RuntimeMessage =
   | ReportImageCaptured
   | ReportImagesSelection
   | SubagentComplete
+  | SubagentTabAssigned
   | SessionTabsUpdate;

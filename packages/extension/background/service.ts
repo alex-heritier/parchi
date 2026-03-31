@@ -1,13 +1,20 @@
 import type { RunPlan } from '@parchi/shared';
-import { BrowserTools } from '../tools/browser-tools.js';
 import { RecordingCoordinator } from '../recording/recording-coordinator.js';
-import { RelayBridge } from '../relay/relay-bridge.js';
+import type { RelayBridge } from '../relay/relay-bridge.js';
+import { BrowserTools } from '../tools/browser-tools.js';
+import { processUserMessage } from './agent/agent-loop.js';
+import { processContextCompaction } from './agent/compaction-runner.js';
+import { setupActionClickOpensPanel, setupKimiUserAgentHeaderSupport } from './browser-compat.js';
+import { handleMessage } from './message-router.js';
 import {
-  setupActionClickOpensPanel,
-  setupKimiUserAgentHeaderSupport,
-} from './browser-compat.js';
+  createApplyRelayConfig,
+  createRelayBridge,
+  handleRelayRpc,
+  initRelay,
+  scheduleRelayAutoPairCheck,
+} from './relay/relay-handler.js';
+import type { ActiveRun, ServiceContext, TokenTracePayload } from './service-context.js';
 import type { RunMeta, SessionState } from './service-types.js';
-import type { ServiceContext, TokenTracePayload, ActiveRun } from './service-context.js';
 import {
   cleanupRun,
   emitTokenTrace,
@@ -16,22 +23,13 @@ import {
   isRunCancelled,
   registerActiveRun,
   sendRuntime as sendRuntimeImpl,
-  stopRunBySession,
   stopAllSidepanelRuns,
+  stopRunBySession,
 } from './session-manager.js';
-import {
-  createApplyRelayConfig,
-  createRelayBridge,
-  handleRelayRpc,
-  initRelay,
-  scheduleRelayAutoPairCheck,
-} from './relay/relay-handler.js';
-import { handleMessage } from './message-router.js';
-import { processContextCompaction } from './agent/compaction-runner.js';
-import { processUserMessage } from './agent/agent-loop.js';
-import { executeToolByName } from './tools/tool-executor.js';
+import { generateWorkflowPrompt, runApiSmokeTest } from './smoke-test.js';
+import { type SubagentTabBadgeState, sendSubagentTabBadge } from './subagent-tab-badges.js';
 import { getToolsForSession } from './tools/tool-catalog.js';
-import { runApiSmokeTest, generateWorkflowPrompt } from './smoke-test.js';
+import { executeToolByName } from './tools/tool-executor.js';
 
 export class BackgroundService implements ServiceContext {
   browserTools: BrowserTools;
@@ -50,6 +48,7 @@ export class BackgroundService implements ServiceContext {
   kimiHeaderRuleOk: boolean;
   kimiHeaderMode: 'dnr' | 'webRequest' | 'none';
   recordingCoordinator: RecordingCoordinator;
+  subagentTabBadges: Map<number, SubagentTabBadgeState>;
 
   activeRuns: Map<string, ActiveRun>;
   activeRunIdBySessionId: Map<string, string>;
@@ -73,6 +72,7 @@ export class BackgroundService implements ServiceContext {
     this.sessionStateById = new Map();
     this.browserToolsBySessionId = new Map();
     this.recordingCoordinator = new RecordingCoordinator();
+    this.subagentTabBadges = new Map();
     this.kimiHeaderRuleOk = false;
     this.kimiHeaderMode = 'none';
 
@@ -106,6 +106,7 @@ export class BackgroundService implements ServiceContext {
 
     chrome.runtime.onStartup?.addListener(() => void this.applyRelayConfig());
     chrome.runtime.onInstalled?.addListener(() => void this.applyRelayConfig());
+    chrome.tabs.onRemoved.addListener((tabId) => this.subagentTabBadges.delete(tabId));
 
     chrome.runtime.onConnect.addListener((port) => {
       if (port.name === 'relay-keepalive') {
@@ -155,6 +156,21 @@ export class BackgroundService implements ServiceContext {
     return getBrowserTools(this.browserToolsBySessionId, this.currentSettings, sessionId);
   }
 
+  releaseSessionResources(sessionId: string) {
+    this.sessionStateById.delete(sessionId);
+    this.browserToolsBySessionId.delete(sessionId);
+  }
+
+  setSubagentTabBadge(tabId: number, state: SubagentTabBadgeState) {
+    this.subagentTabBadges.set(tabId, state);
+    void sendSubagentTabBadge(tabId, state);
+  }
+
+  syncSubagentTabBadge(tabId: number) {
+    const state = this.subagentTabBadges.get(tabId);
+    if (state) void sendSubagentTabBadge(tabId, state);
+  }
+
   emitTokenTrace(runMeta: RunMeta, sessionState: SessionState, payload: TokenTracePayload) {
     emitTokenTrace(this, runMeta, sessionState, payload);
   }
@@ -191,7 +207,11 @@ export class BackgroundService implements ServiceContext {
     return processUserMessage(this, userMessage, conversationHistory, selectedTabs, sessionId, meta, recordedContext);
   }
 
-  async processContextCompaction(conversationHistory: any[], sessionId: string, options?: { source?: string; force?: boolean }) {
+  async processContextCompaction(
+    conversationHistory: any[],
+    sessionId: string,
+    options?: { source?: string; force?: boolean },
+  ) {
     return processContextCompaction(this, conversationHistory, sessionId, options);
   }
 

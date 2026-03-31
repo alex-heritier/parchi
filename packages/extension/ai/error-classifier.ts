@@ -1,3 +1,5 @@
+import { classifyManagedRuntimeSpecialCase, detectManagedRouteSignal } from './error-classifier-managed.js';
+
 export type ErrorCategory =
   | 'auth'
   | 'rate_limit'
@@ -41,22 +43,7 @@ export function classifyApiError(error: unknown, context: ErrorClassificationCon
   const contextCombined =
     `${context.route || ''} ${context.provider || ''} ${context.proxyProvider || ''} ${context.model || ''}`.toLowerCase();
   const combined = `${msg} ${responseBody} ${contextCombined}`.toLowerCase();
-  const contextSignalsManaged =
-    context.route === 'proxy' ||
-    context.useProxy === true ||
-    String(context.provider || '').toLowerCase() === 'parchi' ||
-    String(context.model || '')
-      .toLowerCase()
-      .startsWith('parchi/');
-  const hasManagedRouteSignal =
-    contextSignalsManaged ||
-    combined.includes('/ai-proxy') ||
-    combined.includes('convex') ||
-    combined.includes('parchi managed') ||
-    combined.includes('parchi/') ||
-    combined.includes('insufficient credits') ||
-    combined.includes('subscription is not active') ||
-    combined.includes('recovery token');
+  const hasManagedRouteSignal = detectManagedRouteSignal(context, combined);
   const oauthProvider = String(context.provider || '')
     .trim()
     .toLowerCase();
@@ -95,34 +82,8 @@ export function classifyApiError(error: unknown, context: ErrorClassificationCon
     combined.includes('model_not_supported') ||
     /model[^.\n]{0,120}(does not exist|not found|unavailable|invalid)/i.test(combined);
 
-  if (
-    statusCode === 402 ||
-    combined.includes('insufficient credits') ||
-    combined.includes('buy credits') ||
-    combined.includes('subscription is not active') ||
-    combined.includes('checkout session not paid')
-  ) {
-    return {
-      category: 'auth',
-      message: 'Managed access is unavailable for this request.',
-      action:
-        'Open Account & Billing to buy credits or reactivate your subscription. If a managed key expired, use Recover/Regenerate key.',
-      recoverable: true,
-    };
-  }
-
-  if (
-    hasManagedRouteSignal &&
-    (combined.includes('missing openrouter_api_key') || combined.includes('missing openrouter api key'))
-  ) {
-    return {
-      category: 'auth',
-      message: 'Managed runtime is missing server credentials.',
-      action:
-        'Set OPENROUTER_API_KEY in backend/Convex env, then deploy. Paid proxy mode uses the server key, not a user BYOK key.',
-      recoverable: false,
-    };
-  }
+  const managedSpecialCase = classifyManagedRuntimeSpecialCase(statusCode, combined, hasManagedRouteSignal);
+  if (managedSpecialCase) return managedSpecialCase;
 
   if (hasOAuthRouteSignal && !hasManagedRouteSignal && hasOAuthPermissionSignal) {
     return {

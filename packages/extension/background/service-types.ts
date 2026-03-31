@@ -1,4 +1,4 @@
-import type { RunPlan } from '@parchi/shared';
+import type { OrchestratorPlan, RunPlan, WhiteboardEntry as OrchestratorWhiteboardEntry } from '@parchi/shared';
 
 export type RunMeta = {
   runId: string;
@@ -29,9 +29,50 @@ export type SessionTokenVisibility = {
   sessionTotalTokens: number;
 };
 
+export type RunningSubagent = {
+  id: string;
+  name: string;
+  tabId: number;
+  agentSessionId: string;
+  colorIndex: number;
+  status: 'running' | 'completed' | 'error';
+  parentRunMeta: RunMeta;
+  pendingInstructions: string[];
+  taskId?: string;
+  startedAt: number;
+  promise: Promise<SubagentResult>;
+  resolve: (result: SubagentResult) => void;
+};
+
+export type SubagentResult = {
+  id: string;
+  name: string;
+  success: boolean;
+  summary: string;
+  tabId: number;
+  taskId?: string;
+  data?: unknown;
+};
+
+export type HistoricalSubagent = {
+  id: string;
+  name: string;
+  tabId: number;
+  agentSessionId: string;
+  colorIndex: number;
+  taskId?: string;
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  success?: boolean;
+  summary?: string;
+  data?: unknown;
+  startedAt: number;
+  finishedAt?: number;
+};
+
 export type SessionState = {
   sessionId: string;
   currentPlan: RunPlan | null;
+  orchestratorPlan: OrchestratorPlan | null;
   subAgentCount: number;
   subAgentProfileCursor: number;
   lastBrowserAction: string | null;
@@ -43,4 +84,7 @@ export type SessionState = {
   reportImageBytes: number;
   selectedReportImageIds: Set<string>;
   tokenVisibility: SessionTokenVisibility;
+  runningSubagents: Map<string, RunningSubagent>;
+  subagentHistory: Map<string, HistoricalSubagent>;
+  orchestratorWhiteboard: Map<string, OrchestratorWhiteboardEntry>;
 };

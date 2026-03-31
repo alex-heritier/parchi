@@ -4,15 +4,18 @@
 import { ActionOverlayController } from './content-action-overlay.js';
 import { getElementInfo } from './content-element-inspection.js';
 import { highlightElement, unhighlightAll } from './content-highlight.js';
+import { SubagentBadgeController } from './content-subagent-badge.js';
 import type { HighlightEntry } from './content-types.js';
 
 class ContentScriptHandler {
   highlightedElements: Set<HighlightEntry>;
   overlayController: ActionOverlayController;
+  subagentBadgeController: SubagentBadgeController;
 
   constructor() {
     this.highlightedElements = new Set();
     this.overlayController = new ActionOverlayController();
+    this.subagentBadgeController = new SubagentBadgeController();
     this.init();
   }
 
@@ -41,6 +44,14 @@ class ContentScriptHandler {
           break;
         case 'clear_action_overlay':
           this.overlayController.clearActionOverlay();
+          sendResponse({ success: true });
+          break;
+        case 'show_subagent_badge':
+          this.subagentBadgeController.showBadge(message);
+          sendResponse({ success: true });
+          break;
+        case 'clear_subagent_badge':
+          this.subagentBadgeController.clearBadge();
           sendResponse({ success: true });
           break;
         case 'get_element_info': {

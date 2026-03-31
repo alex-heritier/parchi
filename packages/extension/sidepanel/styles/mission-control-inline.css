@@ -1,0 +1,92 @@
+/* ============================================================================
+   Mission Control — Inline chat indicators & empty state
+   ============================================================================ */
+
+/* ---- Inline chat indicators (replaces old subagent-block cards) ---- */
+.subagent-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin: 4px 0;
+  font-size: 11.5px;
+  color: var(--muted);
+  border-left: 2px solid var(--ink-2);
+  transition: all 200ms ease;
+  cursor: pointer;
+  border-radius: 0 4px 4px 0;
+}
+
+.subagent-inline:hover {
+  background: var(--ink-1);
+  color: var(--foreground);
+}
+
+.subagent-inline.running {
+  border-left-color: var(--agent-accent);
+  background: linear-gradient(90deg, rgb(var(--agent-accent-rgb) / 0.08), transparent 65%);
+}
+
+.subagent-inline.completed {
+  border-left-color: var(--success);
+}
+
+.subagent-inline.error {
+  border-left-color: var(--error);
+}
+
+.subagent-inline-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.subagent-inline.running .subagent-inline-dot {
+  background: var(--agent-accent);
+  box-shadow: 0 0 10px rgb(var(--agent-accent-rgb) / 0.4);
+  animation: mcBarPulse 2s ease-in-out infinite;
+}
+
+.subagent-inline.completed .subagent-inline-dot {
+  background: var(--success);
+}
+
+.subagent-inline.error .subagent-inline-dot {
+  background: var(--error);
+}
+
+.subagent-inline-name {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.subagent-inline-status {
+  font-size: 10px;
+  color: var(--muted-dim);
+}
+
+/* ---- Empty state for mission control ---- */
+.mc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  flex: 1;
+}
+
+.mc-empty-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+  margin-bottom: 4px;
+}
+
+.mc-empty-desc {
+  font-size: 11.5px;
+  color: var(--muted-dim);
+  line-height: 1.5;
+  max-width: 240px;
+}

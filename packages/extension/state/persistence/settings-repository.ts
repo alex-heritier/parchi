@@ -1,4 +1,5 @@
 import { PARCHI_STORAGE_KEYS } from '@parchi/shared';
+import { migrateSettingsToProviderRegistry } from '../provider-registry.js';
 
 export type SettingsSnapshot = Record<string, any>;
 
@@ -33,16 +34,16 @@ export function sanitizeImportedSettings(input: unknown): SettingsSnapshot {
       throw new Error('Invalid configs payload');
     }
   }
-  return snapshot;
+  return migrateSettingsToProviderRegistry(snapshot);
 }
 
 export async function readSettingsSnapshot(): Promise<SettingsSnapshot> {
   const stored = await chrome.storage.local.get(SETTINGS_KEYS);
-  return pickSettingsSnapshot(stored);
+  return migrateSettingsToProviderRegistry(pickSettingsSnapshot(stored));
 }
 
 export async function writeSettingsSnapshot(snapshot: SettingsSnapshot): Promise<SettingsSnapshot> {
-  const next = pickSettingsSnapshot(snapshot);
+  const next = migrateSettingsToProviderRegistry(pickSettingsSnapshot(snapshot));
   await chrome.storage.local.set(next);
   return next;
 }

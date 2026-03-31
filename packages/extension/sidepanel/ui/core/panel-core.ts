@@ -24,6 +24,26 @@ const resolveTextAreaMaxHeight = (textarea: HTMLTextAreaElement, fallbackHeight:
   return fallbackHeight;
 };
 
+const extractFilesFromClipboardEvent = (event: ClipboardEvent): File[] => {
+  const clipboardData = event.clipboardData;
+  if (!clipboardData) return [];
+  const directFiles = Array.from(clipboardData.files || []).filter((file): file is File => file instanceof File);
+  if (directFiles.length) return directFiles;
+
+  const itemFiles = Array.from(clipboardData.items || [])
+    .filter((item) => item.kind === 'file')
+    .map((item, index) => {
+      const file = item.getAsFile();
+      if (!file) return null;
+      if (file.name) return file;
+      const extension = file.type?.split('/')[1] || 'bin';
+      return new File([file], `pasted-${index + 1}.${extension}`, { type: file.type || 'application/octet-stream' });
+    })
+    .filter((file): file is File => file instanceof File);
+
+  return itemFiles;
+};
+
 const autoResizeTextArea = (textarea: HTMLTextAreaElement | null, maxHeight: number, minHeight = 0) => {
   if (!textarea) return;
   const resolvedMaxHeight = resolveTextAreaMaxHeight(textarea, maxHeight);
@@ -120,6 +140,7 @@ sidePanelProto.init = async function init() {
     this.connectLifecyclePort();
     this.setupEventListeners();
     this.setupPlanDrawer();
+    this.setupMissionControl();
     this.setupResizeObserver();
     setSidebarOpen(this.elements, false);
     await this.loadSettings();
@@ -131,11 +152,11 @@ sidePanelProto.init = async function init() {
     await this.loadHistoryList();
     this.updateContextUsage?.();
     this.updateStatus('Ready', 'success');
+    this.syncAgentComposerState?.();
     this.updateModelDisplay();
     this.fetchAvailableModels();
     this.updateChatEmptyState?.();
     this.initMascotBubble?.();
-    this.initSessionTabsOrb?.();
     // Prune old traces (>7 days) in background — fire and forget
     pruneOldTraces().catch(() => {});
   } catch (error) {
@@ -212,22 +233,109 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
     }, 150),
   );
 
-  // Balance popover on status bar click
-  const statusBar = document.getElementById('statusBar');
+  const closeQuickActionsMenu = () => {
+    this.elements.quickActionsMenu?.classList.add('hidden');
+  };
+
+  const closeComposerMoreMenu = () => {};
+
+  // Composer tool buttons — direct click handlers with active state
+  const setToolActive = (btn: HTMLButtonElement | null, active: boolean) => {
+    btn?.classList.toggle('active', active);
+  };
+
+  this.elements.composerActionAttachFile?.addEventListener('click', () => {
+    setToolActive(this.elements.composerActionAttachFile, true);
+    this.elements.fileInput?.click();
+    setTimeout(() => setToolActive(this.elements.composerActionAttachFile, false), 200);
+  });
+  this.elements.composerActionRecordContext?.addEventListener('click', () => {
+    setToolActive(this.elements.composerActionRecordContext, true);
+    this.elements.recordBtn?.click();
+    setTimeout(() => setToolActive(this.elements.composerActionRecordContext, false), 200);
+  });
+  this.elements.composerActionSelectTabs?.addEventListener('click', () => {
+    setToolActive(this.elements.composerActionSelectTabs, true);
+    this.toggleTabSelector();
+    setTimeout(() => setToolActive(this.elements.composerActionSelectTabs, false), 200);
+  });
+  this.elements.composerActionExport?.addEventListener('click', () => {
+    setToolActive(this.elements.composerActionExport, true);
+    this.showExportMenu();
+    setTimeout(() => setToolActive(this.elements.composerActionExport, false), 200);
+  });
+
+  this.elements.quickActionsFab?.addEventListener('click', (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const menu = this.elements.quickActionsMenu as HTMLElement | null;
+    if (!menu) return;
+    menu.classList.toggle('hidden');
+    closeComposerMoreMenu();
+  });
+  this.elements.quickActionMissionControl?.addEventListener('click', () => {
+    closeQuickActionsMenu();
+    this.toggleMissionControl?.();
+  });
+  this.elements.quickActionSettings?.addEventListener('click', () => {
+    closeQuickActionsMenu();
+    this.openSettingsPanel?.();
+  });
+  this.elements.quickActionHistory?.addEventListener('click', () => {
+    closeQuickActionsMenu();
+    this.openHistoryDrawer();
+  });
+  this.elements.quickActionTextSizeDown?.addEventListener('click', (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    this.adjustUiZoom(-0.05);
+  });
+  this.elements.quickActionTextSizeReset?.addEventListener('click', (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    this.applyUiZoom(1);
+  });
+  this.elements.quickActionTextSizeUp?.addEventListener('click', (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    this.adjustUiZoom(0.05);
+  });
+  this.elements.settingsResetProfilesBtn?.addEventListener('click', () => {
+    this.resetAllProfiles?.();
+  });
+
+  // Balance popover on mascot click — status is shown inside mascot wrapper
+  const mascotCorner = document.getElementById('mascotCorner');
+  const mascotStatus = document.getElementById('mascotStatus');
   const balancePopover = document.getElementById('balancePopover');
   const balancePopoverClose = document.getElementById('balancePopoverClose');
-  if (statusBar && balancePopover) {
-    statusBar.addEventListener('click', () => this.toggleBalancePopover?.());
+
+  // Show/hide mascot status on hover
+  if (mascotCorner && mascotStatus) {
+    mascotCorner.addEventListener('mouseenter', () => {
+      mascotStatus.classList.remove('hidden');
+    });
+    mascotCorner.addEventListener('mouseleave', () => {
+      mascotStatus.classList.add('hidden');
+    });
+    mascotCorner.addEventListener('click', () => {
+      this.toggleBalancePopover?.();
+    });
+  }
+
+  if (balancePopover) {
     balancePopoverClose?.addEventListener('click', (e: Event) => {
       e.stopPropagation();
       balancePopover.classList.add('hidden');
     });
     // Close popover when clicking outside
     document.addEventListener('click', (e: Event) => {
+      const target = e.target as Node;
+      const clickedMascot = mascotCorner?.contains(target) ?? false;
       if (
         !balancePopover.classList.contains('hidden') &&
-        !balancePopover.contains(e.target as Node) &&
-        !statusBar.contains(e.target as Node)
+        !balancePopover.contains(target) &&
+        !clickedMascot
       ) {
         balancePopover.classList.add('hidden');
       }
@@ -261,6 +369,16 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
     if (popover.contains(target)) return;
     if (button?.contains(target)) return;
     this.closeContextInspectorPopover?.();
+  });
+
+  document.addEventListener('click', (event: Event) => {
+    const target = event.target as Node | null;
+    if (!target) return;
+    const quickMenu = this.elements.quickActionsMenu as HTMLElement | null;
+    const quickButton = this.elements.quickActionsFab as HTMLElement | null;
+    if (quickMenu && !quickMenu.classList.contains('hidden')) {
+      if (!quickMenu.contains(target) && !quickButton?.contains(target)) closeQuickActionsMenu();
+    }
   });
 
   // Provider change — also refresh model catalog for setup tab
@@ -306,37 +424,21 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
   this.elements.activeConfig?.addEventListener('change', () => this.switchConfig());
 
   this.elements.settingsTabProvidersBtn?.addEventListener('click', () => this.switchSettingsTab('providers'));
-  this.elements.settingsTabProfilesBtn?.addEventListener('click', () => this.switchSettingsTab('profiles'));
-  this.elements.settingsTabDesignBtn?.addEventListener('click', () => this.switchSettingsTab('design'));
+  this.elements.settingsTabModelBtn?.addEventListener('click', () => this.switchSettingsTab('model'));
+  this.elements.settingsTabGenerationBtn?.addEventListener('click', () => this.switchSettingsTab('generation'));
   this.elements.settingsTabAdvancedBtn?.addEventListener('click', () => this.switchSettingsTab('advanced'));
+  this.elements.settingsOpenAccountBtn?.addEventListener('click', () => this.openAccountPanel?.());
+  this.elements.accountBackToSettingsBtn?.addEventListener('click', () => this.openSettingsPanel?.());
   document.getElementById('usageRefreshBtn')?.addEventListener('click', () => this.refreshUsageTab?.());
   document.getElementById('usageClearBtn')?.addEventListener('click', () => this.clearUsageData?.());
-  this.elements.createProfileBtn?.addEventListener('click', () => this.createProfileFromInput());
-  this.elements.agentGrid?.addEventListener('click', (event) => {
-    if ((event.target as HTMLElement | null)?.closest('.profile-editor')) {
-      return;
-    }
-    const deleteBtn = (event.target as HTMLElement | null)?.closest('.agent-card-delete') as HTMLElement | null;
-    if (deleteBtn) {
-      event.stopPropagation();
-      const profileName = deleteBtn.dataset.deleteProfile;
-      if (profileName) this.deleteProfileByName(profileName);
-      return;
-    }
-    const pill = (event.target as HTMLElement | null)?.closest('.role-pill');
-    if (pill) {
-      const role = (pill as HTMLElement).dataset.role;
-      const profile = (pill as HTMLElement).dataset.profile;
-      this.assignProfileRole(profile, role);
-      return;
-    }
-    const card = (event.target as HTMLElement | null)?.closest('.agent-card');
-    if (card) {
-      const profile = (card as HTMLElement).dataset.profile;
-      this.editProfile(profile);
-    }
+  this.elements.teamProfileList?.addEventListener('change', (event: Event) => {
+    const input = event.target as HTMLInputElement | null;
+    const profileName = input?.dataset.teamProfile;
+    if (!profileName) return;
+    this.toggleAuxProfile(profileName);
+    void this.persistAllSettings?.({ silent: true });
+    this.renderTeamProfileList?.();
   });
-  this.elements.refreshProfilesBtn?.addEventListener('click', () => this.renderProfileGrid());
 
   // Screenshot + vision controls
   this.elements.enableScreenshots?.addEventListener('change', () => this.updateScreenshotToggleState());
@@ -347,6 +449,18 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
   this.elements.sendScreenshotsAsImages?.addEventListener('change', () => this.updateScreenshotToggleState());
   this.elements.orchestratorToggle?.addEventListener('change', () => this.updatePromptSections?.());
   this.elements.orchestratorProfile?.addEventListener('change', () => this.updatePromptSections?.());
+
+  // Visible orchestrator controls sync with hidden ones
+  this.elements.orchestratorToggle?.addEventListener('change', () => {
+    const enabled = this.elements.orchestratorToggle?.checked === true;
+    const profileGroup = this.elements.orchestratorProfileSelectGroup as HTMLElement | null;
+    if (profileGroup) profileGroup.style.display = enabled ? '' : 'none';
+    this.updatePromptSections?.();
+    this.renderTeamProfileList?.();
+  });
+  this.elements.orchestratorProfile?.addEventListener('change', () => {
+    this.updatePromptSections?.();
+  });
 
   // Auto-save sessions toggle
   this.elements.autoSaveSession?.addEventListener('change', () => {
@@ -363,6 +477,23 @@ sidePanelProto.setupEventListeners = function setupEventListeners() {
       // User cancelled or API unavailable
     }
   });
+
+  // Generation tab — live persistence
+  const genPersist = () => this.updateActiveConfigFromGenerationTab?.();
+  this.elements.genTemperature?.addEventListener('input', () => {
+    if (this.elements.genTemperatureValue)
+      this.elements.genTemperatureValue.textContent = Number(this.elements.genTemperature.value).toFixed(2);
+    genPersist();
+  });
+  for (const id of ['genMaxTokens', 'genContextLimit', 'genTimeout', 'genScreenshotQuality'] as const) {
+    this.elements[id]?.addEventListener('change', genPersist);
+  }
+  for (const id of [
+    'genEnableScreenshots', 'genSendScreenshots', 'genStreamResponses',
+    'genShowThinking', 'genAutoScroll', 'genConfirmActions', 'genSaveHistory',
+  ] as const) {
+    this.elements[id]?.addEventListener('change', genPersist);
+  }
 
   // Save settings
   this.elements.saveSettingsBtn?.addEventListener('click', () => {
@@ -417,12 +548,6 @@ export PARCHI_RELAY_PORT="${port}"`;
   this.elements.cancelSettingsBtn?.addEventListener('click', () => {
     void this.cancelSettings();
   });
-
-  this.elements.exportSettingsBtn?.addEventListener('click', () => this.exportSettings());
-  this.elements.importSettingsBtn?.addEventListener('click', () => {
-    this.elements.importSettingsInput?.click();
-  });
-  this.elements.importSettingsInput?.addEventListener('change', (event) => this.importSettings(event));
 
   // Send message, queue, or stop depending on running state
   this.elements.sendBtn?.addEventListener('click', () => {
@@ -501,7 +626,7 @@ export PARCHI_RELAY_PORT="${port}"`;
     }
   });
   this.elements.userInput?.addEventListener('paste', (event: ClipboardEvent) => {
-    const files = Array.from(event.clipboardData?.files || []) as File[];
+    const files = extractFilesFromClipboardEvent(event);
     if (!files.length) return;
     event.preventDefault();
     void this.ingestFilesIntoComposer?.(files, 'paste');
@@ -595,6 +720,13 @@ export PARCHI_RELAY_PORT="${port}"`;
 
   // Profile editor controls
   this.elements.profileEditorProvider?.addEventListener('change', () => {
+    // Clear model fields whenever the provider changes so a stale model from a
+    // previously-cloned or previously-edited profile never gets saved against
+    // the wrong provider (e.g. gpt-4o saved under anthropic).
+    const modelInput = this.elements.profileEditorModelInput as HTMLInputElement | null;
+    const modelSelect = this.elements.profileEditorModel as HTMLSelectElement | null;
+    if (modelInput) modelInput.value = '';
+    if (modelSelect) modelSelect.value = '';
     this.toggleProfileEditorEndpoint();
     this.refreshModelCatalogForProfileEditor?.();
   });
@@ -750,6 +882,9 @@ sidePanelProto.recoverFromStuckState = function recoverFromStuckState() {
 
 sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any) {
   this._lastRuntimeMessageAt = Date.now();
+  if (message?.agentId && message.agentId !== 'main' && this.handleSubagentRuntimeMessage?.(message)) {
+    return;
+  }
   // Runtime messages are broadcast to all extension views. Only render events
   // that belong to the currently active session to avoid spilling output across
   // New Chat / history-loaded sessions.
@@ -1030,34 +1165,6 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
     this.clearErrorBanner();
     this.updateActivityState();
     this.activeToolName = message.tool || null;
-    // Track which tab the model is interacting with.
-    // Many browser tools resolve tabId internally via resolveTabId() so args.tabId
-    // may be missing. Fall back to the session's active tab for known browser tools.
-    const browserTools = [
-      'navigate',
-      'openTab',
-      'click',
-      'clickAt',
-      'type',
-      'pressKey',
-      'scroll',
-      'getContent',
-      'findHtml',
-      'screenshot',
-      'getTabs',
-      'switchTab',
-      'focusTab',
-      'closeTab',
-      'groupTabs',
-      'describeSessionTabs',
-      'watchVideo',
-      'getVideoInfo',
-    ];
-    let toolTabId = typeof message.args?.tabId === 'number' ? message.args.tabId : null;
-    if (!toolTabId && browserTools.includes(message.tool)) {
-      toolTabId = this.sessionTabsState?.activeTabId ?? null;
-    }
-    this.setInteractingTab(toolTabId);
     if (!this.streamingState) {
       this.startStreamingMessage();
     }
@@ -1112,9 +1219,6 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
     this.pendingToolCount = Math.max(0, this.pendingToolCount - 1);
     this.updateActivityState();
     this.activeToolName = null;
-    if (this.pendingToolCount === 0) {
-      this.setInteractingTab(null);
-    }
     if (!this.streamingState) {
       this.startStreamingMessage();
     }
@@ -1302,10 +1406,7 @@ sidePanelProto.handleRuntimeMessage = function handleRuntimeMessage(message: any
     }
     return;
   }
-  if (message.type === 'session_tabs_update') {
-    this.handleSessionTabsUpdate(message);
-    return;
-  }
+
   if (message.type === 'report_image_captured') {
     this.recordReportImage?.(message.image);
     this.updateReportImageSelection?.(message.selectedImageIds || []);

@@ -122,7 +122,13 @@ VIDEO / VISION:
   • watchVideo - Capture video frames when the answer depends on visual motion or frame-by-frame content.
 
 ORCHESTRATOR TOOLS (if enabled):
+  • set_orchestrator_plan - Define a dependency-aware DAG for multi-tab execution.
+  • get_orchestrator_plan - Inspect the current DAG, ready tasks, validation issues, and whiteboard state.
+  • update_orchestrator_task - Update one DAG task status or assignment metadata.
+  • dispatch_orchestrator_tasks - Launch ready tasks into subagents up to the session tab cap.
   • spawn_subagent - Launch a focused helper agent with a separate goal/prompt.
+  • list_subagents - Inspect running and completed helper agents.
+  • await_subagent - Wait for one or more helper agents, then finalize matching DAG tasks.
   • subagent_complete - Return a sub-agent summary payload.
 </tools>
 

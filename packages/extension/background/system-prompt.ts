@@ -61,7 +61,7 @@ If vision tools are enabled, use them when visual structure or media context can
     : '<vision_tools>Vision-capable tools are disabled for this model.</vision_tools>';
   const orchestratorToolSection = context.orchestratorEnabled
     ? availableToolNames.includes('spawn_subagent')
-      ? '<orchestrator_tools>Orchestrator tools enabled: spawn_subagent, subagent_complete. Use spawn_subagent for focused parallel work, and have each sub-agent report via subagent_complete.</orchestrator_tools>'
+      ? '<orchestrator_tools>Orchestrator tools enabled: set_orchestrator_plan, get_orchestrator_plan, update_orchestrator_task, dispatch_orchestrator_tasks, spawn_subagent, list_subagents, await_subagent, subagent_complete. Use set_orchestrator_plan before dispatch, then spawn/await/list helpers as the DAG advances.</orchestrator_tools>'
       : '<orchestrator_tools>Orchestrator mode is enabled.</orchestrator_tools>'
     : '';
 
@@ -85,6 +85,8 @@ Create 3-6 specific action steps, then proceed.
     const steps = sessionState.currentPlan.steps;
     const doneCount = steps.filter((s) => s.status === 'done').length;
     const currentIndex = steps.findIndex((s) => s.status !== 'done');
+    const launchedSubagents = Math.max(0, Number(sessionState.subAgentCount || 0));
+    const requiresSubagentFanout = context.orchestratorEnabled && launchedSubagents < 2;
     const planLines = steps.map((step, i) => {
       const marker = step.status === 'done' ? '[✓]' : i === currentIndex ? '[→]' : '[ ]';
       return `${marker} step_index=${i}: ${step.title}`;
@@ -116,6 +118,20 @@ VERIFICATION: ⚠️ PENDING - getContent NOT called
 
 You MUST call getContent to verify your action before proceeding.
 Do NOT call update_plan or any other tool until you call getContent.
+</execution_state>`;
+    } else if (requiresSubagentFanout) {
+      requiredNextCall = 'spawn_subagent({ name: "...", profile: "...", tasks: ["..."] })';
+      stateSection = `
+<execution_state>
+PROGRESS: ${doneCount}/${steps.length} steps complete
+${planLines.join('\n')}
+
+ORCHESTRATOR SUCCESS GATE: launch at least 2 sub-agents before finalizing.
+SUB-AGENTS LAUNCHED: ${launchedSubagents}/2
+
+⛔ REQUIRED NEXT CALL: ${requiredNextCall}
+
+Delegate distinct work to additional sub-agents, then continue once at least two child sessions exist.
 </execution_state>`;
     } else {
       // Ready to mark step done or execute next action

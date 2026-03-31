@@ -1,5 +1,6 @@
 import type { ToolDefinition } from '@parchi/shared';
 import { MAX_SESSION_TABS } from './browser-tool-shared.js';
+import { ADVANCED_BROWSER_TOOL_DEFINITIONS } from './browser-tool-definitions-advanced.js';
 
 export const BASE_BROWSER_TOOL_DEFINITIONS = [
   {
@@ -247,6 +248,7 @@ export const BASE_BROWSER_TOOL_DEFINITIONS = [
       },
     },
   },
+  ...ADVANCED_BROWSER_TOOL_DEFINITIONS,
 ] as const satisfies readonly ToolDefinition[];
 
 export type BrowserToolName = (typeof BASE_BROWSER_TOOL_DEFINITIONS)[number]['name'];

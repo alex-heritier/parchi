@@ -1,8 +1,9 @@
 import type { RunPlan } from '@parchi/shared';
+import type { RecordingCoordinator } from '../recording/recording-coordinator.js';
 import type { RelayBridge } from '../relay/relay-bridge.js';
 import type { BrowserTools } from '../tools/browser-tools.js';
-import type { RecordingCoordinator } from '../recording/recording-coordinator.js';
 import type { RunMeta, SessionState, SessionTokenVisibility } from './service-types.js';
+import type { SubagentTabBadgeState } from './subagent-tab-badges.js';
 
 export type ActiveRun = {
   runMeta: RunMeta;
@@ -34,6 +35,7 @@ export type ServiceContext = {
   cancelledRunIds: Set<string>;
   sidepanelLifecyclePorts: Set<chrome.runtime.Port>;
   recordingCoordinator: RecordingCoordinator;
+  subagentTabBadges: Map<number, SubagentTabBadgeState>;
 
   // Kimi header state
   kimiHeaderRuleOk: boolean;
@@ -48,6 +50,9 @@ export type ServiceContext = {
   sendToSidePanel(message: unknown): void;
   getSessionState(sessionId: string): SessionState;
   getBrowserTools(sessionId: string): BrowserTools;
+  releaseSessionResources(sessionId: string): void;
+  setSubagentTabBadge(tabId: number, state: SubagentTabBadgeState): void;
+  syncSubagentTabBadge(tabId: number): void;
   emitTokenTrace(runMeta: RunMeta, sessionState: SessionState, payload: TokenTracePayload): void;
   isRunCancelled(runId: string): boolean;
   registerActiveRun(runMeta: RunMeta, origin: 'sidepanel' | 'relay'): AbortController;
