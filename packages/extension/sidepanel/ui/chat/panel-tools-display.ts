@@ -86,19 +86,12 @@ sidePanelProto.createToolElement = function createToolElement(entry: any) {
   container.addEventListener(
     'click',
     () => {
-      const existing = container.querySelector('.tool-detail');
-      if (existing) {
-        existing.remove();
-        return;
-      }
       if (!entry.result) return;
-      const detail = document.createElement('div');
-      detail.className = 'tool-detail';
       const resultText =
         typeof entry.result === 'object' ? JSON.stringify(entry.result, null, 2) : String(entry.result);
-      const truncated = resultText.length > 2000 ? `${resultText.slice(0, 2000)}\n...(truncated)` : resultText;
-      detail.textContent = truncated;
-      container.appendChild(detail);
+      if (typeof this.openFileViewer === 'function') {
+        this.openFileViewer(resultText, entry.fullToolName || entry.toolName, entry.id);
+      }
     },
     signal ? { signal } : undefined,
   );
