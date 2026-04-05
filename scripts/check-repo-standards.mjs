@@ -6,7 +6,7 @@ import path from 'node:path';
 
 const DEFAULT_MAX_LINES = 300;
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.css', '.html']);
-const LINE_COUNT_IGNORE_SEGMENTS = ['dist/', 'dist-firefox/', 'dist-relay/', 'node_modules/'];
+const LINE_COUNT_IGNORE_SEGMENTS = ['dist/', 'dist-firefox/', 'node_modules/'];
 const LINE_COUNT_IGNORE_PATHS = [/^packages\/backend\/convex\/_generated\//, /^docs\//];
 
 const parseArgs = () => {
@@ -65,6 +65,10 @@ const resolveBaseRef = (requestedBase) => {
     return run(`git merge-base HEAD ${requestedBase}`);
   }
 
+  if (tryRun('git rev-parse --verify origin/master')) {
+    return run('git merge-base HEAD origin/master');
+  }
+
   if (tryRun('git rev-parse --verify origin/main')) {
     return run('git merge-base HEAD origin/main');
   }
@@ -116,9 +120,6 @@ const DEEP_SHARED_IMPORT_PATTERNS = [/from\s+['"][^'"]*shared\/src\//, /import\(
 const DEEP_SHARED_IMPORT_IGNORE_SEGMENTS = [
   'dist/',
   'dist-firefox/',
-  'dist-relay/',
-  'dist-cli/',
-  'dist-electron-agent/',
   'node_modules/',
   'packages/shared/',
 ];

@@ -1,18 +1,10 @@
 import type { RunPlan } from '@parchi/shared';
 import { RecordingCoordinator } from '../recording/recording-coordinator.js';
-import type { RelayBridge } from '../relay/relay-bridge.js';
 import { BrowserTools } from '../tools/browser-tools.js';
 import { processUserMessage } from './agent/agent-loop/index.js';
 import { processContextCompaction } from './agent/compaction/runner.js';
 import { setupActionClickOpensPanel, setupKimiUserAgentHeaderSupport } from './browser-compat.js';
 import { handleMessage } from './message-router.js';
-import {
-  createApplyRelayConfig,
-  createRelayBridge,
-  handleRelayRpc,
-  initRelay,
-  scheduleRelayAutoPairCheck,
-} from './relay/relay-handler.js';
 import type { ActiveRun, ServiceContext, TokenTracePayload } from './service-context.js';
 import type { RunMeta, SessionState } from './service-types.js';
 import {
@@ -38,12 +30,6 @@ export class BackgroundService implements ServiceContext {
   currentPlan: RunPlan | null;
   subAgentCount: number;
   subAgentProfileCursor: number;
-  relay: RelayBridge;
-  relayActiveRunIds: Set<string>;
-  private applyRelayConfig: () => Promise<void>;
-  _relayStatusTimer: ReturnType<typeof setTimeout> | undefined;
-  _relayAutoPairTimer: ReturnType<typeof setTimeout> | undefined;
-  private relayKeepalivePorts: Set<chrome.runtime.Port>;
   sidepanelLifecyclePorts: Set<chrome.runtime.Port>;
   kimiHeaderRuleOk: boolean;
   kimiHeaderMode: 'dnr' | 'webRequest' | 'none';
@@ -63,8 +49,6 @@ export class BackgroundService implements ServiceContext {
     this.currentPlan = null;
     this.subAgentCount = 0;
     this.subAgentProfileCursor = 0;
-    this.relayActiveRunIds = new Set();
-    this.relayKeepalivePorts = new Set();
     this.sidepanelLifecyclePorts = new Set();
     this.activeRuns = new Map();
     this.activeRunIdBySessionId = new Map();
@@ -76,15 +60,12 @@ export class BackgroundService implements ServiceContext {
     this.kimiHeaderRuleOk = false;
     this.kimiHeaderMode = 'none';
 
-    this.relay = createRelayBridge(this);
-    this.applyRelayConfig = createApplyRelayConfig(this);
-
     this.init();
   }
 
   private init() {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      void handleMessage(this, message, sender, sendResponse, this.applyRelayConfig).catch((error) => {
+      void handleMessage(this, message, sender, sendResponse).catch((error) => {
         console.error('Unhandled runtime message error:', error);
         try {
           const err = error instanceof Error ? error : new Error(String(error ?? 'Unknown error'));
@@ -117,18 +98,9 @@ export class BackgroundService implements ServiceContext {
         console.warn('Failed to configure Kimi User-Agent header support:', error);
       });
 
-    chrome.runtime.onStartup?.addListener(() => void this.applyRelayConfig());
-    chrome.runtime.onInstalled?.addListener(() => void this.applyRelayConfig());
     chrome.tabs.onRemoved.addListener((tabId) => this.subagentTabBadges.delete(tabId));
 
     chrome.runtime.onConnect.addListener((port) => {
-      if (port.name === 'relay-keepalive') {
-        this.relayKeepalivePorts.add(port);
-        port.onDisconnect.addListener(() => this.relayKeepalivePorts.delete(port));
-        port.onMessage.addListener(() => {});
-        return;
-      }
-
       if (port.name === 'sidepanel-lifecycle') {
         this.sidepanelLifecyclePorts.add(port);
         port.onMessage.addListener((message) => {
@@ -146,8 +118,6 @@ export class BackgroundService implements ServiceContext {
         });
       }
     });
-
-    void initRelay(this, this.applyRelayConfig);
   }
 
   // ServiceContext implementation
@@ -192,11 +162,11 @@ export class BackgroundService implements ServiceContext {
     return isRunCancelled(this.cancelledRunIds, runId);
   }
 
-  registerActiveRun(runMeta: RunMeta, origin: 'sidepanel' | 'relay'): AbortController {
+  registerActiveRun(runMeta: RunMeta, origin: 'sidepanel'): AbortController {
     return registerActiveRun(this, runMeta, origin);
   }
 
-  cleanupRun(runMeta: RunMeta, origin: 'sidepanel' | 'relay') {
+  cleanupRun(runMeta: RunMeta, origin: 'sidepanel') {
     cleanupRun(this, runMeta, origin);
   }
 
@@ -214,7 +184,7 @@ export class BackgroundService implements ServiceContext {
     conversationHistory: any[],
     selectedTabs: chrome.tabs.Tab[],
     sessionId: string,
-    meta?: Partial<RunMeta> & { origin?: 'sidepanel' | 'relay' },
+    meta?: Partial<RunMeta> & { origin?: 'sidepanel' },
     recordedContext?: any,
   ) {
     return processUserMessage(this, userMessage, conversationHistory, selectedTabs, sessionId, meta, recordedContext);
@@ -252,14 +222,5 @@ export class BackgroundService implements ServiceContext {
 
   async generateWorkflowPrompt(sessionContext: string, maxOutputTokens?: number) {
     return generateWorkflowPrompt(sessionContext, maxOutputTokens);
-  }
-
-  // For backward compatibility with relay handler
-  async handleRelayRpc(method: string, params: unknown) {
-    return handleRelayRpc(this, method, params);
-  }
-
-  scheduleRelayAutoPairCheck(delayMs = 1500) {
-    scheduleRelayAutoPairCheck(this, delayMs);
   }
 }
