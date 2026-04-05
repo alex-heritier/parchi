@@ -315,8 +315,6 @@ if (doFirefox) {
   }
 
   console.log(`🚀 Submitting to Firefox Add-ons (channel: ${channel})...`);
-  const amoMeta = path.join(root, 'amo-metadata.json');
-  const metaFlag = channel === 'listed' && fs.existsSync(amoMeta) ? ` --amo-metadata="${amoMeta}"` : '';
   try {
     run(
       'npx web-ext sign ' +
@@ -324,9 +322,8 @@ if (doFirefox) {
         '--source-dir=dist-firefox ' +
         '--artifacts-dir=dist-firefox ' +
         `--api-key=${AMO_JWT_ISSUER} ` +
-        `--api-secret=${AMO_JWT_SECRET}` +
-        metaFlag +
-        ' --approval-timeout=0',
+        `--api-secret=${AMO_JWT_SECRET} ` +
+        '--approval-timeout=0',
     );
     console.log(`  ✓ Firefox Add-ons: submitted (${channel})\n`);
   } catch (err) {
