@@ -15,12 +15,6 @@
     "backend:dev": "npm run dev -w @parchi/backend",
     "backend:deploy": "npm run deploy -w @parchi/backend",
     "backend:codegen": "npm run codegen -w @parchi/backend",
-    "relay:daemon": "node dist-relay/relay-daemon.js",
-    "relay": "node dist-relay/relay.js",
-    "relay:secure": "node scripts/relay-secure.mjs",
-    "parchi": "node dist-cli/parchi.js",
-    "electron:agent": "node dist-electron-agent/electron-agent.js",
-    "electron:secure": "node scripts/electron-agent-secure.mjs",
     "validate": "node scripts/build.mjs && node dist/tests/validate-extension.js",
     "test": "node scripts/build.mjs && node dist/tests/run-tests.js",
     "test:unit": "node scripts/build.mjs && node dist/tests/unit/run-unit-tests.js",
@@ -30,8 +24,6 @@
     "test:orchestrator": "node scripts/build.mjs && node dist/tests/orchestrator/run-fixture-executor.js",
     "test:e2e": "node scripts/build.mjs && node dist/tests/e2e/run-e2e.js",
     "test:e2e:orchestrator": "node scripts/build.mjs && node dist/tests/e2e/run-orchestrator-runtime-e2e.js",
-    "test:relay": "node scripts/build.mjs && node dist/tests/relay/run-relay-tests.js && node dist/tests/relay/run-electron-agent-tests.js",
-    "bench:relay": "node scripts/build.mjs && node dist/tests/relay/run-relay-benchmark.js",
     "perf:tabs": "node scripts/build.mjs && node dist/tests/perf/run-tab-cpu-audit.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "check:repo-standards": "node scripts/check-repo-standards.mjs",
@@ -70,11 +62,6 @@
   ],
   "author": "",
   "license": "MIT",
-  "bin": {
-    "parchi": "dist-cli/parchi.js",
-    "parchi-relay": "dist-relay/relay.js",
-    "parchi-electron-agent": "dist-electron-agent/electron-agent.js"
-  },
   "dependencies": {
     "@ai-sdk/anthropic": "3.0.17",
     "@ai-sdk/openai": "3.0.13",
@@ -83,8 +70,7 @@
     "@convex-dev/auth": "0.0.90",
     "ai": "6.0.42",
     "convex": "1.31.7",
-    "stripe": "18.5.0",
-    "ws": "8.18.3"
+    "stripe": "18.5.0"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
@@ -98,7 +84,6 @@
     "@biomejs/biome": "1.9.4",
     "@types/chrome": "0.0.268",
     "@types/node": "22.10.5",
-    "@types/ws": "8.18.1",
     "agent-browser": "^0.11.1",
     "c8": "^11.0.0",
     "esbuild": "0.27.2",
