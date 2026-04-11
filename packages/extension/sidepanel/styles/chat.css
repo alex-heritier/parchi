@@ -130,25 +130,25 @@ body.sidebar-open .fab-group {
 }
 
 .context-inspector-fab {
-  height: 34px;
-  min-width: 110px;
-  max-width: 150px;
-  padding: 0 10px;
-  border-radius: 10px;
+  height: 24px;
+  min-width: 80px;
+  max-width: 130px;
+  padding: 0 6px;
+  border-radius: 7px;
   border: 1px solid var(--ink-2);
   background: var(--card);
   color: var(--muted);
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
+  gap: 4px;
+  font-size: 9px;
   font-family: var(--font-mono);
   letter-spacing: 0.01em;
   white-space: nowrap;
   overflow: hidden;
   cursor: pointer;
   opacity: 0.82;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 4px rgba(0, 0, 0, 0.2);
   transition: all 220ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -173,10 +173,13 @@ body.sidebar-open .fab-group {
 .context-inspector-icon {
   opacity: 0.65;
   flex-shrink: 0;
+  width: 10px;
+  height: 10px;
 }
 
 .context-inspector-value {
   color: var(--foreground);
+  font-size: 9px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -184,6 +187,7 @@ body.sidebar-open .fab-group {
 
 .context-inspector-meta {
   color: var(--muted-dim);
+  font-size: 9px;
   flex-shrink: 0;
 }
 

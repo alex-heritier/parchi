@@ -67,6 +67,9 @@ sidePanelProto.loadSettings = async function loadSettings() {
   })();
   this.currentConfig = this.configs[storedActiveConfig] ? storedActiveConfig : legacyActiveConfig || 'default';
   this.auxAgentProfiles = settings.auxAgentProfiles || [];
+  if (settings.enabledComposerModels && typeof settings.enabledComposerModels === 'object') {
+    this._enabledComposerModels = settings.enabledComposerModels;
+  }
   this.applyUiZoom(settings.uiZoom ?? 1, { persist: false });
   this.applyTypography(settings.fontPreset ?? 'default', settings.fontStylePreset ?? 'normal', { persist: false });
   this.currentTheme = settings.theme || DEFAULT_THEME_ID;

@@ -66,6 +66,7 @@ sidePanelProto.persistAllSettings = async function persistAllSettings({ silent =
       theme: this.currentTheme || DEFAULT_THEME_ID,
       activeConfig: this.currentConfig,
       configs: this.configs,
+      enabledComposerModels: this._enabledComposerModels || {},
       controllers: [],
     };
     await replaceSettingsStoreSnapshot(payload);

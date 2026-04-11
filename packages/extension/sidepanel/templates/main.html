@@ -117,29 +117,23 @@
                                     <div
                                         id="modelSelectorWrap"
                                         class="model-selector"
-                                        title="Switch profile"
+                                        title="Switch model"
                                     >
-                                        <select id="modelSelect">
-                                            <option value="">
-                                                Profile
-                                            </option>
+                                        <select id="modelSelect" class="hidden">
+                                            <option value="">Profile</option>
                                         </select>
-                                        <svg
-                                            class="model-selector-chevron"
-                                            width="12"
-                                            height="12"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="2"
-                                        >
-                                            <polyline points="6 9 12 15 18 9" />
-                                        </svg>
-                                    </div>
-                                    <div class="zoom-controls" title="Text size">
-                                        <button id="zoomOutBtn" class="zoom-btn" type="button" aria-label="Decrease text size">A−</button>
-                                        <button id="zoomResetBtn" class="zoom-btn zoom-reset" type="button" aria-label="Reset text size">100%</button>
-                                        <button id="zoomInBtn" class="zoom-btn" type="button" aria-label="Increase text size">A+</button>
+                                        <button id="modelSelectorBtn" class="model-selector-trigger" type="button">
+                                            <span id="modelSelectorLabel" class="model-selector-label">Select model</span>
+                                            <svg class="model-selector-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <polyline points="6 9 12 15 18 9" />
+                                            </svg>
+                                        </button>
+                                        <div id="modelSelectorDropdown" class="model-selector-dropdown hidden">
+                                            <div class="model-selector-search-wrap">
+                                                <input id="modelSelectorSearch" class="model-selector-search" type="text" placeholder="Search models..." autocomplete="off" />
+                                            </div>
+                                            <div id="modelSelectorList" class="model-selector-list"></div>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="composer-toolbar-right">

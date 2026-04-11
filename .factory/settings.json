@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$FACTORY_PROJECT_DIR\"/.factory/hooks/auto-commit-build.sh",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -254,44 +254,6 @@
   color: var(--foreground);
 }
 
-/* Zoom controls */
-.zoom-controls {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.zoom-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-  border: 1px solid transparent;
-  background: transparent;
-  transition: all var(--duration-fast) ease;
-}
-
-.zoom-btn:hover {
-  border-color: var(--ink-2);
-  background: var(--card-hover);
-  color: var(--foreground);
-}
-
-.zoom-btn:active {
-  transform: scale(0.96);
-}
-
-.zoom-reset {
-  font-size: 11px;
-  color: var(--foreground);
-}
-
 /* Status — kept for JS compatibility but hidden */
 .composer-status {
   display: none;
@@ -436,7 +398,7 @@
   min-width: 180px;
   flex-shrink: 0;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .model-selector:hover {
@@ -476,7 +438,8 @@
   z-index: 0;
 }
 
-.model-selector select {
+/* Trigger button replaces native select */
+.model-selector-trigger {
   background: transparent;
   border: none;
   color: var(--muted);
@@ -485,11 +448,9 @@
   font-weight: 450;
   letter-spacing: 0.02em;
   cursor: pointer;
-  appearance: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  /* Fill entire pill so click anywhere opens dropdown */
   position: absolute;
   inset: 0;
   padding: 0 28px 0 12px;
@@ -497,14 +458,18 @@
   height: 100%;
   border-radius: inherit;
   z-index: 1;
+  display: flex;
+  align-items: center;
 }
 
-.model-selector.parchi-glow select {
+.model-selector-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-selector.parchi-glow .model-selector-trigger {
   color: var(--accent-light);
-}
-
-.model-selector select:focus {
-  outline: none;
 }
 
 .model-selector-chevron {
@@ -521,6 +486,138 @@
 
 .model-selector:hover .model-selector-chevron {
   opacity: 0.8;
+}
+
+/* Custom searchable dropdown — portaled to body, positioned via JS */
+.model-selector-dropdown {
+  position: fixed;
+  width: 320px;
+  max-height: 30vh;
+  background: var(--card);
+  border: 1px solid var(--ink-3);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.25);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.model-selector-dropdown.hidden {
+  display: none;
+}
+
+.model-selector-search-wrap {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ink-1);
+  flex-shrink: 0;
+}
+
+.model-selector-search {
+  width: 100%;
+  background: var(--background);
+  border: 1px solid var(--ink-2);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--foreground);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.model-selector-search:focus {
+  border-color: var(--accent);
+}
+
+.model-selector-search::placeholder {
+  color: var(--muted-dim);
+}
+
+.model-selector-list {
+  overflow-y: auto;
+  padding: 4px;
+  flex: 1;
+  min-height: 0;
+}
+
+.model-dropdown-group {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-dim);
+  padding: 8px 10px 4px;
+}
+
+.model-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 80ms ease;
+  border-bottom: 1px solid transparent;
+}
+
+.model-dropdown-item:hover,
+.model-dropdown-item.selected {
+  background: var(--ink-1);
+}
+
+.model-dropdown-item.active {
+  background: rgb(var(--accent-rgb) / 0.08);
+}
+
+.model-dropdown-item.active:hover,
+.model-dropdown-item.active.selected {
+  background: rgb(var(--accent-rgb) / 0.14);
+}
+
+.model-dropdown-item-name {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  font-weight: 450;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.model-dropdown-item.active .model-dropdown-item-name {
+  color: var(--accent-light);
+}
+
+.model-dropdown-item-badge {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--muted-dim);
+  background: var(--ink-1);
+  border: 1px solid var(--ink-2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.model-dropdown-item-check {
+  color: var(--accent);
+  font-size: 12px;
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+}
+
+.model-dropdown-empty {
+  padding: 16px 10px;
+  font-size: 12px;
+  color: var(--muted-dim);
+  text-align: center;
 }
 
 .setup-access-btn {

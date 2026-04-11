@@ -51,7 +51,22 @@ export const setupUIListeners = function setupUIListeners(this: SidePanelUI & Re
     this.closeContextInspectorPopover?.();
   });
 
-  // Model selector
+  // Model selector - custom searchable dropdown
+  this.elements.modelSelectorBtn?.addEventListener('click', () => {
+    const dropdown = this.elements.modelSelectorDropdown;
+    if (dropdown?.classList.contains('hidden')) {
+      this._openModelDropdown?.();
+    } else {
+      this._closeModelDropdown?.();
+    }
+  });
+  this.elements.modelSelectorSearch?.addEventListener('input', () => {
+    this._renderModelDropdownList?.(this.elements.modelSelectorSearch?.value || '');
+  });
+  this.elements.modelSelectorSearch?.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape') this._closeModelDropdown?.();
+  });
+  // Keep hidden select for compat
   this.elements.modelSelect?.addEventListener('change', () => {
     void this.handleModelSelectChange();
   });
