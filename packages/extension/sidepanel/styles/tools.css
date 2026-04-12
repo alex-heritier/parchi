@@ -4,14 +4,13 @@
 
 /* Plan Drawer — Merged with composer container */
 .plan-drawer {
-  background: var(--card);
+  background: var(--background);
   border: 1px solid var(--ink-2);
   border-bottom: none;
   border-radius: 10px 10px 0 0;
   overflow: hidden;
   animation: drawerGrow 0.25s var(--ease-out-expo);
   transform-origin: bottom center;
-  width: min(var(--content-max), 100%);
   margin: 0 12px;
 }
 
@@ -47,7 +46,7 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 8px 12px;
+  padding: 6px 12px;
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--ink-1);

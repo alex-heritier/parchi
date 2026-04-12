@@ -29,9 +29,9 @@ const PROVIDER_SVGS: Record<string, string> = {
   // Qwen (Alibaba) — official mark (source: svgl/qwen_dark)
   qwen:
     '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.604 1.34c.393.69.784 1.382 1.174 2.075a.18.18 0 0 0 .157.091h5.552c.174 0 .322.11.446.327l1.454 2.57c.19.337.24.478.024.837-.26.43-.513.864-.76 1.3l-.367.658c-.106.196-.223.28-.04.512l2.652 4.637c.172.301.111.494-.043.77-.437.785-.882 1.564-1.335 2.34-.159.272-.352.375-.68.37-.777-.016-1.552-.01-2.327.016a.099.099 0 0 0-.081.05 575.097 575.097 0 0 1-2.705 4.74c-.169.293-.38.363-.725.364-.997.003-2.002.004-3.017.002a.537.537 0 0 1-.465-.271l-1.335-2.323a.09.09 0 0 0-.083-.049H4.982c-.285.03-.553-.001-.805-.092l-1.603-2.77a.543.543 0 0 1-.002-.54l1.207-2.12a.198.198 0 0 0 0-.197 550.951 550.951 0 0 1-1.875-3.272l-.79-1.395c-.16-.31-.173-.496.095-.965.465-.813.927-1.625 1.387-2.436.132-.234.304-.334.584-.335a338.3 338.3 0 0 1 2.589-.001.124.124 0 0 0 .107-.063l2.806-4.895a.488.488 0 0 1 .422-.246c.524-.001 1.053 0 1.583-.006L11.704 1c.341-.003.724.032.9.34Zm-3.432.403a.06.06 0 0 0-.052.03L6.254 6.788a.157.157 0 0 1-.135.078H3.253c-.056 0-.07.025-.041.074l5.81 10.156c.025.042.013.062-.034.063l-2.795.015a.218.218 0 0 0-.2.116l-1.32 2.31c-.044.078-.021.118.068.118l5.716.008c.046 0 .08.02.104.061l1.403 2.454c.046.081.092.082.139 0l5.006-8.76.783-1.382a.055.055 0 0 1 .096 0l1.424 2.53a.122.122 0 0 0 .107.062l2.763-.02a.04.04 0 0 0 .035-.02.041.041 0 0 0 0-.04l-2.9-5.086a.108.108 0 0 1 0-.113l.293-.507 1.12-1.977c.024-.041.012-.062-.035-.062H9.2c-.059 0-.073-.026-.043-.077l1.434-2.505a.107.107 0 0 0 0-.114L9.225 1.774a.06.06 0 0 0-.053-.031Zm6.29 8.02c.046 0 .058.02.034.06l-.832 1.465-2.613 4.585a.056.056 0 0 1-.05.029.058.058 0 0 1-.05-.029L8.498 9.841c-.02-.034-.01-.052.028-.054l.216-.012 6.722-.012Z"/></svg>',
-  // GLM (Zhipu) — stylized square grid mark
+  // GLM (z.ai) — official z.ai diagonal-Z mark
   glm:
-    '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v16H4z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 12h8M12 8v8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    '<svg viewBox="0 0 30 30" fill="currentColor"><path d="M15.47 7.1l-1.3 1.85c-.2.29-.54.47-.9.47H6.17V7.09h9.3Z"/><polygon points="24.3 7.1 13.14 22.91 5.7 22.91 16.86 7.1"/><path d="M14.53 22.91l1.31-1.86c.2-.29.54-.47.9-.47h7.09v2.33h-9.3Z"/></svg>',
   // MiniMax — stylized "M" wave mark
   minimax:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 17 6.5 5l5.5 14 5.5-14L22 17"/></svg>',
@@ -60,12 +60,23 @@ function formatContextWindow(value?: number): string {
   return String(value);
 }
 
-const DEFAULT_ENABLED_MODELS = [
-  'gpt-5.4', 'gpt-5.4-mini',
-  'claude-sonnet-4-6-20250514', 'claude-sonnet-4.6', 'claude-opus-4-6-20250514', 'claude-opus-4.6',
-  'kimi-for-coding',
-  'glm-5.1', 'glm-5v-turbo',
+/** Exact model IDs or prefixes to enable by default. */
+const DEFAULT_ENABLED_PREFIXES = [
+  'gpt-5.4',          // gpt-5.4, gpt-5.4-mini, etc.
+  'claude-sonnet-4.6', 'claude-sonnet-4-6',
+  'claude-opus-4.6', 'claude-opus-4-6',
+  'kimi',             // kimi-for-coding, kimi-k2, etc.
+  'grok',             // grok-code-fast-1, etc.
+  'minimax', 'MiniMax',
+  'glm-5',            // glm-5.1, glm-5v-turbo
 ];
+
+function isDefaultEnabled(modelId: string, providerType: string): boolean {
+  // All custom provider models enabled
+  if (providerType === 'custom') return true;
+  const lower = modelId.toLowerCase();
+  return DEFAULT_ENABLED_PREFIXES.some((p) => lower.startsWith(p.toLowerCase()));
+}
 
 function modelKey(providerId: string, modelId: string): string {
   return `${providerId}::${modelId}`;
@@ -73,10 +84,7 @@ function modelKey(providerId: string, modelId: string): string {
 
 function isModelChecked(ui: any, providerId: string, modelId: string): boolean {
   const map: Record<string, boolean> | undefined = ui._enabledComposerModels;
-  if (!map) {
-    // First load: use defaults — match by modelId suffix
-    return DEFAULT_ENABLED_MODELS.some((d) => modelId === d || modelId.startsWith(d) || modelId.endsWith(d));
-  }
+  if (!map) return false; // will be initialized in renderModelSelectorGrid
   const key = modelKey(providerId, modelId);
   return map[key] === true;
 }
@@ -112,16 +120,7 @@ sidePanelProto.renderModelSelectorGrid = function renderModelSelectorGrid() {
     const map: Record<string, boolean> = {};
     for (const p of providers) {
       for (const m of p.models) {
-        const key = modelKey(p.id, m.id);
-        map[key] = DEFAULT_ENABLED_MODELS.some(
-          (d) => m.id === d || m.id.startsWith(d) || m.id.endsWith(d),
-        );
-      }
-    }
-    // Also include all custom provider models by default
-    for (const p of providers) {
-      if (p.provider === 'custom') {
-        for (const m of p.models) map[modelKey(p.id, m.id)] = true;
+        map[modelKey(p.id, m.id)] = isDefaultEnabled(m.id, p.provider);
       }
     }
     this._enabledComposerModels = map;
