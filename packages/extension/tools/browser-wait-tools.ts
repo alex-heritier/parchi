@@ -140,3 +140,14 @@ export async function waitForTool(ctx: BrowserToolsDelegate, args: BrowserToolAr
 
   return result || { success: false, error: 'Script execution failed.' };
 }
+
+const MAX_SLEEP_MS = 60_000;
+
+export async function sleepTool(args: BrowserToolArgs) {
+  const ms = Number(args.ms);
+  if (!Number.isFinite(ms) || ms <= 0 || ms > MAX_SLEEP_MS) {
+    return { success: false, error: `ms must be between 1 and ${MAX_SLEEP_MS}.` };
+  }
+  await new Promise((resolve) => setTimeout(resolve, ms));
+  return { success: true, waitedMs: ms };
+}

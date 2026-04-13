@@ -14,7 +14,7 @@ import {
 } from './browser-tab-tools.js';
 import type { BrowserToolName } from './browser-tool-definitions.js';
 import type { BrowserToolArgs, BrowserToolsDelegate } from './browser-tool-shared.js';
-import { waitForTool } from './browser-wait-tools.js';
+import { sleepTool, waitForTool } from './browser-wait-tools.js';
 
 /** Tool handler function type */
 export type ToolHandler = (args: BrowserToolArgs) => Promise<unknown>;
@@ -36,6 +36,7 @@ export function createToolHandlers(delegate: BrowserToolsDelegate): ToolHandlerM
     pressKey: (args) => pressKeyTool(delegate, args),
     scroll: (args) => scrollTool(delegate, args),
     waitFor: (args) => waitForTool(delegate, args),
+    sleep: (args) => sleepTool(args),
     evaluate: (args) => evaluateTool(delegate, args),
     getContent: (args) => getContentTool(delegate, args),
     findHtml: (args) => findHtmlTool(delegate, args),

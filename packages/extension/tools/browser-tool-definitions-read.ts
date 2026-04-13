@@ -93,4 +93,15 @@ export const READ_TOOLS = [
       properties: { tabId: { type: 'number', description: 'Optional tab id.' } },
     },
   },
+  {
+    name: 'sleep',
+    description: 'Pause execution for a fixed duration.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        ms: { type: 'number', description: 'Milliseconds to wait (1–60000).' },
+      },
+      required: ['ms'],
+    },
+  },
 ] as const satisfies readonly ToolDefinition[];

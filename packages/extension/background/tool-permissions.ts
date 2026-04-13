@@ -18,6 +18,7 @@ const TOOL_PERMISSION_CATEGORIES: Record<BrowserToolName, ToolPermissionCategory
   pressKey: 'interact',
   scroll: 'interact',
   waitFor: 'read',
+  sleep: 'read',
   evaluate: 'read',
   watchNetwork: 'read',
   getNetworkLog: 'read',
