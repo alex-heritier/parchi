@@ -31,6 +31,7 @@ export class BackgroundService implements ServiceContext {
   subAgentCount: number;
   subAgentProfileCursor: number;
   sidepanelLifecyclePorts: Set<chrome.runtime.Port>;
+  private sidePanelOpenByWindowId: Map<number, boolean>;
   kimiHeaderRuleOk: boolean;
   kimiHeaderMode: 'dnr' | 'webRequest' | 'none';
   recordingCoordinator: RecordingCoordinator;
@@ -50,6 +51,7 @@ export class BackgroundService implements ServiceContext {
     this.subAgentCount = 0;
     this.subAgentProfileCursor = 0;
     this.sidepanelLifecyclePorts = new Set();
+    this.sidePanelOpenByWindowId = new Map();
     this.activeRuns = new Map();
     this.activeRunIdBySessionId = new Map();
     this.cancelledRunIds = new Set();
@@ -82,7 +84,11 @@ export class BackgroundService implements ServiceContext {
       return true;
     });
 
-    setupActionClickOpensPanel();
+    setupActionClickOpensPanel((windowId) => {
+      void this.toggleSidePanel(windowId);
+    });
+    this.setupToggleShortcut();
+    this.setupSidePanelStateTracking();
 
     void setupKimiUserAgentHeaderSupport()
       .then((result) => {
@@ -118,6 +124,66 @@ export class BackgroundService implements ServiceContext {
         });
       }
     });
+  }
+  private setupSidePanelStateTracking() {
+    const sidePanelApi = chrome.sidePanel as unknown as {
+      onOpened?: { addListener: (listener: (info: { windowId: number }) => void) => void };
+      onClosed?: { addListener: (listener: (info: { windowId: number }) => void) => void };
+    };
+    sidePanelApi.onOpened?.addListener((info) => {
+      if (typeof info.windowId === 'number') {
+        this.sidePanelOpenByWindowId.set(info.windowId, true);
+      }
+    });
+    sidePanelApi.onClosed?.addListener((info) => {
+      if (typeof info.windowId === 'number') {
+        this.sidePanelOpenByWindowId.set(info.windowId, false);
+      }
+    });
+  }
+  private setupToggleShortcut() {
+    chrome.commands.onCommand.addListener((command, tab) => {
+      if (command !== 'toggle-parchi') return;
+      const windowId = typeof tab?.windowId === 'number' ? tab.windowId : undefined;
+      if (windowId == null) return;
+      void this.toggleSidePanel(windowId);
+    });
+  }
+  private async toggleSidePanel(windowId: number) {
+    const sidePanelApi = chrome.sidePanel as unknown as {
+      open?: (options: { windowId: number }) => Promise<void> | void;
+      close?: (options: { windowId: number }) => Promise<void> | void;
+    };
+    const sidebarActionApi = chrome.sidebarAction as unknown as {
+      open?: (options?: { windowId?: number }) => Promise<void> | void;
+    };
+    const isOpen = this.sidePanelOpenByWindowId.get(windowId) === true;
+    try {
+      if (isOpen && typeof sidePanelApi.close === 'function') {
+        const maybePromise = sidePanelApi.close?.({ windowId });
+        if (maybePromise && typeof (maybePromise as Promise<void>).catch === 'function') {
+          await maybePromise;
+        }
+        this.sidePanelOpenByWindowId.set(windowId, false);
+        return;
+      }
+      if (!isOpen && typeof sidePanelApi.open === 'function') {
+        const maybePromise = sidePanelApi.open?.({ windowId });
+        if (maybePromise && typeof (maybePromise as Promise<void>).catch === 'function') {
+          await maybePromise;
+        }
+        this.sidePanelOpenByWindowId.set(windowId, true);
+        return;
+      }
+      if (typeof sidebarActionApi.open === 'function') {
+        const maybePromise = sidebarActionApi.open({ windowId });
+        if (maybePromise && typeof (maybePromise as Promise<void>).catch === 'function') {
+          await maybePromise;
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to toggle Parchi side panel:', error);
+    }
   }
 
   // ServiceContext implementation

@@ -21,6 +21,7 @@ type Manifest = {
   description?: string;
   permissions?: string[];
   host_permissions?: string[];
+  commands?: Record<string, { suggested_key?: { default?: string; mac?: string }; description?: string }>;
   background?: { service_worker?: string };
   side_panel?: { default_path?: string };
   action?: Record<string, unknown>;
@@ -157,6 +158,16 @@ class ExtensionValidator {
     this.test('action is configured', () => {
       if (!this.manifest?.action) {
         throw new Error('Must have action configuration');
+      }
+    });
+
+    this.test('toggle shortcut is configured', () => {
+      const command = this.manifest?.commands?.['toggle-parchi'];
+      if (!command) {
+        throw new Error('Must define commands.toggle-parchi');
+      }
+      if (command.suggested_key?.mac !== 'Command+Shift+K') {
+        throw new Error('toggle-parchi must use Command+Shift+K on macOS');
       }
     });
 

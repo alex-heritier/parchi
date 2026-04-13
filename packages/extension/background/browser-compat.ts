@@ -105,34 +105,12 @@ export const getRuntimeFeatureFlags = (): RuntimeFeatureFlags => {
   };
 };
 
-export const setupActionClickOpensPanel = () => {
-  const features = getRuntimeFeatureFlags();
-  const runtimeChrome = chrome as unknown as RuntimeChromeCompat;
-  if (features.sidePanelBehavior) {
-    try {
-      const maybePromise = runtimeChrome.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: true });
-      if (maybePromise && typeof (maybePromise as Promise<void>).catch === 'function') {
-        (maybePromise as Promise<void>).catch((error) => console.warn('Failed to set side panel behavior:', error));
-      }
-    } catch (error) {
-      console.warn('Failed to set side panel behavior:', error);
-    }
-    return;
-  }
-
-  if (features.sidebarActionOpen && chrome.action?.onClicked) {
-    const sidebarApi = getBrowserSidebarAction();
-    if (!sidebarApi?.open) return;
-    chrome.action.onClicked.addListener((tab) => {
-      const options = typeof tab?.windowId === 'number' ? { windowId: tab.windowId } : undefined;
-      try {
-        const maybePromise = sidebarApi.open?.(options) as Promise<void> | undefined;
-        maybePromise?.catch((error) => console.error('Failed to open sidebar:', error));
-      } catch (error) {
-        console.error('Failed to open sidebar:', error);
-      }
-    });
-  }
+export const setupActionClickOpensPanel = (onActionClick: (windowId: number) => void) => {
+  if (!chrome.action?.onClicked) return;
+  chrome.action.onClicked.addListener((tab) => {
+    if (typeof tab?.windowId !== 'number') return;
+    onActionClick(tab.windowId);
+  });
 };
 
 export const setupKimiUserAgentHeaderSupport = async (): Promise<KimiHeaderSetupResult> => {
