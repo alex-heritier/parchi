@@ -654,16 +654,19 @@
 
 /* Token bar — bottom-right in composer wrapper padding */
 .composer-tokens-bar {
+  display: block;
+  min-height: 16px;
+  padding-top: 4px;
   font-size: 10px;
   font-family: var(--font-mono);
   color: var(--muted-dim);
   text-align: right;
-  padding: 4px 4px 0 0;
   letter-spacing: 0.02em;
+  line-height: 1;
 }
 
 .composer-tokens-bar:empty {
-  display: none;
+  visibility: hidden;
 }
 
 /* Narrow sidepanel adjustments */
