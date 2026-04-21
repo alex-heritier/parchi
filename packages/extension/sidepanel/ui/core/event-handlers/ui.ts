@@ -118,6 +118,23 @@ export const setupUIListeners = function setupUIListeners(this: SidePanelUI & Re
       setTimeout(() => btn.classList.remove('copied'), 2000);
     });
   });
+
+  // Delegated click: copy button for full assistant response
+  this.elements.chatMessages?.addEventListener('click', (e: Event) => {
+    const btn = (e.target as HTMLElement).closest('.msg-copy-btn') as HTMLButtonElement | null;
+    if (!btn) return;
+    const msgDiv = btn.closest('.message.assistant');
+    const contentEls = msgDiv?.querySelectorAll('.message-content, .stream-event-text');
+    const text = Array.from(contentEls || [])
+      .map((el) => el.textContent || '')
+      .join('\n\n')
+      .trim();
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      btn.classList.add('copied');
+      setTimeout(() => btn.classList.remove('copied'), 2000);
+    });
+  });
   this.elements.scrollToLatestBtn?.addEventListener('click', () => this.scrollToBottom({ force: true }));
 
   // Note: Profile editor handlers are in event-handlers/profile.ts

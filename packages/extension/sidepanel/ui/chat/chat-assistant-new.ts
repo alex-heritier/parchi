@@ -1,5 +1,6 @@
 import { dedupeThinking } from '../../../ai/messages/utils.js';
 import type { SidePanelUI } from '../core/panel-ui.js';
+import { COPY_ICON } from './markdown-highlighter.js';
 
 export function renderNewAssistantMessage(
   self: SidePanelUI,
@@ -56,6 +57,8 @@ function buildMessageHtml(
   if (reportImagesHtml) {
     html += reportImagesHtml;
   }
+
+  html += `<button class="msg-copy-btn" type="button" title="Copy response">${COPY_ICON}</button>`;
 
   return html;
 }

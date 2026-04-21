@@ -1,5 +1,6 @@
 import { dedupeThinking } from '../../../ai/messages/utils.js';
 import type { SidePanelUI } from '../core/panel-ui.js';
+import { COPY_ICON } from './markdown-highlighter.js';
 
 export function renderStreamedContainer(
   self: SidePanelUI,
@@ -24,6 +25,16 @@ export function renderStreamedContainer(
 
   if (streamEventsEl) {
     finalizeStreamEvents(self, streamEventsEl, content, buildReportImagesHtml);
+  }
+
+  // Add copy button at the bottom of the assistant message
+  if (!streamedContainer.querySelector('.msg-copy-btn')) {
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'msg-copy-btn';
+    copyBtn.type = 'button';
+    copyBtn.title = 'Copy response';
+    copyBtn.innerHTML = COPY_ICON;
+    streamedContainer.appendChild(copyBtn);
   }
 
   self.scrollToBottom();

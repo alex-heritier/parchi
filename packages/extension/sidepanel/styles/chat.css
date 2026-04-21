@@ -687,6 +687,38 @@ body.sidebar-open .context-inspector-popover {
   margin-bottom: 2px;
 }
 
+/* Copy button for full assistant response */
+.msg-copy-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.message.assistant:hover .msg-copy-btn,
+.msg-copy-btn:focus-visible {
+  opacity: 1;
+}
+
+.msg-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--foreground);
+}
+
+.msg-copy-btn.copied {
+  color: var(--success);
+  opacity: 1;
+}
+
 /* ============================================================================
    Message Content — Typography
    ============================================================================ */
