@@ -1,7 +1,8 @@
 {
   "manifest_version": 3,
+  "minimum_chrome_version": "120",
   "name": "Parchi",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "Warm-paper browser automation assistant with configurable LLM/vision profiles and enterprise-ready controls",
   "permissions": [
     "sidePanel",
@@ -12,7 +13,8 @@
     "debugger",
     "identity",
     "storage",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "userScripts"
   ],
   "host_permissions": [
     "<all_urls>",
@@ -34,8 +36,14 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+  "sandbox": {
+    "pages": [
+      "sandbox/sandbox.html"
+    ]
+  },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
+    "extension_pages": "script-src 'self'; object-src 'self'",
+    "sandbox": "sandbox allow-scripts allow-modals; default-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net/ https://unpkg.com/ https://cdnjs.cloudflare.com/ https://esm.sh/ https://esm.run/ https://cdn.skypack.dev/; script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net/ https://unpkg.com/ https://cdnjs.cloudflare.com/ https://esm.sh/ https://esm.run/ https://cdn.skypack.dev/; connect-src https://cdn.jsdelivr.net/ https://unpkg.com/ https://cdnjs.cloudflare.com/ https://esm.sh/ https://esm.run/ https://cdn.skypack.dev/ https://t1.gstatic.com/; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net/ https://cdnjs.cloudflare.com/; img-src 'self' data: blob: https:; font-src 'self' data: https://cdn.jsdelivr.net/ https://cdnjs.cloudflare.com/; object-src 'none'; base-uri 'none'; form-action 'none'"
   },
   "content_scripts": [
     {

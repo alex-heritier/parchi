@@ -1301,7 +1301,7 @@ body.sidebar-open .context-inspector-popover {
   position: relative;
   padding: 6px 0 6px 12px;
   margin: 0;
-  background: transparent;
+  background: linear-gradient(90deg, rgb(var(--accent-rgb) / 0.05), transparent 30%);
   border: none;
   overflow: visible;
 }
@@ -1411,10 +1411,6 @@ body.sidebar-open .context-inspector-popover {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.step-block.current {
-  background: linear-gradient(90deg, rgb(var(--accent-rgb) / 0.05), transparent 30%);
 }
 
 .stream-event {

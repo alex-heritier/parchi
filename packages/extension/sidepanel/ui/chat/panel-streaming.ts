@@ -103,10 +103,14 @@ sidePanelProto.updateStreamingMessage = function updateStreamingMessage(content:
   }
   if (!this.streamingState?.eventsEl) return;
 
-  if (this.streamingState.lastEventType !== 'text') {
+  const textTarget = (this.stepTimeline?.activeStepBody as HTMLElement | null) || this.streamingState.eventsEl;
+  const existingTextEl = this.streamingState.textEventEl;
+  const needNewTextEl =
+    this.streamingState.lastEventType !== 'text' || !existingTextEl || existingTextEl.parentElement !== textTarget;
+  if (needNewTextEl) {
     const textEvent = document.createElement('div');
     textEvent.className = 'stream-event stream-event-text';
-    this.streamingState.eventsEl.appendChild(textEvent);
+    textTarget.appendChild(textEvent);
     this.streamingState.textEventEl = textEvent;
     this.streamingState.textBuffer = '';
     this.streamingState.lastEventType = 'text';
@@ -161,7 +165,7 @@ sidePanelProto.updateStreamReasoning = function updateStreamReasoning(delta: str
   if (delta === null || delta === undefined) return;
   if (!delta.trim() && !this.streamingState.reasoningBuffer) return;
 
-  const targetContainer = this.streamingState.eventsEl;
+  const targetContainer = (this.stepTimeline?.activeStepBody as HTMLElement | null) || this.streamingState.eventsEl;
 
   let reasoningContentEl = targetContainer.querySelector(
     ':scope > .stream-event-reasoning .stream-reasoning-content',
